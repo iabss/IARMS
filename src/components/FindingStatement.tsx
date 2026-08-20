@@ -30,8 +30,9 @@ import {
 } from 'lucide-react';
 import { AFSFindingRecord } from '../types';
 import rawSheetData from '../data/sheetData.json';
-import { getMergedSheetRows, getProjectLinkConfigs } from '../data/dataSyncManager';
+import { getMergedSheetRows, getProjectLinkConfigs, saveEntireDataset } from '../data/dataSyncManager';
 import { parseDepartments, getRecordDepartments, matchesDepartmentRecord } from '../utils/deptHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
 interface FindingStatementProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -335,7 +336,13 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
           ? configuredProjectSet.has((item["PROJECT AUDIT"] || '').trim().toUpperCase())
           : item["PROJECT AUDIT"] === selectedProject;
       const matchesSite = selectedSite === 'ALL' || item.SITE === selectedSite;
-      const matchesStatus = selectedStatus === 'ALL' || (item.STATUS || '').toUpperCase() === selectedStatus;
+      const matchesStatus = selectedStatus === 'ALL'
+        ? true
+        : selectedStatus === 'CLOSE'
+          ? isStatusClosed(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"])
+          : selectedStatus === 'OPEN'
+            ? isStatusOpen(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"])
+            : isStatusProgress(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
       const matchesCategory = selectedCategory === 'ALL' || (item.KATEGORI || '').toUpperCase() === selectedCategory;
 
       const matchesNo = !colFilterNo || String(item.NO || '').toLowerCase().includes(colFilterNo.toLowerCase());
@@ -414,23 +421,33 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
   };
 
   const handleIaReviewChange = (rowId: number, value: string) => {
-    setData(prev => prev.map(item => {
-      if (item._rowId === rowId) {
-        const isApprove = value.toLowerCase() === 'approve';
-        const newStatus = isApprove ? 'CLOSE' : 'OPEN';
-        const newRemarks = isApprove ? 'DONE' : (item.REMARKS === 'DONE' ? 'OVERDUE' : item.REMARKS);
-        return { 
-          ...item, 
-          "REVIEWED CLOSING FROM IA": value,
-          STATUS: newStatus,
-          REMARKS: newRemarks
-        };
-      }
-      return item;
-    }));
+    let updatedRows: AFSFindingRecord[] = [];
+    setData(prev => {
+      const next = prev.map(item => {
+        if (item._rowId === rowId) {
+          const isApprove = value.toLowerCase() === 'approve';
+          const newStatus = isApprove ? 'CLOSE' : 'OPEN';
+          const newRemarks = isApprove ? 'DONE' : (item.REMARKS === 'DONE' ? 'OVERDUE' : item.REMARKS);
+          return { 
+            ...item, 
+            "REVIEWED CLOSING FROM IA": value,
+            STATUS: newStatus,
+            REMARKS: newRemarks
+          };
+        }
+        return item;
+      });
+      updatedRows = next;
+      return next;
+    });
+
+    if (updatedRows.length > 0) {
+      saveEntireDataset(updatedRows, `Review IA Row #${rowId}`);
+    }
+
     if (value) {
       if (value === 'Approve') {
-        onToast(`Review IA: 'Approve' — Status temuan otomatis berubah menjadi CLOSE`, 'success');
+        onToast(`Review IA: 'Approve' — Status temuan otomatis berubah menjadi CLOSE & dashboard terupdate!`, 'success');
       } else {
         onToast(`Review IA: '${value}' — Status temuan dikembalikan ke OPEN`, 'warning');
       }
@@ -483,8 +500,10 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
   const handleDelete = (rowId: number) => {
     if (confirm('Apakah Anda yakin ingin menghapus data temuan ini?')) {
-      setData(prev => prev.filter(item => item._rowId !== rowId));
-      onToast('Data temuan audit berhasil dihapus', 'warning');
+      const next = data.filter(item => item._rowId !== rowId);
+      setData(next);
+      saveEntireDataset(next, `Hapus Temuan Row #${rowId}`);
+      onToast('Data temuan audit berhasil dihapus & dashboard disinkronkan', 'warning');
     }
   };
 
@@ -492,7 +511,7 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
     e.preventDefault();
     if (editingItem) {
       // Edit existing
-      setData(prev => prev.map(item => {
+      const next = data.map(item => {
         if (item._rowId === editingItem._rowId) {
           return {
             ...item,
@@ -515,8 +534,10 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
           };
         }
         return item;
-      }));
-      onToast('Data temuan audit berhasil diperbarui', 'success');
+      });
+      setData(next);
+      saveEntireDataset(next, `Edit Temuan ${formNo}`);
+      onToast('Data temuan audit berhasil diperbarui & dashboard disinkronkan', 'success');
     } else {
       // Create new
       const maxRowId = data.length > 0 ? Math.max(...data.map(d => d._rowId)) : 1;
@@ -539,8 +560,10 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
         "REVIEWED CLOSING FROM IA": formIaReview,
         NOTE: formNote
       };
-      setData(prev => [newItem, ...prev]);
-      onToast('Temuan audit baru berhasil ditambahkan', 'success');
+      const next = [newItem, ...data];
+      setData(next);
+      saveEntireDataset(next, `Tambah Temuan Baru ${formNo}`);
+      onToast('Temuan audit baru berhasil ditambahkan & dashboard disinkronkan', 'success');
     }
 
     setIsModalOpen(false);

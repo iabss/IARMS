@@ -11,7 +11,7 @@ const STORAGE_KEY_SNAPSHOTS = 'afs_achievement_snapshots_v2';
 export interface SyncMetadata {
   lastSyncTimestamp: string | null;
   syncedProject: string;
-  sourceType: 'url' | 'paste' | 'file' | 'initial';
+  sourceType: 'url' | 'paste' | 'file' | 'initial' | 'manual';
   totalSyncedRows: number;
   sheetUrl?: string;
 }
@@ -133,7 +133,7 @@ export function deduplicateRows(rows: AFSFindingRecord[]): AFSFindingRecord[] {
   return result;
 }
 
-// Deduplicate project link configs by project name + site name + year composite key
+// Deduplicate project link configs by id or unique sheetUrl / composite key
 export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): ProjectLinkConfig[] {
   if (!Array.isArray(configs)) return [];
   
@@ -144,14 +144,15 @@ export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): Project
     const projName = c.projectName.trim().toUpperCase();
     const siteName = (c.siteName || 'HEAD OFFICE').trim().toUpperCase();
     const yearVal = c.year ? String(c.year).trim() : undefined;
-    const key = c.id || getProjectCompositeKey(projName, siteName, yearVal);
+    // Prefer distinct id if provided, else unique sheetUrl, else composite key
+    const key = c.id || (c.sheetUrl && c.sheetUrl.trim() ? `${projName}|${siteName}|${yearVal || ''}|${c.sheetUrl.trim()}` : getProjectCompositeKey(projName, siteName, yearVal));
 
     const existing = map.get(key);
 
     if (!existing) {
       map.set(key, {
         ...c,
-        id: key,
+        id: c.id || key,
         projectName: projName,
         siteName: siteName,
         year: yearVal,
@@ -166,7 +167,7 @@ export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): Project
       map.set(key, {
         ...existing,
         ...c,
-        id: key,
+        id: c.id || existing.id || key,
         projectName: projName,
         siteName: siteName,
         year: yearVal !== undefined ? yearVal : existing.year,
@@ -230,7 +231,19 @@ export function getMergedSheetRows(): AFSFindingRecord[] {
     baseRows = deduplicateRows(sanitizeRows((rawSheetData.rows || []) as AFSFindingRecord[]));
   }
 
-  if (deletedKeys.size === 0) return baseRows;
+  // If user has saved custom project links, only keep rows matching configured project names/sites
+  const rawSavedLinks = localStorage.getItem(STORAGE_KEY_PROJECT_LINKS);
+  let allowedProjectNames: Set<string> | null = null;
+  if (rawSavedLinks) {
+    try {
+      const parsedConfigs: ProjectLinkConfig[] = JSON.parse(rawSavedLinks);
+      if (Array.isArray(parsedConfigs) && parsedConfigs.length > 0) {
+        allowedProjectNames = new Set(parsedConfigs.map(c => (c.projectName || '').trim().toUpperCase()).filter(Boolean));
+      }
+    } catch (e) {
+      console.warn('Error reading saved links for row filtering:', e);
+    }
+  }
 
   return baseRows.filter(r => {
     if (!r) return false;
@@ -241,6 +254,12 @@ export function getMergedSheetRows(): AFSFindingRecord[] {
 
     if (deletedKeys.has(projName)) return false;
     if (deletedKeys.has(compositeKey)) return false;
+
+    // Filter out unlinked demo projects if user has configured custom project links
+    if (allowedProjectNames && allowedProjectNames.size > 0) {
+      if (!allowedProjectNames.has(projName)) return false;
+    }
+
     return true;
   });
 }
@@ -367,6 +386,41 @@ export function saveSyncedRows(
   }
 }
 
+// Directly persist and broadcast changes to the entire dataset (e.g. from inline edits, manual adds, or status changes)
+export function saveEntireDataset(rows: AFSFindingRecord[], actionDescription = 'Update Dataset Manual'): boolean {
+  try {
+    localStorage.removeItem(STORAGE_KEY_CLEARED);
+    const sanitized = sanitizeRows(rows);
+
+    try {
+      localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('LocalStorage error in saveEntireDataset:', e);
+      return false;
+    }
+
+    const syncMeta: SyncMetadata = {
+      lastSyncTimestamp: new Date().toISOString(),
+      syncedProject: 'MANUAL_UPDATE',
+      sourceType: 'manual',
+      totalSyncedRows: sanitized.length,
+    };
+
+    try {
+      localStorage.setItem(STORAGE_KEY_META, JSON.stringify(syncMeta));
+    } catch (e) {
+      // benign
+    }
+
+    recordAchievementSnapshot(actionDescription, 'manual');
+    window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { syncMeta, merged: sanitized } }));
+    return true;
+  } catch (err) {
+    console.error('Error in saveEntireDataset:', err);
+    return false;
+  }
+}
+
 // In-memory cache for project link configs to guarantee zero data loss during session or quota limits
 let inMemoryProjectConfigs: ProjectLinkConfig[] | null = null;
 
@@ -488,30 +542,32 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     id: c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)
   }));
 
-  // 4. Auto-discover projects existing in current merged dataset so synced projects never disappear
+  // 4. Auto-discover projects ONLY if user has NOT configured custom project links
   const currentMerged = getMergedSheetRows();
-  const existingKeys = new Set(configs.map(c => c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)));
+  if (!hasSavedLinksInStorage) {
+    const existingKeys = new Set(configs.map(c => c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)));
 
-  currentMerged.forEach(r => {
-    const projName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
-    const siteName = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
-    const yearVal = r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '';
-    const compositeKey = getProjectCompositeKey(projName, siteName, yearVal);
+    currentMerged.forEach(r => {
+      const projName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+      const siteName = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
+      const yearVal = r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '';
+      const compositeKey = getProjectCompositeKey(projName, siteName, yearVal);
 
-    if (projName && !existingKeys.has(compositeKey) && !deletedKeys.has(projName) && !deletedKeys.has(compositeKey)) {
-      existingKeys.add(compositeKey);
-      configs.push({
-        id: compositeKey,
-        projectName: projName,
-        siteName: siteName,
-        year: yearVal || undefined,
-        sheetUrl: '',
-        lastSyncedAt: new Date().toISOString(),
-        rowCount: 0,
-        status: 'synced'
-      });
-    }
-  });
+      if (projName && !existingKeys.has(compositeKey) && !deletedKeys.has(projName) && !deletedKeys.has(compositeKey)) {
+        existingKeys.add(compositeKey);
+        configs.push({
+          id: compositeKey,
+          projectName: projName,
+          siteName: siteName,
+          year: yearVal || undefined,
+          sheetUrl: '',
+          lastSyncedAt: new Date().toISOString(),
+          rowCount: 0,
+          status: 'synced'
+        });
+      }
+    });
+  }
 
   // Reconcile rowCount & status dynamically
   const reconciled = configs.map(c => {
@@ -548,16 +604,19 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig) {
     const targetName = (config.projectName || '').trim().toUpperCase();
     const targetSite = (config.siteName || '').trim().toUpperCase();
     const targetYear = config.year ? String(config.year).trim() : undefined;
-    const targetKey = config.id || getProjectCompositeKey(targetName, targetSite, targetYear);
+    const targetId = config.id || (config.sheetUrl && config.sheetUrl.trim() ? `proj_${targetName}_${targetSite}_${encodeURIComponent(config.sheetUrl.trim().slice(-20))}` : getProjectCompositeKey(targetName, targetSite, targetYear));
+    const targetKey = getProjectCompositeKey(targetName, targetSite, targetYear);
 
     // Remove from deleted list if explicitly saved/re-added by user
     removeDeletedProjectKey(targetKey, targetName);
+    if (config.id) removeDeletedProjectKey(config.id);
 
     const configs = getProjectLinkConfigs();
 
     const existingIndex = configs.findIndex(c => {
-      const cKey = c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year);
       if (config.id && c.id) return c.id === config.id;
+      if (config.sheetUrl && c.sheetUrl && config.sheetUrl.trim() === c.sheetUrl.trim()) return true;
+      const cKey = c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year);
       return cKey === targetKey;
     });
 
@@ -566,10 +625,9 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig) {
       configs[existingIndex] = {
         ...existing,
         ...config,
-        id: targetKey,
+        id: existing.id || targetId,
         projectName: targetName,
         year: targetYear !== undefined ? targetYear : existing.year,
-        // Preserve existing sheetUrl if new config doesn't supply one or supplies empty string in generic update
         sheetUrl: (config.sheetUrl !== undefined && config.sheetUrl !== null)
           ? config.sheetUrl 
           : existing.sheetUrl,
@@ -581,7 +639,7 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig) {
     } else {
       configs.push({
         ...config,
-        id: targetKey,
+        id: targetId,
         projectName: targetName,
         siteName: targetSite || 'HEAD OFFICE',
         year: targetYear,
@@ -593,6 +651,35 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig) {
     }
 
     safeSaveProjectLinks(configs);
+
+    // If a year is defined, propagate this year to matching rows in localStorage as well
+    if (targetYear) {
+      const customRows = getCustomSyncedRows();
+      if (customRows && customRows.length > 0) {
+        let modified = false;
+        const updated = customRows.map(r => {
+          const rProj = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+          const rSite = (r['SITE'] || '').trim().toUpperCase();
+          const projMatches = rProj === targetName || targetName.includes(rProj) || rProj.includes(targetName);
+          const siteMatches = !targetSite || targetSite === 'HEAD OFFICE' || rSite === targetSite || targetName.includes(rSite);
+
+          if (projMatches && siteMatches) {
+            modified = true;
+            return {
+              ...r,
+              'PERIODE AUDIT': targetYear
+            };
+          }
+          return r;
+        });
+
+        if (modified) {
+          localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged: updated } }));
+        }
+      }
+    }
+
     window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: configs }));
   } catch (err) {
     console.error('Error saving project link config:', err);

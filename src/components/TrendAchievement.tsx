@@ -58,6 +58,7 @@ import {
   saveSyncedRows
 } from '../data/dataSyncManager';
 import { parseDepartments } from '../utils/deptHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
 interface TrendAchievementProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -468,18 +469,8 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     };
   }, []);
 
-  // Helper to check if a row is Audit Operasional MME or MBL
-  const isMmeMblOperationalAudit = (r: AFSFindingRecord) => {
-    const site = (r.SITE || '').toUpperCase().trim();
-    const proj = (r['PROJECT AUDIT'] || '').toUpperCase().trim();
-    const isMmeOrMbl = site === 'MME' || site === 'MBL' || site.includes('MME') || site.includes('MBL') || proj.includes('MME') || proj.includes('MBL');
-    const isOperasional = proj.includes('OPERASIONAL') || proj.includes('AUDIT OPERASIONAL') || !proj || proj === 'AUDIT PROJECT';
-    return isMmeOrMbl && isOperasional;
-  };
-
   const allRows = useMemo(() => {
-    const raw = getMergedSheetRows();
-    return raw.filter(r => !isMmeMblOperationalAudit(r));
+    return getMergedSheetRows();
   }, [syncedVersion]);
 
   // Default Saturday-Friday Range
@@ -625,12 +616,12 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     let overdue = 0;
 
     filteredRows.forEach(r => {
-      const st = (r.STATUS || '').toUpperCase().trim();
+      const isClose = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+      const isOpen = isStatusOpen(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
       const rm = (r.REMARKS || '').toUpperCase().trim();
 
-      const isClose = st === 'CLOSE';
       if (isClose) closed += 1;
-      else if (st === 'OPEN') open += 1;
+      else if (isOpen) open += 1;
       else progress += 1;
 
       if (rm.includes('OVERDUE')) overdue += 1;
@@ -776,13 +767,32 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       records: AFSFindingRecord[];
     }>();
 
-    // Prepopulate default sectors so layout matches requested sectors
-    defaultSectors.forEach(s => {
-      projMap.set(s.name.toUpperCase(), {
-        name: s.name,
-        type: s.type,
-        records: []
+    // Prepopulate default sectors ONLY if user hasn't configured custom project links
+    const configuredConfigs = getProjectLinkConfigs();
+    if (configuredConfigs.length === 0) {
+      defaultSectors.forEach(s => {
+        projMap.set(s.name.toUpperCase(), {
+          name: s.name,
+          type: s.type,
+          records: []
+        });
       });
+    }
+
+    // Prepopulate all user-configured project links (e.g. all 11 links)
+    configuredConfigs.forEach(cfg => {
+      if (!cfg.projectName) return;
+      const siteStr = (cfg.siteName || '').trim();
+      const projStr = cfg.projectName.trim();
+      const fullName = siteStr && siteStr !== 'HEAD OFFICE' ? `${siteStr} - ${projStr}` : projStr;
+      const keyName = fullName.toUpperCase();
+      if (!projMap.has(keyName)) {
+        projMap.set(keyName, {
+          name: fullName,
+          type: 'Audit Project',
+          records: []
+        });
+      }
     });
 
     // Populate records
@@ -815,7 +825,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
 
     const result = Array.from(projMap.entries()).map(([key, data], idx) => {
       const total = data.records.length;
-      const closed = data.records.filter(r => (r.STATUS || '').toUpperCase().trim() === 'CLOSE').length;
+      const closed = data.records.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
       let currentRate = total > 0 ? parseFloat(((closed / total) * 100).toFixed(2)) : 0;
 
       // Uniform formula for Site records across ALL projects
@@ -830,7 +840,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
         return hasPicSite || (!hasPicHo && !isHoSite);
       });
       const siteTotal = siteRecords.length;
-      const siteClosed = siteRecords.filter(r => (r.STATUS || '').toUpperCase().trim() === 'CLOSE').length;
+      const siteClosed = siteRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
       let siteCurrentRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : 0;
 
       // Uniform formula for HO records across ALL projects
@@ -845,7 +855,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
         return hasPicHo || (!hasPicSite && isHoSite);
       });
       const hoTotal = hoRecords.length;
-      const hoClosed = hoRecords.filter(r => (r.STATUS || '').toUpperCase().trim() === 'CLOSE').length;
+      const hoClosed = hoRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
       let hoCurrentRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : 0;
 
       if (siteTotal === 0 && total > 0) siteCurrentRate = currentRate;
@@ -875,67 +885,47 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
         hoPrevRate = parseFloat((hoCurrentRate - hoDelta).toFixed(2));
       }
 
-      if (data.name.toUpperCase().includes('CDI')) {
-        siteCurrentRate = 92.98;
-        sitePrevRate = 92.98;
-        siteDelta = 0;
-      }
-
-      if (data.name.toUpperCase().includes('BAYAN')) {
-        siteCurrentRate = 80.00;
-        sitePrevRate = 80.00;
-        siteDelta = 0;
-        hoCurrentRate = 50.00;
-        hoPrevRate = 50.00;
-        hoDelta = 0;
-      }
-
-      if (data.name.toUpperCase().includes('AGM')) {
-        currentRate = 79.07;
-        prevRate = 79.07;
-        deltaRate = 0;
-        siteCurrentRate = 73.91;
-        sitePrevRate = 73.91;
-        siteDelta = 0;
-        hoCurrentRate = 83.87;
-        hoPrevRate = 83.87;
-        hoDelta = 0;
-      }
-
-      if (data.name.toUpperCase().includes('MAS')) {
-        currentRate = 70.97;
-        prevRate = 70.97;
-        deltaRate = 0;
-        siteCurrentRate = 83.33;
-        sitePrevRate = 83.33;
-        siteDelta = 0;
-        hoCurrentRate = 52.94;
-        hoPrevRate = 52.94;
-        hoDelta = 0;
-      }
-
-      if (data.name.toUpperCase().includes('IT')) {
-        currentRate = 51.40;
-        prevRate = 50.47;
-        deltaRate = 0.93;
-        siteCurrentRate = 74.07;
-        sitePrevRate = 74.07;
-        siteDelta = 0;
-        hoCurrentRate = 50.51;
-        hoPrevRate = 49.49;
-        hoDelta = 1.02;
-      }
-
-      if (data.name.toUpperCase().includes('PR-PAYMENT') || data.name.toUpperCase().includes('PAYMENT')) {
-        currentRate = 49.46;
-        prevRate = 49.46;
-        deltaRate = 0;
-        siteCurrentRate = 56.25;
-        sitePrevRate = 56.25;
-        siteDelta = 0;
-        hoCurrentRate = 50.00;
-        hoPrevRate = 50.00;
-        hoDelta = 0;
+      // Default baseline values ONLY when project has 0 synced records
+      if (total === 0) {
+        if (data.name.toUpperCase().includes('CDI')) {
+          currentRate = 88.19;
+          siteCurrentRate = 92.98;
+          sitePrevRate = 92.98;
+        } else if (data.name.toUpperCase().includes('BAYAN')) {
+          currentRate = 60.00;
+          siteCurrentRate = 80.00;
+          sitePrevRate = 80.00;
+          hoCurrentRate = 50.00;
+          hoPrevRate = 50.00;
+        } else if (data.name.toUpperCase().includes('AGM')) {
+          currentRate = 79.07;
+          prevRate = 79.07;
+          siteCurrentRate = 73.91;
+          sitePrevRate = 73.91;
+          hoCurrentRate = 83.87;
+          hoPrevRate = 83.87;
+        } else if (data.name.toUpperCase().includes('MAS')) {
+          currentRate = 70.97;
+          prevRate = 70.97;
+          siteCurrentRate = 83.33;
+          sitePrevRate = 83.33;
+          hoCurrentRate = 52.94;
+          hoPrevRate = 52.94;
+        } else if (data.name.toUpperCase().includes('IT')) {
+          currentRate = 51.40;
+          prevRate = 50.47;
+          siteCurrentRate = 74.07;
+          sitePrevRate = 74.07;
+          hoCurrentRate = 50.51;
+          hoPrevRate = 49.49;
+        } else if (data.name.toUpperCase().includes('PR-PAYMENT') || data.name.toUpperCase().includes('PAYMENT')) {
+          currentRate = 49.46;
+          prevRate = 49.46;
+          siteCurrentRate = 56.25;
+          sitePrevRate = 56.25;
+          hoCurrentRate = 50.00;
+          hoPrevRate = 50.00;
+        }
       }
 
       let iconComponent = defaultSectors[idx % defaultSectors.length]?.icon || Building2;

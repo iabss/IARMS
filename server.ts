@@ -244,6 +244,14 @@ function parseCsvRows(text: string, defaultProject = 'PR-PAYMENT') {
     const reviewedIa = findVal(values, ['REVIEWED CLOSING FROM IA', 'REVIEW IA', 'VERIFIKASI IA']);
     const note = findVal(values, ['NOTE', 'CATATAN', 'KETERANGAN TAMBAHAN']);
 
+    // Extract Year
+    const rawYear = findVal(values, ['PERIODE AUDIT', 'PERIODE', 'TAHUN', 'YEAR', 'TANGGAL AUDIT', 'TAHUN PELAKSANAAN']);
+    let finalYear = rawYear;
+    if (!finalYear) {
+      const matchDoc = (`${docTemuan} ${dueDate} ${problem}`).match(/\b(202[0-9])\b/);
+      finalYear = matchDoc ? matchDoc[1] : '2026';
+    }
+
     // Skip empty lines or header repetitions that don't have problem or rekomendasi or no
     if (!no && !problem && !rekomendasi) continue;
     if (no.toUpperCase() === 'NO' || problem.toUpperCase() === 'PROBLEM/FINDING') continue;
@@ -253,6 +261,7 @@ function parseCsvRows(text: string, defaultProject = 'PR-PAYMENT') {
       NO: no || String(parsedRows.length + 1),
       'PROJECT AUDIT': proj,
       SITE: site,
+      'PERIODE AUDIT': finalYear,
       ...(dept ? { DEPARTMENT: dept } : {}),
       'PROBLEM/FINDING': problem || 'Temuan Audit',
       'DETAIL TEMUAN': detail,

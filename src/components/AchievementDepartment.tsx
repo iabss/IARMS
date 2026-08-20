@@ -23,6 +23,7 @@ import {
 import { AFSFindingRecord } from '../types';
 import { getMergedSheetRows } from '../data/dataSyncManager';
 import { parseDepartments, getRecordDepartments } from '../utils/deptHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
 interface AchievementDepartmentProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -118,9 +119,8 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
     filteredRows.forEach(r => {
       const uniqueDepts = getRecordDepartments(r, deptTypeFilter);
 
-      const st = (r.STATUS || '').toUpperCase().trim();
-      const isClose = st === 'CLOSE';
-      const isOpen = st === 'OPEN';
+      const isClose = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+      const isOpen = isStatusOpen(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
       const isOverdue = (r.REMARKS || '').toUpperCase().includes('OVERDUE');
 
       const kat = (r.KATEGORI || '').toUpperCase().trim();

@@ -268,7 +268,9 @@ export default function GoogleSheetSyncModal({
     const formattedSite = newProjectSite.trim().toUpperCase() || 'HEAD OFFICE';
     const formattedYear = newProjectYear.trim();
 
+    const uniqueId = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     saveProjectLinkConfig({
+      id: uniqueId,
       projectName: formattedProj,
       siteName: formattedSite,
       year: formattedYear,

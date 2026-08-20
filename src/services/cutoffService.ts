@@ -17,6 +17,14 @@ import {
 
 let isCutoffRunning = false;
 
+// Helper to get local date formatted as YYYY-MM-DD
+export function getLocalFormattedDate(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Execute the 00:00 Daily Cutoff snapshot & Google Drive cloud backup
 export async function runDailyCutoffProcess(
   isManual: boolean = false,
@@ -28,7 +36,7 @@ export async function runDailyCutoffProcess(
 
   isCutoffRunning = true;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = getLocalFormattedDate(now);
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const config = getDailyCutoffConfig();
 
@@ -131,29 +139,36 @@ export async function runDailyCutoffProcess(
 
 // Background Scheduler: checks every 30 seconds if today's 00:00 cutoff should run
 export function initDailyCutoffScheduler(onNotify?: (msg: string, type: 'info' | 'success' | 'warning') => void) {
-  const checkInterval = setInterval(async () => {
+  const triggerCheck = async () => {
     const config = getDailyCutoffConfig();
     if (!config.enabled) return;
 
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalFormattedDate(now);
 
-    // If cutoff hasn't run for today, and local hour is 0 (or beyond 00:00)
+    // If cutoff hasn't run for today yet
     if (config.lastCutoffDate !== todayStr) {
-      // If current hour is 0 (00:00 - 00:59) OR it's a new day and previous day was missed
-      if (now.getHours() === (config.cutoffHour || 0)) {
-        try {
-          console.log(`[Daily Cutoff] Triggering automatic 00:00 cutoff for ${todayStr}...`);
-          const res = await runDailyCutoffProcess(false);
-          if (onNotify) {
-            onNotify(res.message, 'success');
-          }
-        } catch (e: any) {
-          console.error('[Daily Cutoff] Auto-execution error:', e);
+      try {
+        console.log(`[Daily Cutoff] Auto-executing daily cutoff for ${todayStr}...`);
+        const res = await runDailyCutoffProcess(false);
+        if (onNotify) {
+          onNotify(res.message, 'success');
         }
+      } catch (e: any) {
+        console.error('[Daily Cutoff] Auto-execution error:', e);
       }
     }
-  }, 30000); // check every 30 seconds
+  };
 
-  return () => clearInterval(checkInterval);
+  // Run initial check on app start
+  const initialTimer = setTimeout(() => {
+    triggerCheck();
+  }, 2500);
+
+  const checkInterval = setInterval(triggerCheck, 30000); // check every 30 seconds
+
+  return () => {
+    clearTimeout(initialTimer);
+    clearInterval(checkInterval);
+  };
 }

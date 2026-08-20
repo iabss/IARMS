@@ -28,6 +28,7 @@ import { AFSFindingRecord, PublicAuditItem } from '../types';
 import rawSheetData from '../data/sheetData.json';
 import { getMergedSheetRows, getProjectLinkConfigs } from '../data/dataSyncManager';
 import { isDepartment, parseDepartments } from '../utils/deptHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
 interface PublicPortalProps {
   publicAuditList?: PublicAuditItem[];
@@ -163,9 +164,11 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
     let overdue = 0;
 
     allRows.forEach(r => {
-      const st = (r.STATUS || '').toUpperCase().trim();
-      if (st === 'CLOSE') close += 1;
-      else if (st === 'OPEN') open += 1;
+      const isClosed = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+      const isOpen = isStatusOpen(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+
+      if (isClosed) close += 1;
+      else if (isOpen) open += 1;
       else progress += 1;
 
       const rm = (r.REMARKS || '').toUpperCase().trim();
@@ -203,6 +206,7 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       picHOs: Set<string>;
     }>();
 
+    // 1. Process all rows from the dataset matching active configured projects
     allRows.forEach((item: AFSFindingRecord) => {
       // Apply global category filter if chosen
       if (selectedKategoriFilter !== 'ALL') {
@@ -220,24 +224,55 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
         }
       }
 
+      // If user has configured specific project links, skip rows for unconfigured projects
+      if (configuredProjectConfigs.length > 0) {
+        const rowProj = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
+        const rowSite = (item.SITE || '').trim().toUpperCase();
+        const isMatchingConfig = configuredProjectConfigs.some(c => {
+          const cProj = (c.projectName || '').trim().toUpperCase();
+          const cSite = (c.siteName || '').trim().toUpperCase();
+          if (cProj === rowProj) {
+            if (!cSite || cSite === 'HEAD OFFICE' || cSite === 'JKT' || cSite === rowSite || rowProj.includes(cSite)) return true;
+          }
+          return false;
+        });
+        if (!isMatchingConfig) return;
+      }
+
       // Apply site filter if chosen
       if (selectedSiteFilter !== 'ALL' && (item.SITE || '').trim() !== selectedSiteFilter) return;
 
       const siteStr = (item.SITE || "N/A").trim();
       const scopeStr = (item["PROJECT AUDIT"] || "LAINNYA").trim();
 
-      // Extract Year from project configs or row
-      const rowYear = String(item["PERIODE AUDIT"] || item["TAHUN"] || item["YEAR"] || '').trim();
-
+      // Look up Year directly from user's configured AFS Project Card input
       const matchingConfig = configuredProjectConfigs.find(c => {
-        const pMatch = (c.projectName || '').trim().toUpperCase() === scopeStr.toUpperCase();
-        const sMatch = !c.siteName || c.siteName.trim().toUpperCase() === siteStr.toUpperCase();
-        const cYear = c.year ? String(c.year).trim() : '';
-        const yMatch = !rowYear || !cYear || cYear === rowYear;
-        return pMatch && sMatch && yMatch;
+        const cProj = (c.projectName || '').trim().toUpperCase();
+        const cSite = (c.siteName || '').trim().toUpperCase();
+        const rowProj = scopeStr.toUpperCase();
+        const rowSite = siteStr.toUpperCase();
+
+        if (cProj === rowProj && (cSite === rowSite || !cSite || cSite === 'HEAD OFFICE' || cSite === 'JKT')) return true;
+        if (cProj === rowProj) return true;
+        if (cProj.includes(rowProj) && (cProj.includes(rowSite) || cSite === rowSite)) return true;
+        if (rowProj.includes(cProj)) return true;
+        if (cSite === rowSite && c.year) return true;
+        return false;
       });
       const configYear = matchingConfig?.year ? String(matchingConfig.year).trim() : '';
-      const resolvedYear = rowYear || configYear;
+
+      // Row property (PERIODE AUDIT / TAHUN / YEAR)
+      let rowYear = String(item["PERIODE AUDIT"] || item["TAHUN"] || item["YEAR"] || '').trim();
+
+      if (!configYear && !rowYear) {
+        const combinedText = `${item["DOKUMENTASI TEMUAN"] || ''} ${item["DUE DATE"] || ''} ${item["PROBLEM/FINDING"] || ''} ${item["DOKUMENTASI CLOSING"] || ''}`;
+        const matchYear = combinedText.match(/\b(202[0-9])\b/);
+        if (matchYear) {
+          rowYear = matchYear[1];
+        }
+      }
+
+      const resolvedYear = configYear || rowYear || '2026';
 
       const key = groupByMode === 'jobsite_scope'
         ? `${siteStr.toUpperCase()}___${scopeStr.toUpperCase()}___${resolvedYear.toUpperCase()}`
@@ -273,13 +308,11 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
         entry.years.add(resolvedYear);
       }
 
-      const status = (item.STATUS || '').toUpperCase().trim();
-      const userRev = (item["REVIEWED CLOSING FROM USER"] || '').toUpperCase().trim();
-      const iaRev = (item["REVIEWED CLOSING FROM IA"] || '').toUpperCase().trim();
-      const dokClose = (item["DOKUMENTASI CLOSING"] || '').trim();
+      const isItemClosed = isStatusClosed(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
+      const isItemOpen = isStatusOpen(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
 
-      const isSiteClosed = status === 'CLOSE';
-      const isHOClosed = status === 'CLOSE';
+      const isSiteClosed = isItemClosed;
+      const isHOClosed = isItemClosed;
 
       const picSiteStr = (item["PIC SITE"] || '').trim();
       const picHOStr = (item["PIC HO"] || '').trim();
@@ -294,9 +327,9 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
         if (isHOClosed) entry.hoClose += 1;
       }
 
-      if (status === 'CLOSE') {
+      if (isItemClosed) {
         entry.close += 1;
-      } else if (status === 'OPEN') {
+      } else if (isItemOpen) {
         entry.open += 1;
       } else {
         entry.progress += 1;
@@ -325,19 +358,70 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       }
     });
 
+    // 2. Ensure ALL configured project links (including those with 0 rows or newly added links) exist in map
+    configuredProjectConfigs.forEach(cfg => {
+      const projName = (cfg.projectName || '').trim();
+      if (!projName) return;
+      const siteName = (cfg.siteName || 'HEAD OFFICE').trim();
+      const yearStr = cfg.year ? String(cfg.year).trim() : '2026';
+
+      // Check filters if active
+      if (selectedProjectFilter !== 'ALL') {
+        if (selectedProjectFilter !== 'LINKED_ONLY' && projName.toUpperCase() !== selectedProjectFilter.toUpperCase()) {
+          return;
+        }
+      }
+      if (selectedSiteFilter !== 'ALL' && siteName.toUpperCase() !== selectedSiteFilter.toUpperCase()) {
+        return;
+      }
+
+      const key = groupByMode === 'jobsite_scope'
+        ? `${siteName.toUpperCase()}___${projName.toUpperCase()}___${yearStr.toUpperCase()}`
+        : `${projName.toUpperCase()}___${yearStr.toUpperCase()}`;
+
+      if (!map.has(key)) {
+        const initialYears = new Set<string>();
+        if (yearStr) initialYears.add(yearStr);
+        const initialSites = new Set<string>();
+        if (siteName) initialSites.add(siteName);
+
+        map.set(key, {
+          siteName: siteName,
+          scopeAudit: projName,
+          years: initialYears,
+          total: cfg.rowCount || 0,
+          close: 0,
+          siteTotal: 0,
+          siteClose: 0,
+          hoTotal: 0,
+          hoClose: 0,
+          open: 0,
+          progress: 0,
+          overdue: 0,
+          major: 0,
+          minor: 0,
+          improvement: 0,
+          sites: initialSites,
+          picSites: new Set(),
+          picHOs: new Set(),
+        });
+      }
+    });
+
     const list: ProjectSummary[] = [];
     map.forEach((val, key) => {
       const closingRate = val.total > 0 ? (val.close / val.total) * 100 : 0;
       const achClosingSite = val.siteTotal > 0 ? (val.siteClose / val.siteTotal) * 100 : closingRate;
       const achClosingHO = val.hoTotal > 0 ? (val.hoClose / val.hoTotal) * 100 : closingRate;
       let achievementStatus: 'SELESAI' | 'PROGRESS' | 'ATTENTION' = 'PROGRESS';
-      if (closingRate >= 80) achievementStatus = 'SELESAI';
+      if (val.total === 0) achievementStatus = 'PROGRESS';
+      else if (closingRate >= 80) achievementStatus = 'SELESAI';
       else if (closingRate < 50) achievementStatus = 'ATTENTION';
 
       const uniqueSitesList = Array.from(new Set(Array.from(val.sites).map(s => s.trim())));
-      const displaySite = groupByMode === 'jobsite_scope' ? val.siteName : uniqueSitesList.join(', ');
+      const displaySite = groupByMode === 'jobsite_scope' ? val.siteName : (uniqueSitesList.length > 0 ? uniqueSitesList.join(', ') : val.siteName);
       const yearsArr = Array.from(val.years).filter(Boolean);
-      const displayYear = yearsArr.length > 0 ? yearsArr.join(', ') : '-';
+      const displayYear = yearsArr.length > 0 ? yearsArr.join(', ') : '2026';
 
       list.push({
         groupKey: key,

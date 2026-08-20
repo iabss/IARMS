@@ -24,7 +24,14 @@ import {
   UserCheck,
   Calendar,
   Zap,
-  Grid
+  Grid,
+  PlusCircle,
+  Plus,
+  Trash2,
+  Edit,
+  Save,
+  Check,
+  HelpCircle
 } from 'lucide-react';
 import { RiskRegisterItem } from '../types';
 import initialRiskData from '../data/riskRegisterData.json';
@@ -34,14 +41,76 @@ interface RiskRegisterProps {
   onToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
+const STORAGE_KEY_CUSTOM_RISKS = 'iarms_custom_risk_register_items';
 const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1i_UnpKnVYrG0PxKGTWXV0bgu7zGficLh/edit?gid=1293981214#gid=1293981214';
 const CSV_EXPORT_URL = 'https://docs.google.com/spreadsheets/d/1i_UnpKnVYrG0PxKGTWXV0bgu7zGficLh/export?format=csv&gid=1293981214';
 
+// Helper to calculate risk level based on likelihood and impact
+function calcRiskLevel(likelihoodStr?: string, impactStr?: string): 'Low' | 'Medium' | 'High' | 'Extreme' {
+  const l = parseInt(likelihoodStr || '2', 10) || 2;
+  const i = parseInt(impactStr || '2', 10) || 2;
+  const score = l * i;
+  if (score >= 16) return 'Extreme';
+  if (score >= 10) return 'High';
+  if (score >= 5) return 'Medium';
+  return 'Low';
+}
+
+const DEFAULT_FORM_STATE = {
+  no: '',
+  riskNumber: '',
+  site: 'HO',
+  department: 'OPERATIONAL',
+  companyObjective: '',
+  kpiObjective: '',
+  businessProcess: '',
+  activity: '',
+  riskDescription: '',
+  top10Risk: '0',
+  executiveCategory: 'OPERATIONAL',
+  lossEvent: '',
+
+  inherentLikelihood: '3',
+  inherentImpact: '3',
+  inherentRiskLevel: 'Medium',
+  inherentFinImpact: '',
+  inherentNotes: '',
+
+  controlDescription: '',
+  controlStatus: 'Active',
+  controlEffectiveness: 'Effective',
+
+  residualLikelihood: '2',
+  residualImpact: '2',
+  residualRiskLevel: 'Low',
+  residualFinImpact: '',
+  residualNotes: '',
+
+  treatmentPlan: '',
+  pic: '',
+  dueDate: '',
+  expectedRiskLevel: 'Low'
+};
+
 export default function RiskRegister({ onToast }: RiskRegisterProps) {
-  const [data, setData] = useState<RiskRegisterItem[]>(initialRiskData as RiskRegisterItem[]);
+  const [baseData, setBaseData] = useState<RiskRegisterItem[]>(initialRiskData as RiskRegisterItem[]);
+  const [customRisks, setCustomRisks] = useState<RiskRegisterItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_RISKS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('11/05/2026 (Embedded)');
   
+  // Manual Input Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingItemNumber, setEditingItemNumber] = useState<string | null>(null);
+  const [formData, setFormData] = useState(DEFAULT_FORM_STATE);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
@@ -53,6 +122,152 @@ export default function RiskRegister({ onToast }: RiskRegisterProps) {
 
   // Selected Detail Modal
   const [selectedRisk, setSelectedRisk] = useState<RiskRegisterItem | null>(null);
+
+  // Combined data: custom manual items at the top + base sheet data
+  const data = useMemo(() => {
+    return [...customRisks, ...baseData];
+  }, [customRisks, baseData]);
+
+  // Open add modal with fresh prefilled defaults
+  const handleOpenAddModal = (itemToEdit?: RiskRegisterItem) => {
+    if (itemToEdit) {
+      setEditingItemNumber(itemToEdit.riskNumber);
+      setFormData({
+        no: itemToEdit.no || '',
+        riskNumber: itemToEdit.riskNumber || '',
+        site: itemToEdit.site || 'HO',
+        department: itemToEdit.department || 'OPERATIONAL',
+        companyObjective: itemToEdit.companyObjective || '',
+        kpiObjective: itemToEdit.kpiObjective || '',
+        businessProcess: itemToEdit.businessProcess || '',
+        activity: itemToEdit.activity || '',
+        riskDescription: itemToEdit.riskDescription || '',
+        top10Risk: itemToEdit.top10Risk || '0',
+        executiveCategory: itemToEdit.executiveCategory || 'OPERATIONAL',
+        lossEvent: itemToEdit.lossEvent || '',
+
+        inherentLikelihood: itemToEdit.inherentLikelihood || '3',
+        inherentImpact: itemToEdit.inherentImpact || '3',
+        inherentRiskLevel: itemToEdit.inherentRiskLevel || 'Medium',
+        inherentFinImpact: itemToEdit.inherentFinImpact || '',
+        inherentNotes: itemToEdit.inherentNotes || '',
+
+        controlDescription: itemToEdit.controlDescription || '',
+        controlStatus: itemToEdit.controlStatus || 'Active',
+        controlEffectiveness: itemToEdit.controlEffectiveness || 'Effective',
+
+        residualLikelihood: itemToEdit.residualLikelihood || '2',
+        residualImpact: itemToEdit.residualImpact || '2',
+        residualRiskLevel: itemToEdit.residualRiskLevel || 'Low',
+        residualFinImpact: itemToEdit.residualFinImpact || '',
+        residualNotes: itemToEdit.residualNotes || '',
+
+        treatmentPlan: itemToEdit.treatmentPlan || '',
+        pic: itemToEdit.pic || '',
+        dueDate: itemToEdit.dueDate || '',
+        expectedRiskLevel: itemToEdit.expectedRiskLevel || 'Low'
+      });
+    } else {
+      setEditingItemNumber(null);
+      const nextNum = customRisks.length + 1;
+      setFormData({
+        ...DEFAULT_FORM_STATE,
+        no: String(nextNum),
+        riskNumber: `RR-MNL-${String(nextNum).padStart(3, '0')}`,
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
+    }
+    setIsAddModalOpen(true);
+  };
+
+  // Handle Save Manual Risk
+  const handleSaveManualRisk = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.riskDescription.trim()) {
+      onToast('Deskripsi risiko wajib diisi!', 'warning');
+      return;
+    }
+    if (!formData.department.trim()) {
+      onToast('Departemen wajib diisi!', 'warning');
+      return;
+    }
+
+    const calculatedInherent = calcRiskLevel(formData.inherentLikelihood, formData.inherentImpact);
+    const calculatedResidual = calcRiskLevel(formData.residualLikelihood, formData.residualImpact);
+
+    const newItem: RiskRegisterItem = {
+      no: formData.no || String(customRisks.length + 1),
+      riskNumber: formData.riskNumber || `RR-MNL-${Date.now().toString().slice(-4)}`,
+      site: formData.site.trim() || 'HO',
+      department: formData.department.trim().toUpperCase(),
+      companyObjective: formData.companyObjective.trim(),
+      kpiObjective: formData.kpiObjective.trim(),
+      businessProcess: formData.businessProcess.trim(),
+      activity: formData.activity.trim(),
+      riskDescription: formData.riskDescription.trim(),
+      top10Risk: formData.top10Risk,
+      executiveCategory: formData.executiveCategory,
+      lossEvent: formData.lossEvent.trim(),
+
+      inherentLikelihood: formData.inherentLikelihood,
+      inherentImpact: formData.inherentImpact,
+      inherentRiskLevel: formData.inherentRiskLevel || calculatedInherent,
+      inherentFinImpact: formData.inherentFinImpact.trim(),
+      inherentNotes: formData.inherentNotes.trim(),
+
+      controlDescription: formData.controlDescription.trim(),
+      controlStatus: formData.controlStatus,
+      controlEffectiveness: formData.controlEffectiveness,
+
+      residualLikelihood: formData.residualLikelihood,
+      residualImpact: formData.residualImpact,
+      residualRiskLevel: formData.residualRiskLevel || calculatedResidual,
+      residualFinImpact: formData.residualFinImpact.trim(),
+      residualNotes: formData.residualNotes.trim(),
+
+      treatmentPlan: formData.treatmentPlan.trim(),
+      pic: formData.pic.trim(),
+      dueDate: formData.dueDate,
+      expectedRiskLevel: formData.expectedRiskLevel
+    };
+
+    let updatedCustom: RiskRegisterItem[];
+    if (editingItemNumber) {
+      updatedCustom = customRisks.map(r => r.riskNumber === editingItemNumber ? newItem : r);
+      onToast(`Risiko ${newItem.riskNumber} berhasil diperbarui!`, 'success');
+    } else {
+      updatedCustom = [newItem, ...customRisks];
+      onToast(`Risiko baru ${newItem.riskNumber} berhasil ditambahkan secara manual!`, 'success');
+    }
+
+    setCustomRisks(updatedCustom);
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_RISKS, JSON.stringify(updatedCustom));
+    } catch (err) {
+      console.error('Failed to save custom risk to storage', err);
+    }
+
+    setIsAddModalOpen(false);
+    if (selectedRisk && selectedRisk.riskNumber === editingItemNumber) {
+      setSelectedRisk(newItem);
+    }
+  };
+
+  // Delete manual item
+  const handleDeleteManualRisk = (riskNumber: string) => {
+    if (!window.confirm(`Yakin ingin menghapus item risiko manual ${riskNumber}?`)) return;
+    const updated = customRisks.filter(r => r.riskNumber !== riskNumber);
+    setCustomRisks(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_RISKS, JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to update storage', err);
+    }
+    if (selectedRisk?.riskNumber === riskNumber) {
+      setSelectedRisk(null);
+    }
+    onToast(`Item risiko manual ${riskNumber} telah dihapus.`, 'info');
+  };
 
   // Sync Live Data from Google Sheet
   const handleSyncData = async () => {
@@ -162,7 +377,7 @@ export default function RiskRegister({ onToast }: RiskRegisterProps) {
       }
 
       if (fetchedItems.length > 0) {
-        setData(fetchedItems);
+        setBaseData(fetchedItems);
         const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
         setLastSyncTime(`Hari ini (${nowStr})`);
         onToast(`Sinkronisasi sukses! ${fetchedItems.length} item Risk Register diperbarui.`, 'success');
@@ -329,6 +544,15 @@ export default function RiskRegister({ onToast }: RiskRegisterProps) {
 
         {/* Sync & Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <button
+            onClick={() => handleOpenAddModal()}
+            className="flex-1 md:flex-none px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30 active:scale-95"
+            title="Input Item Risk Register Baru Secara Manual"
+          >
+            <PlusCircle className="w-4 h-4 text-emerald-100" />
+            <span>+ Input Risk Register Manual</span>
+          </button>
+
           <button
             onClick={handleSyncData}
             disabled={isLoading}
@@ -563,11 +787,18 @@ export default function RiskRegister({ onToast }: RiskRegisterProps) {
                     >
                       <td className="py-3 px-3 text-center font-semibold text-slate-500">{item.no}</td>
                       <td className="py-3 px-3 font-bold text-sky-700">
-                        <div className="flex items-center gap-1">
-                          <span>{item.riskNumber}</span>
-                          {item.top10Risk && item.top10Risk !== '0' && (
-                            <span className="p-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-extrabold" title="Top 10 Risk">
-                              T10
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1">
+                            <span>{item.riskNumber}</span>
+                            {item.top10Risk && item.top10Risk !== '0' && (
+                              <span className="p-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-extrabold" title="Top 10 Risk">
+                                T10
+                              </span>
+                            )}
+                          </div>
+                          {customRisks.some(c => c.riskNumber === item.riskNumber) && (
+                            <span className="inline-flex items-center w-fit px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
+                              Manual
                             </span>
                           )}
                         </div>
@@ -830,14 +1061,494 @@ export default function RiskRegister({ onToast }: RiskRegisterProps) {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <div>
+                  {customRisks.some(c => c.riskNumber === selectedRisk.riskNumber) && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const itemToEdit = selectedRisk;
+                          setSelectedRisk(null);
+                          handleOpenAddModal(itemToEdit);
+                        }}
+                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Data Manual</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteManualRisk(selectedRisk.riskNumber)}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setSelectedRisk(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   Tutup Evaluasi
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual Input / Edit Risk Register Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto"
+            >
+              {/* Header */}
+              <div className="p-5 bg-gradient-to-r from-emerald-950 via-slate-900 to-sky-950 text-white flex items-center justify-between border-b border-slate-700/60">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-400/30">
+                    <PlusCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-white">
+                      {editingItemNumber ? `Edit Item Risk Register (${editingItemNumber})` : 'Input Item Risk Register Manual'}
+                    </h3>
+                    <p className="text-xs text-slate-300">
+                      Tambahkan rincian profil risiko, penilaian inherent, kontrol eksisting, residual, dan mitigasi.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Content */}
+              <form onSubmit={handleSaveManualRisk} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-xs text-slate-700">
+                {/* 1. INFORMASI UMUM & IDENTITAS RISIKO */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold border-b border-emerald-100 pb-1.5">
+                    <ShieldAlert className="w-4 h-4 text-emerald-600" />
+                    <span className="uppercase tracking-wider text-[11px]">1. Identitas & Konteks Risiko</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Nomor / Kode Risiko <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.riskNumber}
+                        onChange={(e) => setFormData({ ...formData, riskNumber: e.target.value })}
+                        placeholder="Contoh: RR-2026-001"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Site / Lokasi <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.site}
+                        onChange={(e) => setFormData({ ...formData, site: e.target.value.toUpperCase() })}
+                        placeholder="HO, JKT, MME, AGM, MAS, CDI..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Departemen / Divisi <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value.toUpperCase() })}
+                        placeholder="OPERATIONAL, PLANT, HSE, FINANCE..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Kategori Eksekutif
+                      </label>
+                      <select
+                        value={formData.executiveCategory}
+                        onChange={(e) => setFormData({ ...formData, executiveCategory: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      >
+                        <option value="OPERATIONAL">OPERATIONAL</option>
+                        <option value="FINANCIAL">FINANCIAL</option>
+                        <option value="STRATEGIC">STRATEGIC</option>
+                        <option value="COMPLIANCE">COMPLIANCE</option>
+                        <option value="REPUTATION">REPUTATION</option>
+                        <option value="SAFETY & HEALTH">SAFETY & HEALTH</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Proses Bisnis
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.businessProcess}
+                        onChange={(e) => setFormData({ ...formData, businessProcess: e.target.value })}
+                        placeholder="Contoh: Pengelolaan Kontrak Vendor / Pemeliharaan Unit"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Status Top 10 Risk Perusahaan?
+                      </label>
+                      <div className="flex items-center gap-4 py-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="top10"
+                            checked={formData.top10Risk === '1' || formData.top10Risk === 'Ya'}
+                            onChange={() => setFormData({ ...formData, top10Risk: '1' })}
+                            className="text-amber-600 focus:ring-amber-500"
+                          />
+                          <span className="font-bold text-amber-700">Ya (Top 10 Risk)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="top10"
+                            checked={formData.top10Risk !== '1' && formData.top10Risk !== 'Ya'}
+                            onChange={() => setFormData({ ...formData, top10Risk: '0' })}
+                            className="text-slate-600 focus:ring-slate-500"
+                          />
+                          <span className="text-slate-600">Bukan Top 10</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Deskripsi Risiko (Risk Description) <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={formData.riskDescription}
+                      onChange={(e) => setFormData({ ...formData, riskDescription: e.target.value })}
+                      placeholder="Jelaskan secara detail potensi peristiwa risiko dan penyebab utamanya..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-y leading-relaxed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Loss Event / Potensi Dampak Kerugian
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.lossEvent}
+                      onChange={(e) => setFormData({ ...formData, lossEvent: e.target.value })}
+                      placeholder="Contoh: Downtime operasional 48 jam, potensi kerugian finansial..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. INHERENT RISK EVALUATION */}
+                <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-rose-200 pb-2">
+                    <div className="flex items-center gap-2 text-rose-900 font-bold">
+                      <Flame className="w-4 h-4 text-rose-600" />
+                      <span className="uppercase tracking-wider text-[11px]">2. Penilaian Inherent Risk (Sebelum Kontrol)</span>
+                    </div>
+                    <div>
+                      {getRiskBadge(formData.inherentRiskLevel || calcRiskLevel(formData.inherentLikelihood, formData.inherentImpact))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Inherent Likelihood (1 - 5)
+                      </label>
+                      <select
+                        value={formData.inherentLikelihood}
+                        onChange={(e) => {
+                          const newL = e.target.value;
+                          const autoLevel = calcRiskLevel(newL, formData.inherentImpact);
+                          setFormData({ ...formData, inherentLikelihood: newL, inherentRiskLevel: autoLevel });
+                        }}
+                        className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-rose-400"
+                      >
+                        <option value="1">1 - Rare (Sangat Jarang)</option>
+                        <option value="2">2 - Unlikely (Jarang)</option>
+                        <option value="3">3 - Possible (Mungkin)</option>
+                        <option value="4">4 - Likely (Sering)</option>
+                        <option value="5">5 - Almost Certain (Hampir Pasti)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Inherent Impact (1 - 5)
+                      </label>
+                      <select
+                        value={formData.inherentImpact}
+                        onChange={(e) => {
+                          const newI = e.target.value;
+                          const autoLevel = calcRiskLevel(formData.inherentLikelihood, newI);
+                          setFormData({ ...formData, inherentImpact: newI, inherentRiskLevel: autoLevel });
+                        }}
+                        className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-rose-400"
+                      >
+                        <option value="1">1 - Insignificant (Tidak Signifikan)</option>
+                        <option value="2">2 - Minor (Kecil)</option>
+                        <option value="3">3 - Moderate (Sedang)</option>
+                        <option value="4">4 - Major (Besar / Signifikan)</option>
+                        <option value="5">5 - Catastrophic (Bencana / Kritis)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Inherent Risk Level
+                      </label>
+                      <select
+                        value={formData.inherentRiskLevel}
+                        onChange={(e) => setFormData({ ...formData, inherentRiskLevel: e.target.value })}
+                        className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-rose-400"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Extreme">Extreme</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Catatan / Skenario Terburuk Inherent
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.inherentNotes}
+                      onChange={(e) => setFormData({ ...formData, inherentNotes: e.target.value })}
+                      placeholder="Contoh: Operasional terhenti total apabila suplai material tidak tiba tepat waktu..."
+                      className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-rose-400"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. EXISTING CONTROLS */}
+                <div className="p-4 bg-sky-50/50 rounded-xl border border-sky-200 space-y-3">
+                  <div className="flex items-center gap-2 text-sky-900 font-bold border-b border-sky-200 pb-2">
+                    <CheckCircle2 className="w-4 h-4 text-sky-600" />
+                    <span className="uppercase tracking-wider text-[11px]">3. Pengendalian Internal Saat Ini (Existing Controls)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Uraian Kontrol / SOP yang Berjalan
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={formData.controlDescription}
+                        onChange={(e) => setFormData({ ...formData, controlDescription: e.target.value })}
+                        placeholder="Contoh: Inspeksi harian tim QA, verifikasi ganda persetujuan PO, checklist safety..."
+                        className="w-full bg-white border border-sky-200 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:border-sky-400 resize-y"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Efektivitas Kontrol
+                      </label>
+                      <select
+                        value={formData.controlEffectiveness}
+                        onChange={(e) => setFormData({ ...formData, controlEffectiveness: e.target.value })}
+                        className="w-full bg-white border border-sky-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-sky-400"
+                      >
+                        <option value="Effective">Effective (Efektif)</option>
+                        <option value="Partially Effective">Partially Effective (Sebagian Efektif)</option>
+                        <option value="Ineffective">Ineffective (Tidak Efektif)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. RESIDUAL RISK EVALUATION */}
+                <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                      <TrendingDown className="w-4 h-4 text-emerald-600" />
+                      <span className="uppercase tracking-wider text-[11px]">4. Penilaian Residual Risk (Setelah Kontrol)</span>
+                    </div>
+                    <div>
+                      {getRiskBadge(formData.residualRiskLevel || calcRiskLevel(formData.residualLikelihood, formData.residualImpact))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Residual Likelihood (1 - 5)
+                      </label>
+                      <select
+                        value={formData.residualLikelihood}
+                        onChange={(e) => {
+                          const newL = e.target.value;
+                          const autoLevel = calcRiskLevel(newL, formData.residualImpact);
+                          setFormData({ ...formData, residualLikelihood: newL, residualRiskLevel: autoLevel });
+                        }}
+                        className="w-full bg-white border border-emerald-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-emerald-400"
+                      >
+                        <option value="1">1 - Rare (Sangat Jarang)</option>
+                        <option value="2">2 - Unlikely (Jarang)</option>
+                        <option value="3">3 - Possible (Mungkin)</option>
+                        <option value="4">4 - Likely (Sering)</option>
+                        <option value="5">5 - Almost Certain (Hampir Pasti)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Residual Impact (1 - 5)
+                      </label>
+                      <select
+                        value={formData.residualImpact}
+                        onChange={(e) => {
+                          const newI = e.target.value;
+                          const autoLevel = calcRiskLevel(formData.residualLikelihood, newI);
+                          setFormData({ ...formData, residualImpact: newI, residualRiskLevel: autoLevel });
+                        }}
+                        className="w-full bg-white border border-emerald-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-emerald-400"
+                      >
+                        <option value="1">1 - Insignificant (Tidak Signifikan)</option>
+                        <option value="2">2 - Minor (Kecil)</option>
+                        <option value="3">3 - Moderate (Sedang)</option>
+                        <option value="4">4 - Major (Besar)</option>
+                        <option value="5">5 - Catastrophic (Kritis)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Residual Risk Level
+                      </label>
+                      <select
+                        value={formData.residualRiskLevel}
+                        onChange={(e) => setFormData({ ...formData, residualRiskLevel: e.target.value })}
+                        className="w-full bg-white border border-emerald-200 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-emerald-400"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Extreme">Extreme</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Catatan Residual Risk
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.residualNotes}
+                      onChange={(e) => setFormData({ ...formData, residualNotes: e.target.value })}
+                      placeholder="Catatan status ketercapaian penurunan risiko setelah adanya kontrol..."
+                      className="w-full bg-white border border-emerald-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                {/* 5. TREATMENT PLAN & ACTION ITEMS */}
+                <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-200 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold border-b border-amber-200 pb-2">
+                    <UserCheck className="w-4 h-4 text-amber-600" />
+                    <span className="uppercase tracking-wider text-[11px]">5. Rencana Tindakan Penanganan (Treatment Plan)</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Rencana Tindak Lanjut / Rencana Mitigasi
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.treatmentPlan}
+                      onChange={(e) => setFormData({ ...formData, treatmentPlan: e.target.value })}
+                      placeholder="Contoh: Implementasi otomatisasi sensor cadangan, pelatihan berkala personil, pembuatan buffer stock..."
+                      className="w-full bg-white border border-amber-200 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:border-amber-400 resize-y"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        PIC / Penanggung Jawab
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.pic}
+                        onChange={(e) => setFormData({ ...formData, pic: e.target.value })}
+                        placeholder="Contoh: Section Head Plant, Logistic Spv..."
+                        className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Target Batas Waktu (Due Date)
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dueDate}
+                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer border border-emerald-400/30"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{editingItemNumber ? 'Simpan Perubahan' : 'Simpan ke Risk Register'}</span>
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
