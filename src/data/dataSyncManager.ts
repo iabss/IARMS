@@ -7,6 +7,7 @@ const STORAGE_KEY_CLEARED = 'afs_data_is_cleared_v2';
 const STORAGE_KEY_PROJECT_LINKS = 'afs_project_links_v1';
 const STORAGE_KEY_DELETED_PROJECTS = 'afs_deleted_project_keys_v1';
 const STORAGE_KEY_SNAPSHOTS = 'afs_achievement_snapshots_v2';
+const STORAGE_KEY_TREND_EXCLUDED_PROJECTS = 'afs_trend_excluded_projects_v1';
 
 export interface SyncMetadata {
   lastSyncTimestamp: string | null;
@@ -105,6 +106,98 @@ export function removeDeletedProjectKey(key: string, projName?: string) {
     localStorage.setItem(STORAGE_KEY_DELETED_PROJECTS, JSON.stringify(Array.from(keys)));
   } catch (e) {
     console.error('Error removing deleted project key:', e);
+  }
+}
+
+// Manage trend excluded projects (specifically for Trend Achievement view)
+export function getTrendExcludedProjects(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed.map(k => String(k).trim().toUpperCase()));
+    }
+  } catch (e) {
+    console.error('Error reading trend excluded projects:', e);
+  }
+  return new Set<string>();
+}
+
+export function addTrendExcludedProject(projectNameOrKey: string) {
+  try {
+    if (!projectNameOrKey) return;
+    const set = getTrendExcludedProjects();
+    set.add(projectNameOrKey.trim().toUpperCase());
+    localStorage.setItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS, JSON.stringify(Array.from(set)));
+    window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(set) }));
+  } catch (e) {
+    console.error('Error adding trend excluded project:', e);
+  }
+}
+
+export function removeTrendExcludedProject(projectNameOrKey: string) {
+  try {
+    if (!projectNameOrKey) return;
+    const set = getTrendExcludedProjects();
+    set.delete(projectNameOrKey.trim().toUpperCase());
+    localStorage.setItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS, JSON.stringify(Array.from(set)));
+    window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(set) }));
+  } catch (e) {
+    console.error('Error removing trend excluded project:', e);
+  }
+}
+
+export function clearTrendExcludedProjects() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS);
+    window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: [] }));
+  } catch (e) {
+    console.error('Error clearing trend excluded projects:', e);
+  }
+}
+
+// Permanently delete a project across the entire system (Config, Datasets, Trend, and Deleted Lists)
+export function deleteProjectPermanently(projectName: string, siteName?: string, year?: string | number) {
+  try {
+    const targetProj = projectName.trim().toUpperCase();
+    const targetSite = (siteName || '').trim().toUpperCase();
+    const targetYear = year ? String(year).trim() : '';
+    const targetKey = getProjectCompositeKey(targetProj, targetSite, targetYear);
+    const fullName = targetSite && targetSite !== 'HEAD OFFICE' ? `${targetSite} - ${targetProj}` : targetProj;
+
+    // 1. Mark in deleted project keys & trend exclusions
+    addDeletedProjectKey(targetKey, targetProj);
+    addTrendExcludedProject(targetProj);
+    addTrendExcludedProject(targetKey);
+    addTrendExcludedProject(fullName);
+
+    // 2. Remove from project configs
+    deleteProjectLinkConfig(targetProj, targetSite, targetYear);
+
+    // 3. Remove custom rows
+    const customRows = getCustomSyncedRows() || [];
+    const remainingRows = customRows.filter(r => {
+      const rName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+      const rSite = (r['SITE'] || '').trim().toUpperCase();
+      const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
+      const rKey = getProjectCompositeKey(rName, rSite, rYear);
+
+      if (rName === targetProj || rKey === targetKey) return false;
+      if (fullName === `${rSite} - ${rName}`) return false;
+      return true;
+    });
+
+    localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(remainingRows));
+
+    // 4. Dispatch events
+    window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged: remainingRows } }));
+    window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: getProjectLinkConfigs() }));
+    window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(getTrendExcludedProjects()) }));
+
+    return true;
+  } catch (err) {
+    console.error('Error deleting project permanently:', err);
+    return false;
   }
 }
 

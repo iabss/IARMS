@@ -55,7 +55,13 @@ import {
   clearSnapshotHistory, 
   AchievementSnapshot,
   getProjectLinkConfigs,
-  saveSyncedRows
+  saveSyncedRows,
+  getTrendExcludedProjects,
+  addTrendExcludedProject,
+  removeTrendExcludedProject,
+  clearTrendExcludedProjects,
+  deleteProjectPermanently,
+  getDeletedProjectKeys
 } from '../data/dataSyncManager';
 import { parseDepartments } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
@@ -506,6 +512,74 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
   const [selectedKategori, setSelectedKategori] = useState('ALL');
   const [selectedProject, setSelectedProject] = useState('ALL');
 
+  // Permanent Project Deletion & Exclusions for Trend Audit
+  const [trendExcludedList, setTrendExcludedList] = useState<string[]>(() => {
+    return Array.from(getTrendExcludedProjects());
+  });
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: string | number;
+    name: string;
+    rawProjectName?: string;
+    siteName?: string;
+    totalRows?: number;
+  } | null>(null);
+  const [showManageExcludedModal, setShowManageExcludedModal] = useState(false);
+
+  useEffect(() => {
+    const handleTrendExclusions = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setTrendExcludedList(customEvent.detail);
+      } else {
+        setTrendExcludedList(Array.from(getTrendExcludedProjects()));
+      }
+    };
+
+    const handleProjectLinksUpdated = () => {
+      setTrendExcludedList(Array.from(getTrendExcludedProjects()));
+      setSyncedVersion(v => v + 1);
+    };
+
+    window.addEventListener('afs_trend_exclusions_updated', handleTrendExclusions);
+    window.addEventListener('afs_project_links_updated', handleProjectLinksUpdated);
+    return () => {
+      window.removeEventListener('afs_trend_exclusions_updated', handleTrendExclusions);
+      window.removeEventListener('afs_project_links_updated', handleProjectLinksUpdated);
+    };
+  }, []);
+
+  const handleConfirmDeleteProject = () => {
+    if (!projectToDelete) return;
+    const { name, rawProjectName, siteName } = projectToDelete;
+    
+    // Strictly exclude from Trend Audit only - preserve all finding data in system
+    addTrendExcludedProject(name);
+    if (rawProjectName) addTrendExcludedProject(rawProjectName);
+    if (siteName && rawProjectName) addTrendExcludedProject(`${siteName} - ${rawProjectName}`);
+    onToast(`Project "${name}" berhasil dihapus dari tampilan Tren Audit (data temuan tetap aman)!`, 'success');
+
+    setProjectToDelete(null);
+    setTrendExcludedList(Array.from(getTrendExcludedProjects()));
+    setSyncedVersion(v => v + 1);
+  };
+
+  const handleRestoreProject = (item: string) => {
+    removeTrendExcludedProject(item);
+    setTrendExcludedList(Array.from(getTrendExcludedProjects()));
+    setSyncedVersion(v => v + 1);
+    onToast(`Project "${item}" berhasil dipulihkan ke Tren Audit!`, 'success');
+  };
+
+  const handleClearAllExcluded = () => {
+    if (window.confirm('Apakah Anda yakin ingin memulihkan semua project yang sebelumnya dihapus/disembunyikan?')) {
+      clearTrendExcludedProjects();
+      setTrendExcludedList([]);
+      setSyncedVersion(v => v + 1);
+      setShowManageExcludedModal(false);
+      onToast('Seluruh project yang dihapus berhasil dipulihkan!', 'success');
+    }
+  };
+
   // Date Filter States
   const [useDateFilter, setUseDateFilter] = useState(false);
   const [startDate, setStartDate] = useState(() => getDefaultLast7DaysRange().startDate);
@@ -752,78 +826,99 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
   const projectTrendMatrix = useMemo(() => {
     // Standard sector/project definitions with fallback icons
     const defaultSectors = [
-      { id: 'CDI', name: 'CDI', type: 'Audit Operational Project', icon: Building2 },
-      { id: 'IP Bayan', name: 'IP Bayan', type: 'Audit Operational Project', icon: Users },
-      { id: 'AGM', name: 'AGM', type: 'Closing Project', icon: Settings },
-      { id: 'MAS', name: 'MAS', type: 'Closing Project', icon: Truck },
-      { id: 'IT', name: 'IT', type: 'Audit Operational Project', icon: Wifi },
-      { id: 'PR-Payment', name: 'PR-Payment', type: 'Audit Operational Project', icon: CreditCard },
+      { id: 'CDI', name: 'CDI', rawProj: 'AUDIT OPERASIONAL', site: 'CDI', type: 'Audit Operational Project', icon: Building2 },
+      { id: 'IP Bayan', name: 'IP Bayan', rawProj: 'AUDIT OPERASIONAL', site: 'IP BAYAN', type: 'Audit Operational Project', icon: Users },
+      { id: 'AGM', name: 'AGM', rawProj: 'CLOSING PROJECT', site: 'AGM', type: 'Closing Project', icon: Settings },
+      { id: 'MAS', name: 'MAS', rawProj: 'CLOSING PROJECT', site: 'MAS', type: 'Closing Project', icon: Truck },
+      { id: 'IT', name: 'IT', rawProj: 'AUDIT OPERASIONAL', site: 'IT', type: 'Audit Operational Project', icon: Wifi },
+      { id: 'PR-Payment', name: 'PR-Payment', rawProj: 'PR-PAYMENT', site: 'JKT', type: 'Audit Operational Project', icon: CreditCard },
     ];
 
-    // Group rows by Project Audit
-    const projMap = new Map<string, {
+    const configuredConfigs = getProjectLinkConfigs();
+    const excludedSet = new Set(trendExcludedList.map(x => x.trim().toUpperCase()));
+    const deletedKeySet = getDeletedProjectKeys();
+
+    const isExcluded = (fullName: string, projName?: string, siteName?: string) => {
+      const uFull = (fullName || '').trim().toUpperCase();
+      const uProj = (projName || '').trim().toUpperCase();
+      const uSite = (siteName || '').trim().toUpperCase();
+      
+      if (excludedSet.has(uFull) || deletedKeySet.has(uFull)) return true;
+      if (uProj && (excludedSet.has(uProj) || deletedKeySet.has(uProj))) return true;
+      if (uSite && uProj && (excludedSet.has(`${uSite} - ${uProj}`) || deletedKeySet.has(`${uSite} - ${uProj}`))) return true;
+
+      for (const ex of Array.from(excludedSet)) {
+        const exStr = String(ex || '');
+        if (!exStr) continue;
+        if (uFull === exStr || (uFull.length > 3 && exStr.length > 3 && (uFull.includes(exStr) || exStr.includes(uFull)))) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Build project entries
+    const projEntries: {
       name: string;
+      rawProjectName: string;
+      siteName: string;
       type: string;
       records: AFSFindingRecord[];
-    }>();
+    }[] = [];
 
-    // Prepopulate default sectors ONLY if user hasn't configured custom project links
-    const configuredConfigs = getProjectLinkConfigs();
-    if (configuredConfigs.length === 0) {
+    if (configuredConfigs.length > 0) {
+      configuredConfigs.forEach(cfg => {
+        if (!cfg.projectName) return;
+        const siteStr = (cfg.siteName || '').trim();
+        const projStr = cfg.projectName.trim();
+        const fullName = siteStr && siteStr !== 'HEAD OFFICE' ? `${siteStr} - ${projStr}` : projStr;
+        
+        if (isExcluded(fullName, projStr, siteStr)) return;
+
+        const targetProj = projStr.toUpperCase();
+        const targetSite = siteStr.toUpperCase();
+
+        const matching = filteredRows.filter(r => {
+          const rowProj = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+          const rowSite = (r.SITE || '').trim().toUpperCase();
+
+          if (rowProj !== targetProj) return false;
+          if (targetSite && targetSite !== 'HEAD OFFICE' && targetSite !== 'ALL') {
+            if (rowSite !== targetSite) return false;
+          }
+          return true;
+        });
+
+        projEntries.push({
+          name: fullName,
+          rawProjectName: projStr,
+          siteName: siteStr,
+          type: 'Audit Project',
+          records: matching
+        });
+      });
+    } else {
       defaultSectors.forEach(s => {
-        projMap.set(s.name.toUpperCase(), {
+        if (isExcluded(s.name, s.rawProj, s.site)) return;
+        const matching = filteredRows.filter(r => {
+          const site = (r.SITE || '').toUpperCase().trim();
+          const rawProj = (r['PROJECT AUDIT'] || '').toUpperCase().trim();
+          if (s.site && site.includes(s.site)) return true;
+          if (s.rawProj && rawProj.includes(s.rawProj)) return true;
+          return false;
+        });
+
+        projEntries.push({
           name: s.name,
+          rawProjectName: s.rawProj,
+          siteName: s.site,
           type: s.type,
-          records: []
+          records: matching
         });
       });
     }
 
-    // Prepopulate all user-configured project links (e.g. all 11 links)
-    configuredConfigs.forEach(cfg => {
-      if (!cfg.projectName) return;
-      const siteStr = (cfg.siteName || '').trim();
-      const projStr = cfg.projectName.trim();
-      const fullName = siteStr && siteStr !== 'HEAD OFFICE' ? `${siteStr} - ${projStr}` : projStr;
-      const keyName = fullName.toUpperCase();
-      if (!projMap.has(keyName)) {
-        projMap.set(keyName, {
-          name: fullName,
-          type: 'Audit Project',
-          records: []
-        });
-      }
-    });
-
-    // Populate records
-    filteredRows.forEach(r => {
-      const site = (r.SITE || '').toUpperCase().trim();
-      const rawProj = (r['PROJECT AUDIT'] || 'Lainnya').trim();
-      const normKey = rawProj.toUpperCase();
-      
-      let matchedKey: string | undefined;
-      if (site.includes('CDI')) matchedKey = 'CDI';
-      else if (site.includes('BAYAN')) matchedKey = 'IP BAYAN';
-      else if (site.includes('AGM')) matchedKey = 'AGM';
-      else if (site.includes('MAS')) matchedKey = 'MAS';
-      else if (site === 'IT' || (normKey.includes('IT') && !normKey.includes('AUDIT'))) matchedKey = 'IT';
-      else if (normKey.includes('PAYMENT') || site === 'JKT') matchedKey = 'PR-PAYMENT';
-      
-      if (!matchedKey) {
-        matchedKey = `${site ? site + ' - ' : ''}${rawProj}`.toUpperCase();
-      }
-
-      if (!projMap.has(matchedKey)) {
-        projMap.set(matchedKey, {
-          name: site ? `${site} - ${rawProj}` : rawProj,
-          type: 'Audit Project',
-          records: []
-        });
-      }
-      projMap.get(matchedKey)!.records.push(r);
-    });
-
-    const result = Array.from(projMap.entries()).map(([key, data], idx) => {
+    const result = projEntries.map((data, idx) => {
       const total = data.records.length;
       const closed = data.records.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
       let currentRate = total > 0 ? parseFloat(((closed / total) * 100).toFixed(2)) : 0;
@@ -939,6 +1034,8 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       return {
         id: idx + 1,
         name: data.name,
+        rawProjectName: data.rawProjectName,
+        siteName: data.siteName,
         type: data.type,
         icon: iconComponent,
         total,
@@ -956,7 +1053,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     });
 
     return result;
-  }, [filteredRows, snapshotMovement]);
+  }, [filteredRows, snapshotMovement, trendExcludedList]);
 
   // Global Unweighted Average across ALL projects (100% Filter-Independent)
   const globalProjectTrendMatrix = useMemo(() => {
@@ -1378,11 +1475,22 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       {/* SECTION 2: RINCIAN TREN PER SEKTOR (ACH CLOSING) – PERUBAHAN SAJA */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="w-3 h-3 rounded-full bg-sky-600 inline-block" />
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-              DETAIL TREN ACHIEVEMENT AUDIT PROJECT
+              DETAIL TREN ACHIEVEMENT AUDIT PROJECT ({projectTrendMatrix.length} PROJECT)
             </h2>
+            {trendExcludedList.length > 0 && (
+              <button
+                onClick={() => setShowManageExcludedModal(true)}
+                data-export-ignore="true"
+                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold rounded-lg border border-amber-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Kelola project yang dihapus/disembunyikan dari Tren Audit"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-amber-600" />
+                <span>{trendExcludedList.length} Dihapus (Kelola/Pulihkan)</span>
+              </button>
+            )}
           </div>
 
           {/* Legend */}
@@ -1418,8 +1526,11 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                   TOTAL SEBELUMNYA ({startDateDisplayStr})
                 </th>
                 <th className="py-3.5 px-2 text-center w-8 border-r border-slate-200"></th>
-                <th className="py-3.5 px-4 text-center min-w-[130px]">
+                <th className="py-3.5 px-4 text-center min-w-[130px] border-r border-slate-200">
                   TOTAL SAAT INI ({endDateDisplayStr})
+                </th>
+                <th className="py-3.5 px-3 text-center w-20" data-export-ignore="true">
+                  AKSI
                 </th>
               </tr>
             </thead>
@@ -1518,12 +1629,39 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     </td>
 
                     {/* Total Saat Ini */}
-                    <td className="py-4 px-4 text-center font-black text-slate-900 text-sm">
+                    <td className="py-4 px-4 text-center font-black text-slate-900 text-sm border-r border-slate-200">
                       {item.currentRate.toFixed(2).replace('.', ',')}%
+                    </td>
+
+                    {/* Aksi Delete Button */}
+                    <td className="py-4 px-3 text-center" data-export-ignore="true">
+                      <button
+                        onClick={() => {
+                          setProjectToDelete({
+                            id: item.id,
+                            name: item.name,
+                            rawProjectName: item.rawProjectName,
+                            siteName: item.siteName,
+                            totalRows: item.total
+                          });
+                        }}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center border border-transparent hover:border-rose-200"
+                        title={`Hapus project "${item.name}" secara permanen dari Tren Audit`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 );
               })}
+
+              {projectTrendMatrix.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-slate-400 font-bold">
+                    Tidak ada project yang ditampilkan. Semua project mungkin telah dihapus atau difilter.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1955,6 +2093,141 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
             <div className="flex items-center justify-end pt-3 border-t border-slate-100">
               <button
                 onClick={() => setSelectedSnapshotDetail(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KONFIRMASI HAPUS PROJECT SECARA PERMANEN */}
+      {projectToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Hapus Project Permanen
+                  </h3>
+                  <span className="text-xs font-bold text-slate-500">
+                    Konfirmasi penghapusan audit project
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setProjectToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-rose-50/80 border border-rose-200/70 p-3.5 rounded-2xl text-xs text-rose-900 space-y-1.5">
+              <p className="font-extrabold text-sm text-rose-950 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                {projectToDelete.name}
+              </p>
+              <p className="text-[11px] leading-relaxed text-rose-800">
+                Project ini akan dihapus/disembunyikan secara permanen dari tabel Tren Audit.
+              </p>
+            </div>
+
+            <div className="bg-sky-50/70 border border-sky-100 p-3 rounded-2xl text-[11px] text-sky-800 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Data Temuan Aman:</strong> Tindakan ini hanya menghapus tampilan project dari halaman Tren Audit. Seluruh data temuan ({projectToDelete.totalRows || 0} baris) dan dashboard utama tetap utuh.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setProjectToDelete(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmDeleteProject}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Hapus Dari Tren</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KELOLA PROJECT YANG DIHAPUS / DISEMBUNYIKAN */}
+      {showManageExcludedModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Daftar Project Dihapus / Disembunyikan
+                  </h3>
+                  <span className="text-xs text-slate-500 font-bold">
+                    {trendExcludedList.length} project tidak ditampilkan di Tren Audit
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowManageExcludedModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+              {trendExcludedList.map((item, idx) => (
+                <div 
+                  key={`excluded-${idx}-${item}`}
+                  className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200"
+                >
+                  <div>
+                    <h5 className="font-black text-xs text-slate-800">{item}</h5>
+                    <span className="text-[10px] font-bold text-slate-400">Status: Dihapus dari tren</span>
+                  </div>
+                  <button
+                    onClick={() => handleRestoreProject(item)}
+                    className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs rounded-xl border border-sky-200 transition-colors cursor-pointer"
+                  >
+                    Pulihkan
+                  </button>
+                </div>
+              ))}
+
+              {trendExcludedList.length === 0 && (
+                <p className="text-center py-6 text-xs text-slate-400 font-semibold">
+                  Tidak ada project yang dihapus.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              {trendExcludedList.length > 0 ? (
+                <button
+                  onClick={handleClearAllExcluded}
+                  className="px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Pulihkan Semua Project
+                </button>
+              ) : <div />}
+
+              <button
+                onClick={() => setShowManageExcludedModal(false)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
               >
                 Tutup

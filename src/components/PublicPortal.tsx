@@ -103,8 +103,7 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
   // Available Filter Options
   const configuredProjectConfigs = useMemo(() => {
-    const configs = getProjectLinkConfigs();
-    return configs.filter(c => c.sheetUrl && c.sheetUrl.trim() !== '');
+    return getProjectLinkConfigs();
   }, [syncedVersion, isSyncing]);
 
   const configuredProjectSet = useMemo(() => {
@@ -131,60 +130,260 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
   const projectsList = useMemo(() => {
     const map = new Map<string, string>();
-    allRows.forEach(r => {
-      const proj = (r['PROJECT AUDIT'] || '').trim();
-      if (proj) {
-        const key = proj.toUpperCase();
-        if (!map.has(key)) map.set(key, proj);
-      }
-    });
+    if (configuredProjectConfigs.length > 0) {
+      configuredProjectConfigs.forEach(c => {
+        const proj = (c.projectName || '').trim();
+        if (proj) {
+          const key = proj.toUpperCase();
+          if (!map.has(key)) map.set(key, proj);
+        }
+      });
+    } else {
+      allRows.forEach(r => {
+        const proj = (r['PROJECT AUDIT'] || '').trim();
+        if (proj) {
+          const key = proj.toUpperCase();
+          if (!map.has(key)) map.set(key, proj);
+        }
+      });
+    }
     return Array.from(map.values()).sort();
-  }, [allRows]);
+  }, [allRows, configuredProjectConfigs]);
 
   const sitesList = useMemo(() => {
     const map = new Map<string, string>();
-    allRows.forEach(r => {
-      if (r.SITE) {
-        const trimmed = r.SITE.trim();
-        if (trimmed) {
-          const key = trimmed.toUpperCase();
-          if (!map.has(key)) map.set(key, trimmed);
+    if (configuredProjectConfigs.length > 0) {
+      configuredProjectConfigs.forEach(c => {
+        if (c.siteName) {
+          const trimmed = c.siteName.trim();
+          if (trimmed) {
+            const key = trimmed.toUpperCase();
+            if (!map.has(key)) map.set(key, trimmed);
+          }
         }
-      }
-    });
+      });
+    } else {
+      allRows.forEach(r => {
+        if (r.SITE) {
+          const trimmed = r.SITE.trim();
+          if (trimmed) {
+            const key = trimmed.toUpperCase();
+            if (!map.has(key)) map.set(key, trimmed);
+          }
+        }
+      });
+    }
     return Array.from(map.values()).sort();
-  }, [allRows]);
-
-  // Overall Dataset Global Metrics
-  const globalMetrics = useMemo(() => {
-    const total = allRows.length;
-    let close = 0;
-    let open = 0;
-    let progress = 0;
-    let overdue = 0;
-
-    allRows.forEach(r => {
-      const isClosed = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
-      const isOpen = isStatusOpen(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
-
-      if (isClosed) close += 1;
-      else if (isOpen) open += 1;
-      else progress += 1;
-
-      const rm = (r.REMARKS || '').toUpperCase().trim();
-      if (rm.includes('OVERDUE')) overdue += 1;
-    });
-
-    const closePct = total > 0 ? ((close / total) * 100).toFixed(2) : '0.00';
-    const openPct = total > 0 ? ((open / total) * 100).toFixed(2) : '0.00';
-    const progressPct = total > 0 ? ((progress / total) * 100).toFixed(2) : '0.00';
-    const overduePct = total > 0 ? ((overdue / total) * 100).toFixed(2) : '0.00';
-
-    return { total, close, open, progress, overdue, closePct, openPct, progressPct, overduePct };
-  }, [allRows]);
+  }, [allRows, configuredProjectConfigs]);
 
   // Aggregation per Jobsite & Scope Audit or Scope Audit
   const projectSummaries = useMemo(() => {
+    // 1. Primary path: When user has configured project links (e.g. 11 projects)
+    if (configuredProjectConfigs && configuredProjectConfigs.length > 0) {
+      const configItems: ProjectSummary[] = [];
+
+      configuredProjectConfigs.forEach(cfg => {
+        const projName = (cfg.projectName || '').trim();
+        if (!projName) return;
+        const siteName = (cfg.siteName || 'HEAD OFFICE').trim();
+        const yearStr = cfg.year ? String(cfg.year).trim() : '2026';
+
+        // Check project filter
+        if (selectedProjectFilter !== 'ALL') {
+          if (selectedProjectFilter === 'LINKED_ONLY') {
+            if (!cfg.sheetUrl || cfg.sheetUrl.trim() === '') return;
+          } else if (projName.toUpperCase() !== selectedProjectFilter.toUpperCase()) {
+            return;
+          }
+        }
+
+        // Check site filter
+        if (selectedSiteFilter !== 'ALL' && siteName.toUpperCase() !== selectedSiteFilter.toUpperCase()) {
+          return;
+        }
+
+        const tProj = projName.toUpperCase();
+        const tSite = siteName.toUpperCase();
+
+        // Match rows specifically for this project config
+        const matchingRows = allRows.filter(item => {
+          const rowProj = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
+          const rowSite = (item.SITE || '').trim().toUpperCase();
+
+          if (rowProj !== tProj) return false;
+          if (tSite && tSite !== 'HEAD OFFICE' && tSite !== 'ALL') {
+            if (rowSite !== tSite) return false;
+          }
+
+          // Apply category filter if active
+          if (selectedKategoriFilter !== 'ALL') {
+            const kat = (item.KATEGORI || '').toUpperCase();
+            if (!kat.includes(selectedKategoriFilter.toUpperCase())) return false;
+          }
+
+          return true;
+        });
+
+        let total = matchingRows.length;
+        let close = 0;
+        let open = 0;
+        let progress = 0;
+        let overdue = 0;
+        let major = 0;
+        let minor = 0;
+        let improvement = 0;
+        let siteTotal = 0;
+        let siteClose = 0;
+        let hoTotal = 0;
+        let hoClose = 0;
+        const sites = new Set<string>();
+        if (siteName) sites.add(siteName);
+        const picSites = new Set<string>();
+        const picHOs = new Set<string>();
+
+        matchingRows.forEach(item => {
+          const isItemClosed = isStatusClosed(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
+          const isItemOpen = isStatusOpen(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
+
+          const picSiteStr = (item["PIC SITE"] || '').trim();
+          const picHOStr = (item["PIC HO"] || '').trim();
+
+          if (isDepartment(picSiteStr)) {
+            siteTotal += 1;
+            if (isItemClosed) siteClose += 1;
+          }
+
+          if (isDepartment(picHOStr)) {
+            hoTotal += 1;
+            if (isItemClosed) hoClose += 1;
+          }
+
+          if (isItemClosed) {
+            close += 1;
+          } else if (isItemOpen) {
+            open += 1;
+          } else {
+            progress += 1;
+          }
+
+          const remarks = (item.REMARKS || '').toUpperCase().trim();
+          if (remarks.includes('OVERDUE')) {
+            overdue += 1;
+          }
+
+          const kat = (item.KATEGORI || '').toUpperCase().trim();
+          if (kat.includes('MAJOR')) major += 1;
+          else if (kat.includes('MINOR')) minor += 1;
+          else if (kat.includes('IMPROVEMENT')) improvement += 1;
+
+          if (item.SITE && item.SITE.trim()) sites.add(item.SITE.trim());
+          if (item["PIC SITE"] && item["PIC SITE"].trim()) {
+            parseDepartments(item["PIC SITE"]).forEach(t => {
+              if (t) picSites.add(t);
+            });
+          }
+          if (item["PIC HO"] && item["PIC HO"].trim()) {
+            parseDepartments(item["PIC HO"]).forEach(t => {
+              if (t) picHOs.add(t);
+            });
+          }
+        });
+
+        // If no matching rows in dataset but rowCount was recorded during sheet sync
+        if (total === 0 && cfg.rowCount && cfg.rowCount > 0 && selectedKategoriFilter === 'ALL') {
+          total = cfg.rowCount;
+        }
+
+        const closingRate = total > 0 ? (close / total) * 100 : 0;
+        const achClosingSite = siteTotal > 0 ? (siteClose / siteTotal) * 100 : closingRate;
+        const achClosingHO = hoTotal > 0 ? (hoClose / hoTotal) * 100 : closingRate;
+        let achievementStatus: 'SELESAI' | 'PROGRESS' | 'ATTENTION' = 'PROGRESS';
+        if (total === 0) achievementStatus = 'PROGRESS';
+        else if (closingRate >= 80) achievementStatus = 'SELESAI';
+        else if (closingRate < 50) achievementStatus = 'ATTENTION';
+
+        const groupKey = `${siteName.toUpperCase()}___${projName.toUpperCase()}___${yearStr.toUpperCase()}`;
+
+        configItems.push({
+          groupKey,
+          siteName,
+          scopeAudit: projName,
+          year: yearStr,
+          projectName: siteName && siteName !== 'HEAD OFFICE' ? `${siteName} - ${projName}` : projName,
+          totalItems: total,
+          closedItems: close,
+          openItems: open,
+          progressItems: progress,
+          overdueItems: overdue,
+          achClosingSite: parseFloat(achClosingSite.toFixed(2)),
+          achClosingHO: parseFloat(achClosingHO.toFixed(2)),
+          closingRate: parseFloat(closingRate.toFixed(2)),
+          majorCount: major,
+          minorCount: minor,
+          improvementCount: improvement,
+          sites: Array.from(sites),
+          picSites: Array.from(picSites),
+          picHOs: Array.from(picHOs),
+          achievementStatus,
+        });
+      });
+
+      // If grouped by project only
+      if (groupByMode === 'project_only') {
+        const projMap = new Map<string, ProjectSummary>();
+        configItems.forEach(item => {
+          const key = `${item.scopeAudit.toUpperCase()}___${item.year.toUpperCase()}`;
+          if (!projMap.has(key)) {
+            projMap.set(key, {
+              ...item,
+              groupKey: key,
+              siteName: item.siteName,
+              projectName: item.scopeAudit,
+              sites: [...item.sites],
+              picSites: [...item.picSites],
+              picHOs: [...item.picHOs],
+            });
+          } else {
+            const existing = projMap.get(key)!;
+            const combinedTotal = existing.totalItems + item.totalItems;
+            const combinedClose = existing.closedItems + item.closedItems;
+            const combinedOpen = existing.openItems + item.openItems;
+            const combinedProgress = existing.progressItems + item.progressItems;
+            const combinedOverdue = existing.overdueItems + item.overdueItems;
+            const combinedRate = combinedTotal > 0 ? (combinedClose / combinedTotal) * 100 : 0;
+            const combinedSites = Array.from(new Set([...existing.sites, ...item.sites]));
+
+            let st: 'SELESAI' | 'PROGRESS' | 'ATTENTION' = 'PROGRESS';
+            if (combinedTotal === 0) st = 'PROGRESS';
+            else if (combinedRate >= 80) st = 'SELESAI';
+            else if (combinedRate < 50) st = 'ATTENTION';
+
+            projMap.set(key, {
+              ...existing,
+              siteName: combinedSites.join(', '),
+              totalItems: combinedTotal,
+              closedItems: combinedClose,
+              openItems: combinedOpen,
+              progressItems: combinedProgress,
+              overdueItems: combinedOverdue,
+              closingRate: parseFloat(combinedRate.toFixed(2)),
+              majorCount: existing.majorCount + item.majorCount,
+              minorCount: existing.minorCount + item.minorCount,
+              improvementCount: existing.improvementCount + item.improvementCount,
+              sites: combinedSites,
+              picSites: Array.from(new Set([...existing.picSites, ...item.picSites])),
+              picHOs: Array.from(new Set([...existing.picHOs, ...item.picHOs])),
+              achievementStatus: st,
+            });
+          }
+        });
+        return Array.from(projMap.values());
+      }
+
+      return configItems;
+    }
+
+    // 2. Fallback path: If no configured links exist, group dynamic rows from allRows
     const map = new Map<string, {
       siteName: string;
       scopeAudit: string;
@@ -206,83 +405,32 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       picHOs: Set<string>;
     }>();
 
-    // 1. Process all rows from the dataset matching active configured projects
     allRows.forEach((item: AFSFindingRecord) => {
-      // Apply global category filter if chosen
       if (selectedKategoriFilter !== 'ALL') {
         const kat = (item.KATEGORI || '').toUpperCase();
         if (!kat.includes(selectedKategoriFilter.toUpperCase())) return;
       }
 
-      // Apply project filter if chosen
       if (selectedProjectFilter !== 'ALL') {
         const proj = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
-        if (selectedProjectFilter === 'LINKED_ONLY') {
-          if (!configuredProjectSet.has(proj)) return;
-        } else {
-          if (proj !== selectedProjectFilter.toUpperCase()) return;
-        }
+        if (selectedProjectFilter !== 'LINKED_ONLY' && proj !== selectedProjectFilter.toUpperCase()) return;
       }
 
-      // If user has configured specific project links, skip rows for unconfigured projects
-      if (configuredProjectConfigs.length > 0) {
-        const rowProj = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
-        const rowSite = (item.SITE || '').trim().toUpperCase();
-        const isMatchingConfig = configuredProjectConfigs.some(c => {
-          const cProj = (c.projectName || '').trim().toUpperCase();
-          const cSite = (c.siteName || '').trim().toUpperCase();
-          if (cProj === rowProj) {
-            if (!cSite || cSite === 'HEAD OFFICE' || cSite === 'JKT' || cSite === rowSite || rowProj.includes(cSite)) return true;
-          }
-          return false;
-        });
-        if (!isMatchingConfig) return;
-      }
-
-      // Apply site filter if chosen
       if (selectedSiteFilter !== 'ALL' && (item.SITE || '').trim() !== selectedSiteFilter) return;
 
-      const siteStr = (item.SITE || "N/A").trim();
+      const siteStr = (item.SITE || "HEAD OFFICE").trim();
       const scopeStr = (item["PROJECT AUDIT"] || "LAINNYA").trim();
-
-      // Look up Year directly from user's configured AFS Project Card input
-      const matchingConfig = configuredProjectConfigs.find(c => {
-        const cProj = (c.projectName || '').trim().toUpperCase();
-        const cSite = (c.siteName || '').trim().toUpperCase();
-        const rowProj = scopeStr.toUpperCase();
-        const rowSite = siteStr.toUpperCase();
-
-        if (cProj === rowProj && (cSite === rowSite || !cSite || cSite === 'HEAD OFFICE' || cSite === 'JKT')) return true;
-        if (cProj === rowProj) return true;
-        if (cProj.includes(rowProj) && (cProj.includes(rowSite) || cSite === rowSite)) return true;
-        if (rowProj.includes(cProj)) return true;
-        if (cSite === rowSite && c.year) return true;
-        return false;
-      });
-      const configYear = matchingConfig?.year ? String(matchingConfig.year).trim() : '';
-
-      // Row property (PERIODE AUDIT / TAHUN / YEAR)
-      let rowYear = String(item["PERIODE AUDIT"] || item["TAHUN"] || item["YEAR"] || '').trim();
-
-      if (!configYear && !rowYear) {
-        const combinedText = `${item["DOKUMENTASI TEMUAN"] || ''} ${item["DUE DATE"] || ''} ${item["PROBLEM/FINDING"] || ''} ${item["DOKUMENTASI CLOSING"] || ''}`;
-        const matchYear = combinedText.match(/\b(202[0-9])\b/);
-        if (matchYear) {
-          rowYear = matchYear[1];
-        }
-      }
-
-      const resolvedYear = configYear || rowYear || '2026';
+      const rowYear = String(item["PERIODE AUDIT"] || item["TAHUN"] || item["YEAR"] || '2026').trim();
 
       const key = groupByMode === 'jobsite_scope'
-        ? `${siteStr.toUpperCase()}___${scopeStr.toUpperCase()}___${resolvedYear.toUpperCase()}`
-        : `${scopeStr.toUpperCase()}___${resolvedYear.toUpperCase()}`;
+        ? `${siteStr.toUpperCase()}___${scopeStr.toUpperCase()}___${rowYear.toUpperCase()}`
+        : `${scopeStr.toUpperCase()}___${rowYear.toUpperCase()}`;
 
       if (!map.has(key)) {
         map.set(key, {
           siteName: siteStr,
           scopeAudit: scopeStr,
-          years: new Set(),
+          years: new Set([rowYear]),
           total: 0,
           close: 0,
           siteTotal: 0,
@@ -295,7 +443,7 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
           major: 0,
           minor: 0,
           improvement: 0,
-          sites: new Set(),
+          sites: new Set([siteStr]),
           picSites: new Set(),
           picHOs: new Set(),
         });
@@ -304,41 +452,28 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       const entry = map.get(key)!;
       entry.total += 1;
 
-      if (resolvedYear) {
-        entry.years.add(resolvedYear);
-      }
-
       const isItemClosed = isStatusClosed(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
       const isItemOpen = isStatusOpen(item.STATUS, item.REMARKS, item["REVIEWED CLOSING FROM IA"]);
-
-      const isSiteClosed = isItemClosed;
-      const isHOClosed = isItemClosed;
 
       const picSiteStr = (item["PIC SITE"] || '').trim();
       const picHOStr = (item["PIC HO"] || '').trim();
 
       if (isDepartment(picSiteStr)) {
         entry.siteTotal += 1;
-        if (isSiteClosed) entry.siteClose += 1;
+        if (isItemClosed) entry.siteClose += 1;
       }
 
       if (isDepartment(picHOStr)) {
         entry.hoTotal += 1;
-        if (isHOClosed) entry.hoClose += 1;
+        if (isItemClosed) entry.hoClose += 1;
       }
 
-      if (isItemClosed) {
-        entry.close += 1;
-      } else if (isItemOpen) {
-        entry.open += 1;
-      } else {
-        entry.progress += 1;
-      }
+      if (isItemClosed) entry.close += 1;
+      else if (isItemOpen) entry.open += 1;
+      else entry.progress += 1;
 
       const remarks = (item.REMARKS || '').toUpperCase().trim();
-      if (remarks.includes('OVERDUE')) {
-        entry.overdue += 1;
-      }
+      if (remarks.includes('OVERDUE')) entry.overdue += 1;
 
       const kat = (item.KATEGORI || '').toUpperCase().trim();
       if (kat.includes('MAJOR')) entry.major += 1;
@@ -354,56 +489,6 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       if (item["PIC HO"] && item["PIC HO"].trim()) {
         parseDepartments(item["PIC HO"]).forEach(t => {
           if (t) entry.picHOs.add(t);
-        });
-      }
-    });
-
-    // 2. Ensure ALL configured project links (including those with 0 rows or newly added links) exist in map
-    configuredProjectConfigs.forEach(cfg => {
-      const projName = (cfg.projectName || '').trim();
-      if (!projName) return;
-      const siteName = (cfg.siteName || 'HEAD OFFICE').trim();
-      const yearStr = cfg.year ? String(cfg.year).trim() : '2026';
-
-      // Check filters if active
-      if (selectedProjectFilter !== 'ALL') {
-        if (selectedProjectFilter !== 'LINKED_ONLY' && projName.toUpperCase() !== selectedProjectFilter.toUpperCase()) {
-          return;
-        }
-      }
-      if (selectedSiteFilter !== 'ALL' && siteName.toUpperCase() !== selectedSiteFilter.toUpperCase()) {
-        return;
-      }
-
-      const key = groupByMode === 'jobsite_scope'
-        ? `${siteName.toUpperCase()}___${projName.toUpperCase()}___${yearStr.toUpperCase()}`
-        : `${projName.toUpperCase()}___${yearStr.toUpperCase()}`;
-
-      if (!map.has(key)) {
-        const initialYears = new Set<string>();
-        if (yearStr) initialYears.add(yearStr);
-        const initialSites = new Set<string>();
-        if (siteName) initialSites.add(siteName);
-
-        map.set(key, {
-          siteName: siteName,
-          scopeAudit: projName,
-          years: initialYears,
-          total: cfg.rowCount || 0,
-          close: 0,
-          siteTotal: 0,
-          siteClose: 0,
-          hoTotal: 0,
-          hoClose: 0,
-          open: 0,
-          progress: 0,
-          overdue: 0,
-          major: 0,
-          minor: 0,
-          improvement: 0,
-          sites: initialSites,
-          picSites: new Set(),
-          picHOs: new Set(),
         });
       }
     });
@@ -449,6 +534,30 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
     return list;
   }, [allRows, selectedProjectFilter, selectedSiteFilter, selectedKategoriFilter, groupByMode, configuredProjectConfigs]);
+
+  // Overall Dataset Global Metrics calculated from projectSummaries to guarantee exact sync
+  const globalMetrics = useMemo(() => {
+    let total = 0;
+    let close = 0;
+    let open = 0;
+    let progress = 0;
+    let overdue = 0;
+
+    projectSummaries.forEach(p => {
+      total += p.totalItems;
+      close += p.closedItems;
+      open += p.openItems;
+      progress += p.progressItems;
+      overdue += p.overdueItems;
+    });
+
+    const closePct = total > 0 ? ((close / total) * 100).toFixed(2) : '0.00';
+    const openPct = total > 0 ? ((open / total) * 100).toFixed(2) : '0.00';
+    const progressPct = total > 0 ? ((progress / total) * 100).toFixed(2) : '0.00';
+    const overduePct = total > 0 ? ((overdue / total) * 100).toFixed(2) : '0.00';
+
+    return { total, close, open, progress, overdue, closePct, openPct, progressPct, overduePct };
+  }, [projectSummaries]);
 
   // Filtered & Sorted Projects
   const filteredProjects = useMemo(() => {
