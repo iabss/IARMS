@@ -1,5 +1,6 @@
 import { AFSFindingRecord } from '../types';
 import rawSheetData from './sheetData.json';
+import { extractFindingYear } from '../utils/statusHelper';
 
 const STORAGE_KEY_ROWS = 'afs_synced_custom_rows_v2';
 const STORAGE_KEY_META = 'afs_synced_metadata_v2';
@@ -193,6 +194,8 @@ export function deleteProjectPermanently(projectName: string, siteName?: string,
     window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged: remainingRows } }));
     window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: getProjectLinkConfigs() }));
     window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(getTrendExcludedProjects()) }));
+
+    pushStateToServer();
 
     return true;
   } catch (err) {
@@ -472,6 +475,9 @@ export function saveSyncedRows(
     // Dispatch browser event for real-time reactivity
     window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { syncMeta, merged } }));
 
+    // Persist to server backend
+    pushStateToServer();
+
     return true;
   } catch (err) {
     console.error('Error saving synced rows:', err);
@@ -507,6 +513,7 @@ export function saveEntireDataset(rows: AFSFindingRecord[], actionDescription = 
 
     recordAchievementSnapshot(actionDescription, 'manual');
     window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { syncMeta, merged: sanitized } }));
+    pushStateToServer();
     return true;
   } catch (err) {
     console.error('Error in saveEntireDataset:', err);
@@ -517,25 +524,130 @@ export function saveEntireDataset(rows: AFSFindingRecord[], actionDescription = 
 // In-memory cache for project link configs to guarantee zero data loss during session or quota limits
 let inMemoryProjectConfigs: ProjectLinkConfig[] | null = null;
 
+// Push client-side state to server backend so all shared/published instances receive updates
+export async function pushStateToServer() {
+  try {
+    const projectConfigs = getProjectLinkConfigs();
+    const customRows = getCustomSyncedRows() || [];
+    const deletedKeys = Array.from(getDeletedProjectKeys());
+    const trendExclusions = Array.from(getTrendExcludedProjects());
+    const snapshots = getAchievementSnapshots();
+
+    await fetch('/api/app-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectConfigs,
+        customRows,
+        deletedKeys,
+        trendExclusions,
+        snapshots
+      })
+    });
+  } catch (err) {
+    // Non-blocking background push
+  }
+}
+
+// Hydrate state from server backend on initial mount
+export async function syncWithServer(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/app-state');
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (!json.success || !json.state) return false;
+
+    const { projectConfigs, customRows, deletedKeys, trendExclusions, snapshots } = json.state;
+    let hasUpdated = false;
+
+    // Hydrate projectConfigs if present
+    if (Array.isArray(projectConfigs) && projectConfigs.length > 0) {
+      const localConfigs = localStorage.getItem(STORAGE_KEY_PROJECT_LINKS);
+      if (!localConfigs) {
+        localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(projectConfigs));
+        inMemoryProjectConfigs = projectConfigs;
+        hasUpdated = true;
+      }
+    }
+
+    // Hydrate custom rows
+    if (Array.isArray(customRows) && customRows.length > 0) {
+      const localRows = localStorage.getItem(STORAGE_KEY_ROWS);
+      if (!localRows) {
+        localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(customRows));
+        hasUpdated = true;
+      }
+    }
+
+    // Hydrate deleted keys
+    if (Array.isArray(deletedKeys) && deletedKeys.length > 0) {
+      const localDel = localStorage.getItem(STORAGE_KEY_DELETED_PROJECTS);
+      if (!localDel) {
+        localStorage.setItem(STORAGE_KEY_DELETED_PROJECTS, JSON.stringify(deletedKeys));
+        hasUpdated = true;
+      }
+    }
+
+    // Hydrate trend exclusions
+    if (Array.isArray(trendExclusions) && trendExclusions.length > 0) {
+      const localTrend = localStorage.getItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS);
+      if (!localTrend) {
+        localStorage.setItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS, JSON.stringify(trendExclusions));
+        hasUpdated = true;
+      }
+    }
+
+    // Hydrate snapshots
+    if (Array.isArray(snapshots) && snapshots.length > 0) {
+      const localSnap = localStorage.getItem(STORAGE_KEY_SNAPSHOTS);
+      if (!localSnap) {
+        localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(snapshots));
+        hasUpdated = true;
+      }
+    }
+
+    if (hasUpdated) {
+      const merged = getMergedSheetRows();
+      window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged } }));
+      window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: getProjectLinkConfigs() }));
+      window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(getTrendExcludedProjects()) }));
+    } else {
+      // If local has custom data but server was empty, push local state to server
+      const localConfigs = localStorage.getItem(STORAGE_KEY_PROJECT_LINKS);
+      const localRows = localStorage.getItem(STORAGE_KEY_ROWS);
+      if (localConfigs || localRows) {
+        pushStateToServer();
+      }
+    }
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Helper to safely write critical configs to localStorage with quota protection
 function safeSaveProjectLinks(configs: ProjectLinkConfig[]): boolean {
   const deduped = deduplicateProjectConfigs(configs);
   inMemoryProjectConfigs = deduped;
+  let success = false;
   try {
     localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
-    return true;
+    success = true;
   } catch (e) {
     console.warn('Quota exceeded when saving project links. Attempting storage cleanup...', e);
     try {
       // If quota is reached, remove old metadata/temp rows to guarantee room for link configs
       localStorage.removeItem(STORAGE_KEY_META);
       localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
-      return true;
+      success = true;
     } catch (err) {
       console.error('Critical failure saving project links:', err);
-      return false;
+      success = false;
     }
   }
+  pushStateToServer();
+  return success;
 }
 
 // Helper to generate composite unique key for project + site + optional year
@@ -671,7 +783,7 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     const matchingRows = currentMerged.filter(r => {
       const rProj = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
       const rSite = (r['SITE'] || '').trim().toUpperCase();
-      const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
+      const rYear = extractFindingYear(r, targetYear || '2026');
 
       if (rProj !== targetProj) return false;
       if (targetSite && rSite && rSite !== targetSite) return false;
@@ -779,6 +891,23 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig) {
   }
 }
 
+export function deleteProjectLinkConfigById(configId: string) {
+  try {
+    if (!configId) return;
+    const targetId = configId.trim();
+    addDeletedProjectKey(targetId);
+
+    inMemoryProjectConfigs = null;
+    const configs = getProjectLinkConfigs();
+    const filtered = configs.filter(c => (c.id || '') !== targetId);
+    safeSaveProjectLinks(filtered);
+
+    window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: filtered }));
+  } catch (err) {
+    console.error('Error deleting project link config by ID:', err);
+  }
+}
+
 export function deleteProjectLinkConfig(projectName: string, siteName?: string, year?: string | number) {
   try {
     const targetName = projectName.trim().toUpperCase();
@@ -786,8 +915,11 @@ export function deleteProjectLinkConfig(projectName: string, siteName?: string, 
     const targetYear = year ? String(year).trim() : '';
     const targetKey = getProjectCompositeKey(targetName, targetSite, targetYear);
 
-    // Persist as deleted (both full composite key and project name)
-    addDeletedProjectKey(targetKey, targetName);
+    // Persist specific composite key as deleted
+    addDeletedProjectKey(targetKey);
+    if (!targetSite && !targetYear) {
+      addDeletedProjectKey(targetName);
+    }
 
     inMemoryProjectConfigs = null;
 
@@ -795,16 +927,19 @@ export function deleteProjectLinkConfig(projectName: string, siteName?: string, 
     const configs = getProjectLinkConfigs();
     const filtered = configs.filter(c => {
       const cProj = (c.projectName || '').trim().toUpperCase();
-      const cKey = c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year);
+      const cSite = (c.siteName || '').trim().toUpperCase();
+      const cYear = c.year ? String(c.year).trim() : '';
+      const cKey = c.id || getProjectCompositeKey(cProj, cSite, cYear);
 
-      if (deletedKeys.has(cProj) || deletedKeys.has(cKey)) return false;
-      if (cProj === targetName || cKey === targetKey) return false;
+      if (deletedKeys.has(cKey)) return false;
+      if (cKey === targetKey) return false;
+      if (!targetSite && !targetYear && (cProj === targetName || deletedKeys.has(cProj))) return false;
       return true;
     });
     
     safeSaveProjectLinks(filtered);
 
-    // Also remove rows belonging to this project & site & year
+    // Also remove rows belonging to this specific project & site & year
     const customRows = getCustomSyncedRows() || [];
     const remainingRows = customRows.filter(r => {
       const rName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
@@ -812,8 +947,9 @@ export function deleteProjectLinkConfig(projectName: string, siteName?: string, 
       const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
       const rKey = getProjectCompositeKey(rName, rSite, rYear);
 
-      if (deletedKeys.has(rName) || deletedKeys.has(rKey)) return false;
-      if (rName === targetName || rKey === targetKey) return false;
+      if (deletedKeys.has(rKey)) return false;
+      if (rKey === targetKey) return false;
+      if (!targetSite && !targetYear && (rName === targetName || deletedKeys.has(rName))) return false;
       return true;
     });
 
@@ -1072,21 +1208,41 @@ function getDefaultBaselineSnapshots(): AchievementSnapshot[] {
     },
     {
       id: 'snap_2026_08_17',
-      timestamp: '2026-08-17T10:00:00.000Z',
+      timestamp: '2026-08-17T00:00:00.000Z',
       date: '2026-08-17',
-      note: 'Sync Google Sheet: 17 Agustus 2026',
-      sourceType: 'sync',
+      note: 'Cut-Off Baseline Awal Minggu: 17 Agustus 2026 (00:00 WIB)',
+      sourceType: 'initial',
       totalRows: 1046,
       closedRows: 860,
       openRows: 162,
       progressRows: 24,
-      closeRate: 82.18,
+      closeRate: 77.83,
       projectStats: [
-        { projectName: 'CDI', total: 147, closed: 129, open: 16, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 90.00 },
-        { projectName: 'IP BAYAN', total: 166, closed: 113, open: 48, progress: 5, closeRate: 86.67, siteRate: 80.00, hoRate: 50.00 },
-        { projectName: 'AGM', total: 43, closed: 29, open: 12, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 },
-        { projectName: 'MAS', total: 31, closed: 20, open: 9, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 },
-        { projectName: 'IT', total: 222, closed: 114, open: 101, progress: 7, closeRate: 51.40, siteRate: 74.07, hoRate: 50.51 },
+        { projectName: 'CDI', total: 147, closed: 130, open: 15, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 81.97 },
+        { projectName: 'IP BAYAN', total: 166, closed: 116, open: 45, progress: 5, closeRate: 69.88, siteRate: 80.60, hoRate: 50.94 },
+        { projectName: 'AGM', total: 43, closed: 34, open: 7, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 },
+        { projectName: 'MAS', total: 31, closed: 22, open: 7, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 },
+        { projectName: 'IT', total: 222, closed: 112, open: 103, progress: 7, closeRate: 50.47, siteRate: 74.07, hoRate: 49.49 },
+        { projectName: 'PR-PAYMENT', total: 93, closed: 46, open: 46, progress: 1, closeRate: 49.46, siteRate: 56.25, hoRate: 50.00 }
+      ]
+    },
+    {
+      id: 'snap_2026_08_18',
+      timestamp: '2026-08-18T00:00:00.000Z',
+      date: '2026-08-18',
+      note: 'Cut-Off Harian Baseline: 18 Agustus 2026 (00:00 WIB)',
+      sourceType: 'manual',
+      totalRows: 1046,
+      closedRows: 860,
+      openRows: 162,
+      progressRows: 24,
+      closeRate: 77.83,
+      projectStats: [
+        { projectName: 'CDI', total: 147, closed: 130, open: 15, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 81.97 },
+        { projectName: 'IP BAYAN', total: 166, closed: 116, open: 45, progress: 5, closeRate: 69.88, siteRate: 80.60, hoRate: 50.94 },
+        { projectName: 'AGM', total: 43, closed: 34, open: 7, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 },
+        { projectName: 'MAS', total: 31, closed: 22, open: 7, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 },
+        { projectName: 'IT', total: 222, closed: 112, open: 103, progress: 7, closeRate: 50.47, siteRate: 74.07, hoRate: 49.49 },
         { projectName: 'PR-PAYMENT', total: 93, closed: 46, open: 46, progress: 1, closeRate: 49.46, siteRate: 56.25, hoRate: 50.00 }
       ]
     }
@@ -1123,7 +1279,23 @@ export function getAchievementSnapshots(): AchievementSnapshot[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        const updated = parsed.map(s => {
+          if (s.id === 'snap_2026_08_17' || s.id === 'snap_2026_08_18' || s.sourceType === 'initial') {
+            return {
+              ...s,
+              projectStats: [
+                { projectName: 'CDI', total: 147, closed: 130, open: 15, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 81.97 },
+                { projectName: 'IP BAYAN', total: 166, closed: 116, open: 45, progress: 5, closeRate: 69.88, siteRate: 80.60, hoRate: 50.94 },
+                { projectName: 'AGM', total: 43, closed: 34, open: 7, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 },
+                { projectName: 'MAS', total: 31, closed: 22, open: 7, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 },
+                { projectName: 'IT', total: 222, closed: 112, open: 103, progress: 7, closeRate: 51.40, siteRate: 74.07, hoRate: 50.51 },
+                { projectName: 'PR-PAYMENT', total: 93, closed: 46, open: 46, progress: 1, closeRate: 49.46, siteRate: 56.25, hoRate: 50.00 }
+              ]
+            };
+          }
+          return s;
+        });
+        return updated.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       }
     }
   } catch (err) {
@@ -1139,11 +1311,18 @@ export function getAchievementSnapshots(): AchievementSnapshot[] {
 // Record a new achievement snapshot from current dataset
 export function recordAchievementSnapshot(
   note = 'Sinkronisasi Spreadsheet',
-  sourceType: 'sync' | 'manual' | 'initial' | 'edit' = 'sync'
+  sourceType: 'sync' | 'manual' | 'initial' | 'edit' = 'sync',
+  customDate?: string
 ): AchievementSnapshot {
   const rows = getMergedSheetRows();
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = customDate && /^\d{4}-\d{2}-\d{2}$/.test(customDate.trim()) 
+    ? customDate.trim() 
+    : now.toISOString().split('T')[0];
+
+  const timestampStr = customDate && /^\d{4}-\d{2}-\d{2}$/.test(customDate.trim())
+    ? `${customDate.trim()}T00:00:00.000Z`
+    : now.toISOString();
 
   let totalRows = rows.length;
   let closedRows = 0;
@@ -1200,7 +1379,7 @@ export function recordAchievementSnapshot(
 
   const newSnapshot: AchievementSnapshot = {
     id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    timestamp: now.toISOString(),
+    timestamp: timestampStr,
     date: dateStr,
     note,
     sourceType,
@@ -1218,6 +1397,7 @@ export function recordAchievementSnapshot(
   const savedList = saveSnapshotsSafe(updated);
 
   window.dispatchEvent(new CustomEvent('afs_snapshot_recorded', { detail: { newSnapshot, history: savedList } }));
+  pushStateToServer();
   return newSnapshot;
 }
 
@@ -1236,7 +1416,7 @@ export function clearSnapshotHistory() {
 }
 
 // ----------------------------------------------------
-// DAILY 00:00 CUT-OFF & GOOGLE DRIVE AUTO-BACKUP ENGINE
+// DAILY 09:00 CUT-OFF & GOOGLE DRIVE AUTO-BACKUP ENGINE
 // ----------------------------------------------------
 const STORAGE_KEY_DAILY_CUTOFF_CONFIG = 'iams_daily_cutoff_config_v1';
 const STORAGE_KEY_DAILY_CUTOFF_LOGS = 'iams_daily_cutoff_logs_v1';
@@ -1244,7 +1424,7 @@ const STORAGE_KEY_DAILY_CUTOFF_LOGS = 'iams_daily_cutoff_logs_v1';
 export interface DailyCutoffConfig {
   enabled: boolean;
   autoDriveBackup: boolean;
-  cutoffHour: number; // default 0 (00:00)
+  cutoffHour: number; // default 9 (09:00 WIB)
   cutoffMinute: number; // default 0
   lastCutoffDate: string; // YYYY-MM-DD
   lastCutoffTimestamp: string | null;
@@ -1275,8 +1455,8 @@ export function getDailyCutoffConfig(): DailyCutoffConfig {
       return {
         enabled: parsed.enabled ?? true,
         autoDriveBackup: parsed.autoDriveBackup ?? true,
-        cutoffHour: parsed.cutoffHour ?? 0,
-        cutoffMinute: parsed.cutoffMinute ?? 0,
+        cutoffHour: typeof parsed.cutoffHour === 'number' ? parsed.cutoffHour : 9,
+        cutoffMinute: typeof parsed.cutoffMinute === 'number' ? parsed.cutoffMinute : 0,
         lastCutoffDate: parsed.lastCutoffDate || '',
         lastCutoffTimestamp: parsed.lastCutoffTimestamp || null,
         targetFolderId: parsed.targetFolderId || '1zDCtRFoFEDWzakB0I5lpr88PP2vwDAAs'
@@ -1288,7 +1468,7 @@ export function getDailyCutoffConfig(): DailyCutoffConfig {
   return {
     enabled: true,
     autoDriveBackup: true,
-    cutoffHour: 0,
+    cutoffHour: 9,
     cutoffMinute: 0,
     lastCutoffDate: '',
     lastCutoffTimestamp: null,
@@ -1334,4 +1514,184 @@ export function saveDailyCutoffLog(log: DailyCutoffLog): DailyCutoffLog[] {
   window.dispatchEvent(new CustomEvent('iams_cutoff_log_updated', { detail: { log, history: updated } }));
   return updated;
 }
+
+// ----------------------------------------------------
+// DYNAMIC WEEKLY BASELINE & STATE MANAGEMENT (SENIN - MINGGU)
+// ----------------------------------------------------
+export interface WeeklyProjectMetric {
+  total: number;
+  closed: number;
+  open: number;
+  progress: number;
+  closeRate: number;
+  siteRate: number;
+  hoRate: number;
+}
+
+export interface WeeklyBaselineStorage {
+  mondayDate: string; // YYYY-MM-DD
+  sundayDate: string; // YYYY-MM-DD
+  weekNumber: number;
+  year: number;
+  snapshotTimestamp: string;
+  isLocked: boolean;
+  overall: {
+    total: number;
+    closed: number;
+    open: number;
+    progress: number;
+    closeRate: number;
+    siteRate: number;
+    hoRate: number;
+  };
+  byProject: Record<string, WeeklyProjectMetric>;
+}
+
+const STORAGE_KEY_WEEKLY_BASELINE = 'iams_weekly_baseline_storage_v2';
+
+export function getMondaySundayDateRange(targetDate = new Date()): { mondayStr: string; sundayStr: string; weekNum: number; year: number } {
+  const curr = new Date(targetDate);
+  const day = curr.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diffToMonday = curr.getDate() - day + (day === 0 ? -6 : 1);
+  
+  const monday = new Date(curr.setDate(diffToMonday));
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const formatIso = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayStr}`;
+  };
+
+  // Calculate ISO week number
+  const tempDate = new Date(monday.getTime());
+  tempDate.setHours(0, 0, 0, 0);
+  tempDate.setDate(tempDate.getDate() + 3 - (tempDate.getDay() + 6) % 7);
+  const week1 = new Date(tempDate.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((tempDate.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+
+  return {
+    mondayStr: formatIso(monday),
+    sundayStr: formatIso(sunday),
+    weekNum,
+    year: monday.getFullYear()
+  };
+}
+
+export const STANDARD_USER_BASELINE_JSON = [
+  {
+    id: 1,
+    project: "CDI",
+    type: "Audit Operational Project",
+    total_sebelumnya: 88.19,
+    progress_site: 92.98,
+    progress_ho: 81.97
+  },
+  {
+    id: 2,
+    project: "IP Bayan",
+    type: "Audit Operational Project",
+    total_sebelumnya: 69.88,
+    progress_site: 80.00,
+    progress_ho: 50.00
+  },
+  {
+    id: 3,
+    project: "AGM",
+    type: "Closing Project",
+    total_sebelumnya: 79.07,
+    progress_site: 73.91,
+    progress_ho: 83.87
+  },
+  {
+    id: 4,
+    project: "MAS",
+    type: "Closing Project",
+    total_sebelumnya: 70.97,
+    progress_site: 83.33,
+    progress_ho: 52.94
+  },
+  {
+    id: 5,
+    project: "IT",
+    type: "Audit Operational Project",
+    total_sebelumnya: 50.47,
+    progress_site: 74.07,
+    progress_ho: 49.49
+  },
+  {
+    id: 6,
+    project: "PR-Payment",
+    type: "Audit Operational Project",
+    total_sebelumnya: 49.46,
+    progress_site: 56.25,
+    progress_ho: 50.00
+  }
+];
+
+export function getWeeklyBaselineData(): WeeklyBaselineStorage {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WEEKLY_BASELINE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.byProject && Object.keys(parsed.byProject).length > 0) {
+        parsed.byProject['CDI'] = { total: 147, closed: 130, open: 15, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 81.97 };
+        parsed.byProject['IP BAYAN'] = { total: 166, closed: 116, open: 45, progress: 5, closeRate: 69.88, siteRate: 80.60, hoRate: 50.94 };
+        parsed.byProject['AGM'] = { total: 43, closed: 34, open: 7, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 };
+        parsed.byProject['MAS'] = { total: 31, closed: 22, open: 7, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 };
+        parsed.byProject['IT'] = { total: 222, closed: 112, open: 103, progress: 7, closeRate: 51.40, siteRate: 74.07, hoRate: 50.51 };
+        parsed.byProject['PR-PAYMENT'] = { total: 93, closed: 46, open: 46, progress: 1, closeRate: 49.46, siteRate: 56.25, hoRate: 50.00 };
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error reading weekly baseline:', e);
+  }
+
+  // Seed default baseline corresponding to user's audited initial week rates
+  const { mondayStr, sundayStr, weekNum, year } = getMondaySundayDateRange();
+  const defaultWeekly: WeeklyBaselineStorage = {
+    mondayDate: mondayStr,
+    sundayDate: sundayStr,
+    weekNumber: weekNum,
+    year,
+    snapshotTimestamp: `${mondayStr}T00:00:00.000Z`,
+    isLocked: true,
+    overall: {
+      total: 1046,
+      closed: 814,
+      open: 208,
+      progress: 24,
+      closeRate: 77.83,
+      siteRate: 80.76,
+      hoRate: 74.88
+    },
+    byProject: {
+      'CDI': { total: 147, closed: 130, open: 15, progress: 2, closeRate: 88.19, siteRate: 92.98, hoRate: 81.97 },
+      'IP BAYAN': { total: 166, closed: 116, open: 45, progress: 5, closeRate: 69.88, siteRate: 80.60, hoRate: 50.94 },
+      'AGM': { total: 43, closed: 34, open: 7, progress: 2, closeRate: 79.07, siteRate: 73.91, hoRate: 83.87 },
+      'MAS': { total: 31, closed: 22, open: 7, progress: 2, closeRate: 70.97, siteRate: 83.33, hoRate: 52.94 },
+      'IT': { total: 222, closed: 112, open: 103, progress: 7, closeRate: 50.47, siteRate: 74.07, hoRate: 49.49 },
+      'PR-PAYMENT': { total: 93, closed: 46, open: 46, progress: 1, closeRate: 49.46, siteRate: 56.25, hoRate: 50.00 }
+    }
+  };
+
+  saveWeeklyBaselineData(defaultWeekly);
+  return defaultWeekly;
+}
+
+export function saveWeeklyBaselineData(data: WeeklyBaselineStorage): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_WEEKLY_BASELINE, JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent('iams_weekly_baseline_updated', { detail: data }));
+  } catch (e) {
+    console.error('Error saving weekly baseline:', e);
+  }
+}
+
 

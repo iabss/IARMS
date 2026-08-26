@@ -38,6 +38,7 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
   const [isRunning, setIsRunning] = useState(false);
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [folderId, setFolderId] = useState<string>(getActiveFolderId());
+  const [selectedCutoffDate, setSelectedCutoffDate] = useState<string>('2026-08-18');
 
   // Check drive token status & listen for cutoff events
   useEffect(() => {
@@ -84,11 +85,12 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
     );
   };
 
-  const handleManualRunCutoff = async () => {
+  const handleManualRunCutoff = async (customDate?: string) => {
     setIsRunning(true);
-    onToast('Sedang memproses Cut-Off & sinkronisasi data ke Google Drive...', 'info');
+    const targetDate = customDate || selectedCutoffDate || undefined;
+    onToast(`Sedang memproses Cut-Off (${targetDate || 'Hari Ini'}) & sinkronisasi data ke Google Drive...`, 'info');
     try {
-      const res = await runDailyCutoffProcess(true);
+      const res = await runDailyCutoffProcess(true, undefined, targetDate);
       setLogs(getDailyCutoffLogs());
       setConfig(getDailyCutoffConfig());
       onToast(res.message, 'success');
@@ -129,7 +131,7 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded-xl text-xs font-black tracking-wider uppercase flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-sky-400" />
-                <span>Otomatisasi Cut-Off Harian 00:00</span>
+                <span>Otomatisasi Cut-Off Harian 09:00 WIB</span>
               </span>
               {config.enabled ? (
                 <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[11px] font-bold flex items-center gap-1">
@@ -147,35 +149,53 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
               Cut-Off Database Otomatis & Sinkronisasi Google Drive
             </h2>
             <p className="text-xs sm:text-sm text-sky-100/80 leading-relaxed font-medium">
-              Sistem secara otomatis mengunci (*snapshot*) data capaian closing audit setiap pergantian hari pukul <strong>00:00 WIB</strong>, dan langsung mengunggah file cadangan database JSON ke folder Google Drive Anda.
+              Sistem secara otomatis mengunci (*snapshot*) data capaian closing audit setiap hari pukul <strong>09:00 WIB</strong>, dan langsung mengunggah file cadangan database JSON ke folder Google Drive Anda.
             </p>
           </div>
 
-          {/* Action Trigger Button */}
-          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto shrink-0">
+          {/* Action Trigger Button & Custom Date Control */}
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 self-start lg:self-auto shrink-0">
+            <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl border border-white/20">
+              <span className="text-[11px] font-bold text-sky-200 pl-2">Tanggal:</span>
+              <input
+                type="date"
+                value={selectedCutoffDate}
+                onChange={(e) => setSelectedCutoffDate(e.target.value)}
+                className="px-2.5 py-1.5 bg-white text-slate-900 font-extrabold text-xs rounded-xl focus:outline-none cursor-pointer"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedCutoffDate('2026-08-18')}
+                className="px-2.5 py-1.5 bg-sky-500/30 hover:bg-sky-500/50 text-white font-bold text-xs rounded-xl border border-sky-300/30 cursor-pointer"
+                title="Pilih 18 Agustus 2026 sebagai Cut-Off"
+              >
+                18 Ags
+              </button>
+            </div>
+
             <button
-              onClick={handleManualRunCutoff}
+              onClick={() => handleManualRunCutoff(selectedCutoffDate)}
               disabled={isRunning}
-              className="px-5 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg transition-all flex items-center gap-2.5 cursor-pointer disabled:cursor-wait hover:scale-105 active:scale-95"
-              title="Eksekusi cut-off dan kirim file database ke Google Drive saat ini juga"
+              className="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:cursor-wait hover:scale-105 active:scale-95"
+              title="Eksekusi backup manual untuk tanggal yang dipilih"
             >
               {isRunning ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <Play className="w-4 h-4 fill-white" />
               )}
-              <span>{isRunning ? 'Sedang Memproses Cut-Off...' : 'Jalankan Cut-Off 00:00 Sekarang'}</span>
+              <span>{isRunning ? 'Sedang Memproses...' : 'Backup Manual'}</span>
             </button>
 
             <a
               href={folderUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center gap-2 shadow-sm"
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm"
               title="Buka folder tujuan Google Drive di tab baru"
             >
               <Cloud className="w-4 h-4 text-sky-300" />
-              <span>Buka Folder Drive</span>
+              <span>Buka Drive</span>
               <ExternalLink className="w-3.5 h-3.5 text-sky-200" />
             </a>
           </div>
@@ -207,10 +227,10 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
           </div>
 
           <div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">00:00 WIB</div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight">09:00 WIB</div>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
               {config.enabled 
-                ? 'Aktif otomatis setiap tengah malam' 
+                ? 'Aktif otomatis setiap hari pukul 09:00 WIB' 
                 : 'Otomatisasi saat ini dinonaktifkan'}
             </p>
           </div>
@@ -333,7 +353,7 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
             <Clock className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <h4 className="text-sm font-bold text-slate-700">Belum Ada Riwayat Cut-Off</h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-              Sistem akan mencatat log pertama saat jam 00:00 atau ketika Anda mengklik tombol "Jalankan Cut-Off 00:00 Sekarang".
+              Sistem akan mencatat log pertama saat jam 09:00 WIB atau ketika Anda mengklik tombol Cut-Off.
             </p>
           </div>
         ) : (
@@ -370,7 +390,7 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded-lg text-[10px] font-bold">
-                            Auto 00:00
+                            Auto 09:00 WIB
                           </span>
                         )}
                       </td>

@@ -28,7 +28,7 @@ import { AFSFindingRecord, PublicAuditItem } from '../types';
 import rawSheetData from '../data/sheetData.json';
 import { getMergedSheetRows, getProjectLinkConfigs } from '../data/dataSyncManager';
 import { isDepartment, parseDepartments } from '../utils/deptHelper';
-import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear } from '../utils/statusHelper';
 
 interface PublicPortalProps {
   publicAuditList?: PublicAuditItem[];
@@ -204,15 +204,20 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
         const tProj = projName.toUpperCase();
         const tSite = siteName.toUpperCase();
+        const tYear = yearStr.trim();
 
         // Match rows specifically for this project config
         const matchingRows = allRows.filter(item => {
           const rowProj = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
           const rowSite = (item.SITE || '').trim().toUpperCase();
+          const rowYear = extractFindingYear(item, tYear);
 
           if (rowProj !== tProj) return false;
           if (tSite && tSite !== 'HEAD OFFICE' && tSite !== 'ALL') {
             if (rowSite !== tSite) return false;
+          }
+          if (tYear && rowYear && rowYear !== tYear) {
+            return false;
           }
 
           // Apply category filter if active
@@ -420,7 +425,7 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
       const siteStr = (item.SITE || "HEAD OFFICE").trim();
       const scopeStr = (item["PROJECT AUDIT"] || "LAINNYA").trim();
-      const rowYear = String(item["PERIODE AUDIT"] || item["TAHUN"] || item["YEAR"] || '2026').trim();
+      const rowYear = extractFindingYear(item, '2026');
 
       const key = groupByMode === 'jobsite_scope'
         ? `${siteStr.toUpperCase()}___${scopeStr.toUpperCase()}___${rowYear.toUpperCase()}`
@@ -590,41 +595,42 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
     });
   }, [projectSummaries, searchQuery, selectedStatusFilter, sortBy]);
 
-  // Active Metrics considering filters (Average Achievement Closing Rate across Projects: Achievement semua project / jumlah project)
+  // Active Metrics considering filters (Average Achievement Closing Rate across Projects: Rata-rata Achievement seluruh project)
   const activeMetrics = useMemo(() => {
     const hasActiveFilters = searchQuery.trim() !== '' || selectedProjectFilter !== 'ALL' || selectedSiteFilter !== 'ALL' || selectedKategoriFilter !== 'ALL' || selectedStatusFilter !== 'ALL';
     
     const targetProjects = hasActiveFilters ? filteredProjects : projectSummaries;
+    const total = targetProjects.reduce((acc, p) => acc + p.totalItems, 0);
+    const close = targetProjects.reduce((acc, p) => acc + p.closedItems, 0);
+    const open = targetProjects.reduce((acc, p) => acc + p.openItems, 0);
+    const progress = targetProjects.reduce((acc, p) => acc + p.progressItems, 0);
+    const overdue = targetProjects.reduce((acc, p) => acc + p.overdueItems, 0);
+
+    // Hitung rata-rata (average) achievement closing rate dari seluruh project yang ada
     const validProjects = targetProjects.filter(p => p.totalItems > 0);
-    const sumRates = validProjects.reduce((acc, p) => acc + p.closingRate, 0);
-    const avgClosePct = !hasActiveFilters ? '82,18' : (validProjects.length > 0 ? (sumRates / validProjects.length).toFixed(2).replace('.', ',') : '82,18');
+    const avgCloseRate = validProjects.length > 0
+      ? validProjects.reduce((acc, p) => acc + p.closingRate, 0) / validProjects.length
+      : 0;
 
-    if (!hasActiveFilters) {
-      return {
-        total: globalMetrics.total,
-        close: globalMetrics.close,
-        open: globalMetrics.open,
-        progress: globalMetrics.progress,
-        overdue: globalMetrics.overdue,
-        closePct: avgClosePct,
-        openPct: globalMetrics.openPct.replace('.', ','),
-        progressPct: globalMetrics.progressPct.replace('.', ','),
-        overduePct: globalMetrics.overduePct.replace('.', ',')
-      };
-    }
+    const avgOpenRate = validProjects.length > 0
+      ? validProjects.reduce((acc, p) => acc + (p.totalItems > 0 ? (p.openItems / p.totalItems) * 100 : 0), 0) / validProjects.length
+      : 0;
 
-    const total = filteredProjects.reduce((acc, p) => acc + p.totalItems, 0);
-    const close = filteredProjects.reduce((acc, p) => acc + p.closedItems, 0);
-    const open = filteredProjects.reduce((acc, p) => acc + p.openItems, 0);
-    const progress = filteredProjects.reduce((acc, p) => acc + p.progressItems, 0);
-    const overdue = filteredProjects.reduce((acc, p) => acc + p.overdueItems, 0);
+    const avgProgressRate = validProjects.length > 0
+      ? validProjects.reduce((acc, p) => acc + (p.totalItems > 0 ? (p.progressItems / p.totalItems) * 100 : 0), 0) / validProjects.length
+      : 0;
 
-    const openPct = total > 0 ? ((open / total) * 100).toFixed(2).replace('.', ',') : '0,00';
-    const progressPct = total > 0 ? ((progress / total) * 100).toFixed(2).replace('.', ',') : '0,00';
-    const overduePct = total > 0 ? ((overdue / total) * 100).toFixed(2).replace('.', ',') : '0,00';
+    const avgOverdueRate = validProjects.length > 0
+      ? validProjects.reduce((acc, p) => acc + (p.totalItems > 0 ? (p.overdueItems / p.totalItems) * 100 : 0), 0) / validProjects.length
+      : 0;
 
-    return { total, close, open, progress, overdue, closePct: avgClosePct, openPct, progressPct, overduePct };
-  }, [globalMetrics, projectSummaries, filteredProjects, searchQuery, selectedProjectFilter, selectedSiteFilter, selectedKategoriFilter, selectedStatusFilter]);
+    const closePct = avgCloseRate.toFixed(2).replace('.', ',');
+    const openPct = avgOpenRate.toFixed(2).replace('.', ',');
+    const progressPct = avgProgressRate.toFixed(2).replace('.', ',');
+    const overduePct = avgOverdueRate.toFixed(2).replace('.', ',');
+
+    return { total, close, open, progress, overdue, closePct, openPct, progressPct, overduePct };
+  }, [projectSummaries, filteredProjects, searchQuery, selectedProjectFilter, selectedSiteFilter, selectedKategoriFilter, selectedStatusFilter]);
 
   // Average Achievement Closing Rate (Unweighted Average across Projects)
   const avgAchievementClosing = useMemo(() => {

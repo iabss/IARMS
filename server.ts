@@ -2,10 +2,60 @@ import express from 'express';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
 const PORT = 3000;
+const STATE_FILE_PATH = path.join(process.cwd(), 'server_app_state.json');
+
+interface ServerAppState {
+  projectConfigs: any[];
+  customRows: any[];
+  deletedKeys: string[];
+  trendExclusions: string[];
+  snapshots: any[];
+  lastUpdated: string;
+}
+
+// Helper to load persisted server app state
+function loadServerState(): ServerAppState {
+  try {
+    if (fs.existsSync(STATE_FILE_PATH)) {
+      const raw = fs.readFileSync(STATE_FILE_PATH, 'utf-8');
+      if (raw && raw.trim()) {
+        return JSON.parse(raw);
+      }
+    }
+  } catch (err) {
+    console.error('Error loading server app state:', err);
+  }
+  return {
+    projectConfigs: [],
+    customRows: [],
+    deletedKeys: [],
+    trendExclusions: [],
+    snapshots: [],
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+// Helper to save persisted server app state
+function saveServerState(state: Partial<ServerAppState>): ServerAppState {
+  try {
+    const current = loadServerState();
+    const updated: ServerAppState = {
+      ...current,
+      ...state,
+      lastUpdated: new Date().toISOString()
+    };
+    fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+    return updated;
+  } catch (err) {
+    console.error('Error saving server app state:', err);
+    return loadServerState();
+  }
+}
 
 // Trust Cloudflare and reverse proxy headers (CF-Connecting-IP, X-Forwarded-For, X-Forwarded-Proto)
 app.set('trust proxy', true);
@@ -401,6 +451,94 @@ app.post('/api/sync-sheet', async (req, res) => {
       success: false,
       error: error.message || 'Terjadi kesalahan saat memproses sinkronisasi Google Sheet.'
     });
+  }
+});
+
+// API Get Persistent Server App State
+app.get('/api/app-state', (req, res) => {
+  try {
+    const state = loadServerState();
+    return res.json({ success: true, state });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API Update Persistent Server App State
+app.post('/api/app-state', (req, res) => {
+  try {
+    const { projectConfigs, customRows, deletedKeys, trendExclusions, snapshots } = req.body;
+    const updated = saveServerState({
+      ...(Array.isArray(projectConfigs) ? { projectConfigs } : {}),
+      ...(Array.isArray(customRows) ? { customRows } : {}),
+      ...(Array.isArray(deletedKeys) ? { deletedKeys } : {}),
+      ...(Array.isArray(trendExclusions) ? { trendExclusions } : {}),
+      ...(Array.isArray(snapshots) ? { snapshots } : {}),
+    });
+    return res.json({ success: true, state: updated });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API Server-Side Sync All Configured Sheets in Background
+app.post('/api/sync-all-server', async (req, res) => {
+  try {
+    const state = loadServerState();
+    const configs = state.projectConfigs || [];
+    const configsWithUrl = configs.filter((c: any) => c.sheetUrl && c.sheetUrl.trim() !== '');
+
+    let syncedCount = 0;
+    let newMergedRows = [...(state.customRows || [])];
+
+    for (const proj of configsWithUrl) {
+      try {
+        const { sheetId, gid } = parseGoogleSheetUrl(proj.sheetUrl);
+        if (!sheetId) continue;
+
+        const candidateUrls = [
+          `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`,
+          `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`,
+          `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`
+        ];
+
+        let fetchedData = '';
+        for (const url of candidateUrls) {
+          try {
+            const result = await fetchUrl(url);
+            if (result.statusCode === 200 && result.data && (result.data.includes(',') || result.data.includes('\t'))) {
+              fetchedData = result.data;
+              break;
+            }
+          } catch (e) {}
+        }
+
+        if (fetchedData) {
+          const parsed = parseCsvRows(fetchedData, proj.projectName);
+          if (parsed.length > 0) {
+            // Remove previous rows for this project
+            const tProj = (proj.projectName || '').trim().toUpperCase();
+            newMergedRows = newMergedRows.filter(r => (r['PROJECT AUDIT'] || '').trim().toUpperCase() !== tProj);
+            newMergedRows.push(...parsed);
+            proj.rowCount = parsed.length;
+            proj.status = 'synced';
+            proj.lastSyncedAt = new Date().toISOString();
+            syncedCount++;
+          }
+        }
+      } catch (err) {
+        console.warn(`Error syncing project ${proj.projectName} on server:`, err);
+      }
+    }
+
+    const updated = saveServerState({
+      projectConfigs: configs,
+      customRows: newMergedRows
+    });
+
+    return res.json({ success: true, syncedCount, totalRows: newMergedRows.length, state: updated });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

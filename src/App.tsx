@@ -23,7 +23,7 @@ import NewAuditModal from './components/NewAuditModal';
 import GoogleDriveSyncModal from './components/GoogleDriveSyncModal';
 import DailyCutoffPanel from './components/DailyCutoffPanel';
 import { AuditEngagement, PublicAuditItem, ToastMessage } from './types';
-import { autoSyncAllProjects } from './data/dataSyncManager';
+import { autoSyncAllProjects, syncWithServer } from './data/dataSyncManager';
 import { initDailyCutoffScheduler } from './services/cutoffService';
 
 // Initial Mock Data matching the original specification
@@ -63,13 +63,16 @@ export default function App() {
     setActiveTab('finding-statement');
   };
 
-  // Background auto-sync on app startup and every 5 minutes
+  // Background auto-sync and server hydration on app startup and every 5 minutes
   useEffect(() => {
-    // Initial silent auto-sync
-    autoSyncAllProjects().then((result) => {
-      if (result.syncedCount > 0) {
-        console.log(`[AutoSync] Background sync completed: ${result.totalRows} rows across ${result.syncedCount} projects.`);
-      }
+    // 1. Initial state hydration from server
+    syncWithServer().then(() => {
+      // 2. Initial background auto-sync
+      autoSyncAllProjects().then((result) => {
+        if (result.syncedCount > 0) {
+          console.log(`[AutoSync] Background sync completed: ${result.totalRows} rows across ${result.syncedCount} projects.`);
+        }
+      });
     });
 
     // Interval every 5 minutes (300,000 ms)
@@ -81,7 +84,7 @@ export default function App() {
       });
     }, 5 * 60 * 1000);
 
-    // Daily 00:00 Cut-Off Scheduler
+    // Daily 09:00 Cut-Off Scheduler
     const stopCutoffScheduler = initDailyCutoffScheduler((msg, type) => {
       triggerToast(msg, type);
     });

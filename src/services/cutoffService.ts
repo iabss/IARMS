@@ -25,10 +25,11 @@ export function getLocalFormattedDate(d: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-// Execute the 00:00 Daily Cutoff snapshot & Google Drive cloud backup
+// Execute the 09:00 Daily Cutoff snapshot & Google Drive cloud backup
 export async function runDailyCutoffProcess(
   isManual: boolean = false,
-  tokenOverride?: string
+  tokenOverride?: string,
+  customDate?: string
 ): Promise<{ success: boolean; log: DailyCutoffLog; message: string }> {
   if (isCutoffRunning) {
     throw new Error('Proses Cut-Off sedang berjalan, silakan tunggu...');
@@ -36,24 +37,26 @@ export async function runDailyCutoffProcess(
 
   isCutoffRunning = true;
   const now = new Date();
-  const dateStr = getLocalFormattedDate(now);
+  const dateStr = customDate && /^\d{4}-\d{2}-\d{2}$/.test(customDate.trim()) 
+    ? customDate.trim() 
+    : getLocalFormattedDate(now);
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const config = getDailyCutoffConfig();
 
   try {
     // 1. Calculate and record snapshot
     const note = isManual 
-      ? `Cut-Off Manual (Pukul ${timeStr} WIB)`
-      : `Cut-Off Harian Otomatis (00:00 WIB)`;
+      ? `Cut-Off Manual: ${dateStr} (Pukul ${timeStr} WIB)`
+      : `Cut-Off Harian Otomatis (09:00 WIB)`;
 
-    const snapshot = recordAchievementSnapshot(note, 'sync');
+    const snapshot = recordAchievementSnapshot(note, isManual ? 'manual' : 'sync', dateStr);
 
     // 2. Prepare daily log record
     const logId = `cutoff_${dateStr}_${Date.now()}`;
     const cutoffLog: DailyCutoffLog = {
       id: logId,
       date: dateStr,
-      timestamp: now.toISOString(),
+      timestamp: customDate ? `${dateStr}T00:00:00.000Z` : now.toISOString(),
       closeRate: snapshot.closeRate,
       totalRows: snapshot.totalRows,
       closedRows: snapshot.closedRows,
@@ -74,9 +77,9 @@ export async function runDailyCutoffProcess(
           // Annotate cutoff metadata in the backup payload
           const backupPayload = {
             ...dbData,
-            cutoffType: isManual ? 'manual_cutoff' : 'daily_00_00_cutoff',
+            cutoffType: isManual ? 'manual_cutoff' : 'daily_09_00_cutoff',
             cutoffDate: dateStr,
-            cutoffTime: '00:00:00',
+            cutoffTime: '09:00:00',
             cutoffMetrics: {
               closeRate: snapshot.closeRate,
               totalFindings: snapshot.totalRows,
@@ -86,7 +89,7 @@ export async function runDailyCutoffProcess(
             }
           };
 
-          const fileName = `IAMS_Daily_Cutoff_00_00_${dateStr}.json`;
+          const fileName = `IAMS_Daily_Cutoff_09_00_${dateStr}.json`;
           const targetFolder = config.targetFolderId || getActiveFolderId();
 
           const uploaded = await uploadToDrive(
@@ -137,7 +140,7 @@ export async function runDailyCutoffProcess(
   }
 }
 
-// Background Scheduler: checks every 30 seconds if today's 00:00 cutoff should run
+// Background Scheduler: checks every 30 seconds if today's 09:00 cutoff should run
 export function initDailyCutoffScheduler(onNotify?: (msg: string, type: 'info' | 'success' | 'warning') => void) {
   const triggerCheck = async () => {
     const config = getDailyCutoffConfig();
@@ -145,11 +148,17 @@ export function initDailyCutoffScheduler(onNotify?: (msg: string, type: 'info' |
 
     const now = new Date();
     const todayStr = getLocalFormattedDate(now);
+    const targetHour = typeof config.cutoffHour === 'number' ? config.cutoffHour : 9;
+    const targetMinute = typeof config.cutoffMinute === 'number' ? config.cutoffMinute : 0;
 
-    // If cutoff hasn't run for today yet
-    if (config.lastCutoffDate !== todayStr) {
+    // Check if current time is at or past 09:00 WIB
+    const isPastCutoffTime = (now.getHours() > targetHour) || 
+      (now.getHours() === targetHour && now.getMinutes() >= targetMinute);
+
+    // If cutoff time reached today and hasn't run for today yet
+    if (isPastCutoffTime && config.lastCutoffDate !== todayStr) {
       try {
-        console.log(`[Daily Cutoff] Auto-executing daily cutoff for ${todayStr}...`);
+        console.log(`[Daily Cutoff] Auto-executing daily cutoff (09:00 WIB) for ${todayStr}...`);
         const res = await runDailyCutoffProcess(false);
         if (onNotify) {
           onNotify(res.message, 'success');
