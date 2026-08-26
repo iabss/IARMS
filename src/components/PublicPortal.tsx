@@ -330,12 +330,16 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
           picSites: Array.from(picSites),
           picHOs: Array.from(picHOs),
           achievementStatus,
-        });
+          siteTotal,
+          siteClose,
+          hoTotal,
+          hoClose,
+        } as any);
       });
 
       // If grouped by project only
       if (groupByMode === 'project_only') {
-        const projMap = new Map<string, ProjectSummary>();
+        const projMap = new Map<string, ProjectSummary & { siteTotal?: number; siteClose?: number; hoTotal?: number; hoClose?: number }>();
         configItems.forEach(item => {
           const key = `${item.scopeAudit.toUpperCase()}___${item.year.toUpperCase()}`;
           if (!projMap.has(key)) {
@@ -347,6 +351,10 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
               sites: [...item.sites],
               picSites: [...item.picSites],
               picHOs: [...item.picHOs],
+              siteTotal: (item as any).siteTotal || 0,
+              siteClose: (item as any).siteClose || 0,
+              hoTotal: (item as any).hoTotal || 0,
+              hoClose: (item as any).hoClose || 0,
             });
           } else {
             const existing = projMap.get(key)!;
@@ -357,6 +365,14 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
             const combinedOverdue = existing.overdueItems + item.overdueItems;
             const combinedRate = combinedTotal > 0 ? (combinedClose / combinedTotal) * 100 : 0;
             const combinedSites = Array.from(new Set([...existing.sites, ...item.sites]));
+            
+            const combinedSiteTotal = (existing.siteTotal || 0) + ((item as any).siteTotal || 0);
+            const combinedSiteClose = (existing.siteClose || 0) + ((item as any).siteClose || 0);
+            const combinedHoTotal = (existing.hoTotal || 0) + ((item as any).hoTotal || 0);
+            const combinedHoClose = (existing.hoClose || 0) + ((item as any).hoClose || 0);
+
+            const combinedAchSite = combinedSiteTotal > 0 ? (combinedSiteClose / combinedSiteTotal) * 100 : combinedRate;
+            const combinedAchHO = combinedHoTotal > 0 ? (combinedHoClose / combinedHoTotal) * 100 : combinedRate;
 
             let st: 'SELESAI' | 'PROGRESS' | 'ATTENTION' = 'PROGRESS';
             if (combinedTotal === 0) st = 'PROGRESS';
@@ -371,6 +387,8 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
               openItems: combinedOpen,
               progressItems: combinedProgress,
               overdueItems: combinedOverdue,
+              achClosingSite: parseFloat(combinedAchSite.toFixed(2)),
+              achClosingHO: parseFloat(combinedAchHO.toFixed(2)),
               closingRate: parseFloat(combinedRate.toFixed(2)),
               majorCount: existing.majorCount + item.majorCount,
               minorCount: existing.minorCount + item.minorCount,
@@ -379,6 +397,10 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
               picSites: Array.from(new Set([...existing.picSites, ...item.picSites])),
               picHOs: Array.from(new Set([...existing.picHOs, ...item.picHOs])),
               achievementStatus: st,
+              siteTotal: combinedSiteTotal,
+              siteClose: combinedSiteClose,
+              hoTotal: combinedHoTotal,
+              hoClose: combinedHoClose,
             });
           }
         });

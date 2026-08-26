@@ -25,6 +25,7 @@ const VALID_DEPARTMENT_CODES = new Set([
   'MANAGEMENT',
   'HR',
   'PR',
+  'PRPAYMENT',
   'GA', 'EXTERNAL',
   'PURCHASING',
   'PORT',
@@ -91,8 +92,10 @@ export function normalizeDepartment(name: string): string {
   if (u === 'CC' || u === 'CC SITE' || u === 'COST CONTROL' || u === 'COST CONTROL SITE' || u === 'COST CONTROL HO') return 'COST CONTROL';
   if (u === 'HR' || u === 'HRD' || u === 'HC' || u === 'HUMAN CAPITAL') return 'HR';
   if (u === 'GA' || u === 'GENERAL AFFAIRS') return 'GA';
+  if (u === 'PRPAYMENT' || u === 'PR PAYMENT' || u === 'PREPAYMENT' || u === 'PAYMENT' || u.startsWith('PRPAYMENT') || u.startsWith('PREPAYMENT')) return 'PRPAYMENT';
   if (u === 'PR' || u === 'PUBLIC RELATIONS') return 'PR';
   if (u === 'PORT') return 'PORT';
+  if (u === 'PURCHASING' || u === 'PROCUREMENT' || u.startsWith('PURCHASING') || u.startsWith('PROCUREMENT')) return 'PURCHASING';
   if (u === 'HAULING') return 'HAULING';
   if (u === 'SURVEY') return 'SURVEY';
 
@@ -104,14 +107,17 @@ export function normalizeDepartment(name: string): string {
 
   if (u === 'ALL DEPARTEMEN' || u === 'ALL DEPARTEMEN SITE') return 'ALL DEPARTEMEN';
 
-  // If it doesn't match any known department pattern, return empty
-  return '';
+  // If it doesn't match any known department pattern, return as-is if valid
+  return u;
 }
 
 export function isDepartment(str?: string | null): boolean {
   if (!str) return false;
-  const norm = normalizeDepartment(str);
-  return norm !== '' && VALID_DEPARTMENT_CODES.has(norm);
+  let cleaned = str.trim().replace(/^[0-9]+[\.\)\-]\s*/, '').trim().toUpperCase();
+  if (KNOWN_JOBSITES.has(cleaned) || cleaned === '-' || cleaned === 'N/A' || cleaned === 'NA' || cleaned === '0' || cleaned === 'NONE' || cleaned === 'NULL' || cleaned === 'TBD' || cleaned === 'NIL' || cleaned === '') {
+    return false;
+  }
+  return true;
 }
 
 export function parseDepartments(str?: string | null): string[] {
