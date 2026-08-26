@@ -25,6 +25,7 @@ import DailyCutoffPanel from './components/DailyCutoffPanel';
 import { AuditEngagement, PublicAuditItem, ToastMessage } from './types';
 import { autoSyncAllProjects, syncWithServer } from './data/dataSyncManager';
 import { initDailyCutoffScheduler } from './services/cutoffService';
+import { fetchAuditData, syncAuditData } from './services/api';
 
 // Initial Mock Data matching the original specification
 const INITIAL_AUDIT_DATA: AuditEngagement[] = [
@@ -62,6 +63,26 @@ export default function App() {
     }
     setActiveTab('finding-statement');
   };
+
+  // Load audit data from Google Apps Script API on initial mount
+  useEffect(() => {
+    async function loadRemoteAuditData() {
+      try {
+        const remoteData = await fetchAuditData();
+        if (remoteData) {
+          if (Array.isArray(remoteData)) {
+            setAuditData(remoteData);
+          } else if (remoteData.auditData && Array.isArray(remoteData.auditData)) {
+            setAuditData(remoteData.auditData);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data awal dari Google Apps Script:', err);
+      }
+    }
+
+    loadRemoteAuditData();
+  }, []);
 
   // Background auto-sync and server hydration on app startup and every 5 minutes
   useEffect(() => {
@@ -107,7 +128,7 @@ export default function App() {
     }, 3500);
   };
 
-  const handleCreateAudit = (newAudit: Omit<AuditEngagement, 'id' | 'actDays' | 'progress'>) => {
+  const handleCreateAudit = async (newAudit: Omit<AuditEngagement, 'id' | 'actDays' | 'progress'>) => {
     const freshRecord: AuditEngagement = {
       ...newAudit,
       id: Date.now(),
@@ -116,9 +137,23 @@ export default function App() {
       status: newAudit.status as any
     };
 
-    setAuditData((prev) => [freshRecord, ...prev]);
+    const updatedList = [freshRecord, ...auditData];
+    setAuditData(updatedList);
     setIsModalOpen(false);
     triggerToast('Audit Program baru berhasil ditambahkan!', 'success');
+
+    // Sync to Google Sheets via syncAuditData
+    try {
+      await syncAuditData({
+        action: 'create_audit',
+        item: freshRecord,
+        allAuditData: updatedList,
+        timestamp: new Date().toISOString()
+      });
+      triggerToast('Data audit berhasil disinkronkan ke Google Sheets!', 'success');
+    } catch (err) {
+      console.warn('Gagal sinkronisasi otomatis ke Google Apps Script:', err);
+    }
   };
 
   const handleOpenKKA = (title: string) => {
