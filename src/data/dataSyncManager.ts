@@ -1,6 +1,8 @@
 import { AFSFindingRecord } from '../types';
 import rawSheetData from './sheetData.json';
 import { extractFindingYear } from '../utils/statusHelper';
+import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
+import { parseAuditCsvClient } from '../utils/csvParser';
 
 const STORAGE_KEY_ROWS = 'afs_synced_custom_rows_v2';
 const STORAGE_KEY_META = 'afs_synced_metadata_v2';
@@ -1054,19 +1056,34 @@ export async function autoSyncAllProjects(
   try {
     for (const proj of projectsWithUrl) {
       try {
-        const response = await fetch('/api/sync-sheet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sheetUrl: proj.sheetUrl!.trim(),
-            defaultProject: proj.projectName.trim()
-          })
-        });
+        let parsedRows: any[] = [];
+        let fetchOk = false;
 
-        const data = await response.json();
-        if (data.success && data.rows) {
+        try {
+          const rawCsv = await fetchCsvFromGoogleSheet(proj.sheetUrl!.trim());
+          parsedRows = parseAuditCsvClient(rawCsv, proj.projectName.trim());
+          fetchOk = true;
+        } catch (fetchErr) {
+          const gasRes = await syncAuditData({
+            action: 'sync_sheet_url',
+            sheetUrl: proj.sheetUrl!.trim(),
+            defaultProject: proj.projectName.trim(),
+            site: proj.siteName,
+            year: proj.year,
+            timestamp: new Date().toISOString()
+          });
+          if (gasRes && gasRes.rows && gasRes.rows.length > 0) {
+            parsedRows = gasRes.rows;
+            fetchOk = true;
+          } else if (gasRes && gasRes.rawCsvData) {
+            parsedRows = parseAuditCsvClient(gasRes.rawCsvData, proj.projectName.trim());
+            fetchOk = true;
+          }
+        }
+
+        if (fetchOk && parsedRows.length > 0) {
           saveSyncedRows(
-            data.rows,
+            parsedRows,
             proj.projectName.trim(),
             {
               syncedProject: proj.projectName.trim(),
@@ -1077,8 +1094,8 @@ export async function autoSyncAllProjects(
             proj.year
           );
           syncedCount++;
-          totalRows += (data.count || 0);
-          if (onProgress) onProgress(proj.projectName, true, data.count || 0);
+          totalRows += parsedRows.length;
+          if (onProgress) onProgress(proj.projectName, true, parsedRows.length);
         } else {
           if (onProgress) onProgress(proj.projectName, false, 0);
         }

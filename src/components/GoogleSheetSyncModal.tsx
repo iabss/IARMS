@@ -21,6 +21,8 @@ import {
   Play
 } from 'lucide-react';
 import { AFSFindingRecord } from '../types';
+import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
+import { parseAuditCsvClient } from '../utils/csvParser';
 import { 
   saveSyncedRows, 
   getSyncMetadata, 
@@ -133,20 +135,39 @@ export default function GoogleSheetSyncModal({
     window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: true } }));
 
     try {
-      const response = await fetch('/api/sync-sheet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let parsedRows: any[] = [];
+      let fetchSuccess = false;
+
+      // 1. First fetch directly from Google Sheet CSV or GAS Web App
+      try {
+        const rawCsv = await fetchCsvFromGoogleSheet(urlToSync.trim());
+        parsedRows = parseAuditCsvClient(rawCsv, projName.trim());
+        fetchSuccess = true;
+      } catch (clientErr: any) {
+        console.warn(`Direct fetch failed for ${projName}, calling Google Apps Script Web App...`, clientErr);
+        // Sync via GAS Web App
+        const gasResult = await syncAuditData({
+          action: 'sync_sheet_url',
           sheetUrl: urlToSync.trim(),
-          defaultProject: projName.trim()
-        })
-      });
+          defaultProject: projName.trim(),
+          site: siteToSync,
+          year: yearToSync,
+          timestamp: new Date().toISOString()
+        });
+        if (gasResult && gasResult.rows && gasResult.rows.length > 0) {
+          parsedRows = gasResult.rows;
+          fetchSuccess = true;
+        } else if (gasResult && gasResult.rawCsvData) {
+          parsedRows = parseAuditCsvClient(gasResult.rawCsvData, projName.trim());
+          fetchSuccess = true;
+        } else if (clientErr.message && clientErr.message.includes('privat')) {
+          throw clientErr;
+        }
+      }
 
-      const data = await response.json();
-
-      if (data.success && data.rows) {
+      if (fetchSuccess && parsedRows.length > 0) {
         saveSyncedRows(
-          data.rows, 
+          parsedRows, 
           projName.trim(), 
           {
             syncedProject: projName.trim(),
@@ -157,36 +178,29 @@ export default function GoogleSheetSyncModal({
           yearToSync
         );
 
+        // Also notify Google Apps Script Web App
+        syncAuditData({
+          action: 'project_synced',
+          projectName: projName.trim(),
+          count: parsedRows.length,
+          site: siteToSync,
+          year: yearToSync,
+          timestamp: new Date().toISOString()
+        }).catch(e => console.warn('GAS notification warning:', e));
+
         refreshProjectConfigs();
 
         setSyncResult({
           success: true,
-          count: data.count,
-          rows: data.rows,
-          message: `Berhasil mensinkronkan ${data.count} data audit untuk ${projName}!`
+          count: parsedRows.length,
+          rows: parsedRows,
+          message: `Berhasil mensinkronkan ${parsedRows.length} data audit untuk ${projName}!`
         });
 
-        onToast(`Sukses: ${data.count} temuan ${projName} (${siteToSync || 'HEAD OFFICE'}${yearToSync ? ' - ' + yearToSync : ''}) berhasil diperbarui!`, 'success');
-        if (onSyncComplete) onSyncComplete(data.count);
-      } else if (data.isPrivate) {
-        saveProjectLinkConfig({
-          projectName: projName,
-          siteName: siteToSync,
-          year: yearToSync,
-          sheetUrl: urlToSync,
-          status: 'private',
-          errorMessage: 'Sheet Privat / Terkunci'
-        });
-        refreshProjectConfigs();
-
-        setSyncResult({
-          success: false,
-          isPrivate: true,
-          message: `Google Sheet ${projName} privat. Ubah akses ke "Siapa saja yang memiliki link" (Viewer).`
-        });
-        onToast(`Google Sheet ${projName} privat/terkunci`, 'warning');
+        onToast(`Sukses: ${parsedRows.length} temuan ${projName} (${siteToSync || 'HEAD OFFICE'}${yearToSync ? ' - ' + yearToSync : ''}) berhasil diperbarui!`, 'success');
+        if (onSyncComplete) onSyncComplete(parsedRows.length);
       } else {
-        const errorMsg = data.error || data.message || 'Gagal terhubung ke Google Sheet';
+        const errorMsg = 'Google Sheet tidak mengembalikan data temuan yang valid atau kolom header tidak sesuai.';
         saveProjectLinkConfig({
           projectName: projName,
           siteName: siteToSync,
@@ -201,7 +215,26 @@ export default function GoogleSheetSyncModal({
       }
     } catch (err: any) {
       console.error(`Error syncing project ${projName}:`, err);
-      onToast(err.message ? `Gagal terhubung: ${err.message}` : `Gagal terhubung saat mensinkronkan project ${projName}`, 'error');
+      const isPrivate = err.message && (err.message.includes('privat') || err.message.includes('terkunci'));
+      if (isPrivate) {
+        saveProjectLinkConfig({
+          projectName: projName,
+          siteName: siteToSync,
+          year: yearToSync,
+          sheetUrl: urlToSync,
+          status: 'private',
+          errorMessage: 'Sheet Privat / Terkunci'
+        });
+        refreshProjectConfigs();
+        setSyncResult({
+          success: false,
+          isPrivate: true,
+          message: `Google Sheet ${projName} privat. Ubah akses ke "Siapa saja yang memiliki link" (Viewer).`
+        });
+        onToast(`Google Sheet ${projName} privat/terkunci`, 'warning');
+      } else {
+        onToast(err.message ? `Gagal terhubung: ${err.message}` : `Gagal terhubung saat mensinkronkan project ${projName}`, 'error');
+      }
     } finally {
       setSyncingProjects(prev => ({ ...prev, [projName]: false }));
       window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: false } }));
@@ -314,20 +347,25 @@ export default function GoogleSheetSyncModal({
     setSyncResult(null);
 
     try {
-      const response = await fetch('/api/sync-sheet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let parsedRows = parseAuditCsvClient(pastedData.trim(), targetProject.trim());
+
+      // If client parse returned no rows, fall back to Google Apps Script
+      if (!parsedRows || parsedRows.length === 0) {
+        const gasRes = await syncAuditData({
+          action: 'parse_pasted_data',
           rawCsvData: pastedData.trim(),
-          defaultProject: targetProject.trim()
-        })
-      });
+          defaultProject: targetProject.trim(),
+          site: targetSite,
+          timestamp: new Date().toISOString()
+        });
+        if (gasRes && gasRes.rows) {
+          parsedRows = gasRes.rows;
+        }
+      }
 
-      const data = await response.json();
-
-      if (data.success && data.rows && data.rows.length > 0) {
+      if (parsedRows && parsedRows.length > 0) {
         saveSyncedRows(
-          data.rows, 
+          parsedRows, 
           targetProject, 
           {
             syncedProject: targetProject,
@@ -336,15 +374,24 @@ export default function GoogleSheetSyncModal({
           targetSite
         );
 
+        // Sync to GAS
+        syncAuditData({
+          action: 'paste_synced',
+          projectName: targetProject.trim(),
+          count: parsedRows.length,
+          site: targetSite,
+          timestamp: new Date().toISOString()
+        }).catch(e => console.warn('GAS paste sync warning:', e));
+
         setSyncResult({
           success: true,
-          count: data.count,
-          rows: data.rows,
-          message: `Berhasil memproses & mensinkronkan ${data.count} baris data ${targetProject} (Site: ${targetSite})!`
+          count: parsedRows.length,
+          rows: parsedRows,
+          message: `Berhasil memproses & mensinkronkan ${parsedRows.length} baris data ${targetProject} (Site: ${targetSite})!`
         });
 
-        onToast(`Impor Sukses: ${data.count} data audit ${targetProject} diperbarui!`, 'success');
-        if (onSyncComplete) onSyncComplete(data.count);
+        onToast(`Impor Sukses: ${parsedRows.length} data audit ${targetProject} diperbarui!`, 'success');
+        if (onSyncComplete) onSyncComplete(parsedRows.length);
       } else {
         onToast('Gagal membaca format tabel. Pastikan baris pertama berisi header (NO, PROJECT AUDIT, STATUS, dll)', 'error');
       }

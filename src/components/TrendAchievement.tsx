@@ -72,6 +72,8 @@ import {
 } from '../data/dataSyncManager';
 import { parseDepartments } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear, calculateOverallAchievementRate } from '../utils/statusHelper';
+import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
+import { parseAuditCsvClient } from '../utils/csvParser';
 
 interface TrendAchievementProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
@@ -531,20 +533,35 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     try {
       for (const proj of projectsWithUrl) {
         try {
-          const response = await fetch('/api/sync-sheet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          let parsedRows: any[] = [];
+          let fetchOk = false;
+
+          try {
+            const rawCsv = await fetchCsvFromGoogleSheet(proj.sheetUrl!.trim());
+            parsedRows = parseAuditCsvClient(rawCsv, proj.projectName.trim());
+            fetchOk = true;
+          } catch (fetchErr) {
+            console.warn(`Direct fetch failed for ${proj.projectName}, falling back to GAS:`, fetchErr);
+            const gasRes = await syncAuditData({
+              action: 'sync_sheet_url',
               sheetUrl: proj.sheetUrl!.trim(),
-              defaultProject: proj.projectName.trim()
-            })
-          });
+              defaultProject: proj.projectName.trim(),
+              site: proj.siteName,
+              year: proj.year,
+              timestamp: new Date().toISOString()
+            });
+            if (gasRes && gasRes.rows && gasRes.rows.length > 0) {
+              parsedRows = gasRes.rows;
+              fetchOk = true;
+            } else if (gasRes && gasRes.rawCsvData) {
+              parsedRows = parseAuditCsvClient(gasRes.rawCsvData, proj.projectName.trim());
+              fetchOk = true;
+            }
+          }
 
-          const data = await response.json();
-
-          if (data.success && data.rows) {
+          if (fetchOk && parsedRows.length > 0) {
             saveSyncedRows(
-              data.rows,
+              parsedRows,
               proj.projectName.trim(),
               {
                 syncedProject: proj.projectName.trim(),
@@ -554,7 +571,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
               proj.siteName,
               proj.year
             );
-            totalCount += data.count || 0;
+            totalCount += parsedRows.length;
             successCount++;
           }
         } catch (err) {
