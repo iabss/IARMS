@@ -56,6 +56,10 @@ export interface ProjectLinkConfig {
   rowCount?: number;
   status?: 'synced' | 'error' | 'pending' | 'private';
   errorMessage?: string;
+  // Aliases for compatibility
+  defaultProject?: string;
+  project?: string;
+  site?: string;
 }
 
 // Default standard list of audit projects
@@ -797,6 +801,9 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     return {
       ...c,
       id: c.id || getProjectCompositeKey(targetProj, targetSite, c.year),
+      defaultProject: c.defaultProject || targetProj,
+      project: c.project || targetProj,
+      site: c.site || targetSite,
       rowCount: count > 0 ? count : (c.rowCount || 0),
       status: count > 0 ? 'synced' : (c.status || 'pending')
     };

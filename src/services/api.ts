@@ -32,6 +32,171 @@ export async function syncAuditData(payload: Record<string, any>): Promise<any> 
 }
 
 /**
+ * Send delete project request to Google Apps Script backend
+ */
+export async function deleteProjectFromBackend(item: {
+  defaultProject?: string;
+  project?: string;
+  projectName?: string;
+  site?: string;
+  siteName?: string;
+  year?: string | number;
+}): Promise<any> {
+  const payload = {
+    action: "delete_project",
+    project: item.defaultProject || item.project || item.projectName || "",
+    site: item.site || item.siteName || "HEAD OFFICE",
+    year: item.year ? String(item.year).trim() : ""
+  };
+
+  return await syncAuditData(payload);
+}
+
+/**
+ * Send sync sheet url request to Google Apps Script backend
+ */
+export async function syncSheetUrlToBackend(item: {
+  defaultProject?: string;
+  project?: string;
+  projectName?: string;
+  site?: string;
+  siteName?: string;
+  year?: string | number;
+  sheetUrl?: string;
+  timestamp?: string;
+}): Promise<any> {
+  const payload = {
+    action: "sync_sheet_url",
+    project: item.defaultProject || item.project || item.projectName || "",
+    site: item.site || item.siteName || "HEAD OFFICE",
+    year: item.year ? String(item.year).trim() : "",
+    sheetUrl: item.sheetUrl || "",
+    timestamp: item.timestamp || new Date().toISOString()
+  };
+
+  return await syncAuditData(payload);
+}
+
+/**
+ * Parse project list returned from Google Apps Script backend GET
+ */
+export function parseGasProjectsResponse(json: any): any[] {
+  const projectMap = new Map<string, any>();
+  const deletedSet = new Set<string>();
+
+  if (!json) return [];
+
+  // Direct array of projects if backend provides it
+  if (Array.isArray(json.projects)) {
+    return json.projects;
+  }
+
+  const rawList = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+
+  for (let i = 0; i < rawList.length; i++) {
+    const item = rawList[i];
+    if (!item) continue;
+
+    // Case 1: item is an object
+    if (typeof item === 'object' && !Array.isArray(item)) {
+      const act = item.action || 'sync_sheet_url';
+      const proj = (item.project || item.defaultProject || item.projectName || '').trim().toUpperCase();
+      const site = (item.site || item.siteName || 'HEAD OFFICE').trim().toUpperCase();
+      const year = item.year ? String(item.year).trim() : '';
+      const key = `${proj}|${site}${year ? `|${year}` : ''}`;
+
+      if (act === 'delete_project') {
+        deletedSet.add(key);
+        deletedSet.add(proj);
+        projectMap.delete(key);
+      } else {
+        if (!deletedSet.has(key)) {
+          projectMap.set(key, {
+            id: key,
+            projectName: proj,
+            project: proj,
+            defaultProject: proj,
+            siteName: site,
+            site: site,
+            year: year || undefined,
+            sheetUrl: item.sheetUrl || '',
+            lastSyncedAt: item.timestamp || new Date().toISOString(),
+            status: item.sheetUrl ? 'synced' : 'pending',
+            rowCount: item.rowCount || item.count || 0
+          });
+        }
+      }
+      continue;
+    }
+
+    // Case 2: item is an array row from Google Sheets log
+    if (Array.isArray(item)) {
+      // Skip header row
+      if (i === 0 && item.some(c => typeof c === 'string' && (c.toLowerCase().includes('timestamp') || c.toLowerCase().includes('project')))) {
+        continue;
+      }
+
+      let payload: any = null;
+      for (const col of item) {
+        if (typeof col === 'string' && col.trim().startsWith('{') && col.trim().endsWith('}')) {
+          try {
+            payload = JSON.parse(col);
+            break;
+          } catch {
+            // continue searching
+          }
+        }
+      }
+
+      if (payload) {
+        const act = payload.action;
+        const proj = (payload.project || payload.defaultProject || payload.projectName || '').trim().toUpperCase();
+        const site = (payload.site || payload.siteName || 'HEAD OFFICE').trim().toUpperCase();
+        const year = payload.year ? String(payload.year).trim() : '';
+        const key = `${proj}|${site}${year ? `|${year}` : ''}`;
+
+        if (act === 'delete_project') {
+          deletedSet.add(key);
+          deletedSet.add(proj);
+          projectMap.delete(key);
+        } else if (act === 'sync_sheet_url') {
+          if (!deletedSet.has(key)) {
+            projectMap.set(key, {
+              id: key,
+              projectName: proj,
+              project: proj,
+              defaultProject: proj,
+              siteName: site,
+              site: site,
+              year: year || undefined,
+              sheetUrl: payload.sheetUrl || '',
+              lastSyncedAt: item[0] || payload.timestamp || new Date().toISOString(),
+              status: payload.sheetUrl ? 'synced' : 'pending',
+              rowCount: payload.count || payload.rowCount || 0
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(projectMap.values());
+}
+
+/**
+ * Fetch project configurations from Google Apps Script backend
+ */
+export async function fetchProjectsFromGasBackend(): Promise<any[]> {
+  try {
+    const data = await fetchAuditData();
+    return parseGasProjectsResponse(data);
+  } catch (error) {
+    console.error("Gagal memuat project dari backend GAS:", error);
+    return [];
+  }
+}
+
+/**
  * Fetch and parse CSV directly from a public Google Sheet URL on client side
  */
 export async function fetchCsvFromGoogleSheet(url: string): Promise<string> {

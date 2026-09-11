@@ -21,7 +21,14 @@ import {
   Play
 } from 'lucide-react';
 import { AFSFindingRecord } from '../types';
-import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
+import { 
+  GOOGLE_SCRIPT_URL,
+  syncAuditData, 
+  fetchCsvFromGoogleSheet, 
+  fetchProjectsFromGasBackend,
+  deleteProjectFromBackend,
+  syncSheetUrlToBackend
+} from '../services/api';
 import { parseAuditCsvClient } from '../utils/csvParser';
 import { 
   saveSyncedRows, 
@@ -30,7 +37,10 @@ import {
   getProjectLinkConfigs,
   saveProjectLinkConfig,
   deleteProjectLinkConfig,
+  deleteProjectLinkConfigById,
   cleanupDuplicates,
+  getDeletedProjectKeys,
+  getProjectCompositeKey,
   ProjectLinkConfig
 } from '../data/dataSyncManager';
 
@@ -56,6 +66,7 @@ export default function GoogleSheetSyncModal({
   // Per-project link configs
   const [projectConfigs, setProjectConfigs] = useState<ProjectLinkConfig[]>([]);
   const [syncingProjects, setSyncingProjects] = useState<Record<string, boolean>>({});
+  const [isLoadingBackend, setIsLoadingBackend] = useState(false);
 
   // Single URL tab state
   const [sheetUrl, setSheetUrl] = useState(
@@ -83,12 +94,57 @@ export default function GoogleSheetSyncModal({
 
   const meta = getSyncMetadata();
 
+  // Load initial data on mount (useEffect):
+  // Saat halaman dimuat, lakukan GET ke URL backend di atas untuk menyinkronkan
+  // daftar project yang tersimpan di Google Sheets dengan UI aplikasi.
   useEffect(() => {
     if (isOpen) {
       setSyncResult(null);
       // Auto-cleanup any duplicate project configs or rows on open
       cleanupDuplicates();
       setProjectConfigs(getProjectLinkConfigs());
+
+      let isMounted = true;
+      setIsLoadingBackend(true);
+
+      fetchProjectsFromGasBackend()
+        .then((backendProjects) => {
+          if (!isMounted) return;
+          if (backendProjects && backendProjects.length > 0) {
+            const deletedKeys = getDeletedProjectKeys();
+
+            backendProjects.forEach(bp => {
+              const bpProj = bp.defaultProject || bp.project || bp.projectName;
+              const bpSite = bp.site || bp.siteName || 'HEAD OFFICE';
+              const bpYear = bp.year ? String(bp.year).trim() : '';
+              const bpKey = getProjectCompositeKey(bpProj, bpSite, bpYear);
+
+              if (!deletedKeys.has(bpKey) && !deletedKeys.has(bpProj)) {
+                saveProjectLinkConfig({
+                  id: bp.id || bpKey,
+                  projectName: bpProj,
+                  siteName: bpSite,
+                  year: bpYear || undefined,
+                  sheetUrl: bp.sheetUrl || '',
+                  rowCount: bp.rowCount,
+                  status: bp.sheetUrl ? 'synced' : 'pending',
+                  lastSyncedAt: bp.lastSyncedAt,
+                  defaultProject: bpProj,
+                  project: bpProj,
+                  site: bpSite
+                });
+              }
+            });
+
+            setProjectConfigs(getProjectLinkConfigs());
+          }
+        })
+        .catch((err) => {
+          console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingBackend(false);
+        });
 
       const handleLinksUpdated = () => {
         setProjectConfigs(getProjectLinkConfigs());
@@ -98,6 +154,7 @@ export default function GoogleSheetSyncModal({
       window.addEventListener('afs_data_synced', handleLinksUpdated);
 
       return () => {
+        isMounted = false;
         window.removeEventListener('afs_project_links_updated', handleLinksUpdated);
         window.removeEventListener('afs_data_synced', handleLinksUpdated);
       };
@@ -109,6 +166,47 @@ export default function GoogleSheetSyncModal({
   // Refresh project config state
   const refreshProjectConfigs = () => {
     setProjectConfigs(getProjectLinkConfigs());
+  };
+
+  // Manual refresh from backend GAS
+  const handleRefreshFromBackend = async () => {
+    setIsLoadingBackend(true);
+    try {
+      const backendProjects = await fetchProjectsFromGasBackend();
+      if (backendProjects && backendProjects.length > 0) {
+        const deletedKeys = getDeletedProjectKeys();
+        backendProjects.forEach(bp => {
+          const bpProj = bp.defaultProject || bp.project || bp.projectName;
+          const bpSite = bp.site || bp.siteName || 'HEAD OFFICE';
+          const bpYear = bp.year ? String(bp.year).trim() : '';
+          const bpKey = getProjectCompositeKey(bpProj, bpSite, bpYear);
+
+          if (!deletedKeys.has(bpKey) && !deletedKeys.has(bpProj)) {
+            saveProjectLinkConfig({
+              id: bp.id || bpKey,
+              projectName: bpProj,
+              siteName: bpSite,
+              year: bpYear || undefined,
+              sheetUrl: bp.sheetUrl || '',
+              rowCount: bp.rowCount,
+              status: bp.sheetUrl ? 'synced' : 'pending',
+              lastSyncedAt: bp.lastSyncedAt,
+              defaultProject: bpProj,
+              project: bpProj,
+              site: bpSite
+            });
+          }
+        });
+        setProjectConfigs(getProjectLinkConfigs());
+        onToast(`Berhasil memuat ${backendProjects.length} project dari Google Apps Script!`, 'success');
+      } else {
+        onToast('Daftar project di Google Apps Script sudah up-to-date', 'info');
+      }
+    } catch (e: any) {
+      onToast(`Gagal memuat project dari backend: ${e.message}`, 'error');
+    } finally {
+      setIsLoadingBackend(false);
+    }
   };
 
   // Manual trigger to clean duplicate projects and findings
@@ -123,70 +221,132 @@ export default function GoogleSheetSyncModal({
     }
   };
 
-  // Sync a single project by name, URL, optional site, and optional year
-  const handleSyncSingleProject = async (projName: string, urlToSync: string, siteToSync?: string, yearToSync?: string | number) => {
-    if (!urlToSync || !urlToSync.trim()) {
+  // Fungsi Sync (Sync Project Ini / Sync Semua Project):
+  // Saat tombol sync diklik, kirim payload JSON:
+  // {
+  //   "action": "sync_sheet_url",
+  //   "project": item.defaultProject || item.project,
+  //   "site": item.site,
+  //   "year": item.year,
+  //   "sheetUrl": item.sheetUrl,
+  //   "timestamp": new Date().toISOString()
+  // }
+  // Gunakan header 'Content-Type': 'text/plain;charset=utf-8'
+  const handleSyncSingleProject = async (
+    itemOrProjName: ProjectLinkConfig | string, 
+    urlToSyncArg?: string, 
+    siteToSyncArg?: string, 
+    yearToSyncArg?: string | number
+  ) => {
+    let item: ProjectLinkConfig;
+    if (typeof itemOrProjName === 'string') {
+      item = {
+        projectName: itemOrProjName,
+        sheetUrl: urlToSyncArg || '',
+        siteName: siteToSyncArg || 'HEAD OFFICE',
+        year: yearToSyncArg,
+        defaultProject: itemOrProjName,
+        project: itemOrProjName,
+        site: siteToSyncArg || 'HEAD OFFICE'
+      };
+    } else {
+      item = itemOrProjName;
+    }
+
+    const projName = (item.defaultProject || item.project || item.projectName || '').trim().toUpperCase();
+    const siteToSync = (item.site || item.siteName || 'HEAD OFFICE').trim().toUpperCase();
+    const yearToSync = item.year ? String(item.year).trim() : (yearToSyncArg ? String(yearToSyncArg).trim() : '');
+    const urlToSync = (item.sheetUrl || urlToSyncArg || '').trim();
+
+    if (!urlToSync) {
       onToast(`Silakan masukkan link Google Sheet untuk project ${projName}`, 'warning');
       return;
     }
 
-    setSyncingProjects(prev => ({ ...prev, [projName]: true }));
+    const syncKey = item.id || `${projName}_${siteToSync}_${yearToSync}`;
+    setSyncingProjects(prev => ({ ...prev, [syncKey]: true, [projName]: true }));
     setSyncResult(null);
     window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: true } }));
 
     try {
+      // 1. Kirim payload JSON ke backend Google Apps Script dengan header 'Content-Type': 'text/plain;charset=utf-8'
+      const syncPayload = {
+        action: "sync_sheet_url",
+        project: item.defaultProject || item.project || projName,
+        site: item.site || siteToSync,
+        year: item.year ? String(item.year).trim() : yearToSync,
+        sheetUrl: urlToSync,
+        timestamp: new Date().toISOString()
+      };
+
+      const backendSyncPromise = fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(syncPayload)
+      }).catch(e => {
+        console.warn("GAS backend sync notification error:", e);
+        return null;
+      });
+
+      // 2. Fetch CSV dari Google Sheet langsung untuk memproses dan menyimpan temuan AFS ke dalam aplikasi
       let parsedRows: any[] = [];
       let fetchSuccess = false;
 
-      // 1. First fetch directly from Google Sheet CSV or GAS Web App
       try {
-        const rawCsv = await fetchCsvFromGoogleSheet(urlToSync.trim());
-        parsedRows = parseAuditCsvClient(rawCsv, projName.trim());
+        const rawCsv = await fetchCsvFromGoogleSheet(urlToSync);
+        parsedRows = parseAuditCsvClient(rawCsv, projName);
         fetchSuccess = true;
       } catch (clientErr: any) {
-        console.warn(`Direct fetch failed for ${projName}, calling Google Apps Script Web App...`, clientErr);
-        // Sync via GAS Web App
-        const gasResult = await syncAuditData({
-          action: 'sync_sheet_url',
-          sheetUrl: urlToSync.trim(),
-          defaultProject: projName.trim(),
-          site: siteToSync,
-          year: yearToSync,
-          timestamp: new Date().toISOString()
-        });
-        if (gasResult && gasResult.rows && gasResult.rows.length > 0) {
-          parsedRows = gasResult.rows;
-          fetchSuccess = true;
-        } else if (gasResult && gasResult.rawCsvData) {
-          parsedRows = parseAuditCsvClient(gasResult.rawCsvData, projName.trim());
-          fetchSuccess = true;
-        } else if (clientErr.message && clientErr.message.includes('privat')) {
+        console.warn(`Direct fetch failed for ${projName}, waiting for backend response...`, clientErr);
+        const gasResponse = await backendSyncPromise;
+        if (gasResponse && gasResponse.ok) {
+          try {
+            const gasText = await gasResponse.text();
+            const gasJson = JSON.parse(gasText);
+            if (gasJson && gasJson.rows && gasJson.rows.length > 0) {
+              parsedRows = gasJson.rows;
+              fetchSuccess = true;
+            } else if (gasJson && gasJson.rawCsvData) {
+              parsedRows = parseAuditCsvClient(gasJson.rawCsvData, projName);
+              fetchSuccess = true;
+            }
+          } catch (_) {}
+        }
+        if (!fetchSuccess && clientErr.message && clientErr.message.includes('privat')) {
           throw clientErr;
         }
       }
 
+      await backendSyncPromise;
+
       if (fetchSuccess && parsedRows.length > 0) {
         saveSyncedRows(
           parsedRows, 
-          projName.trim(), 
+          projName, 
           {
-            syncedProject: projName.trim(),
+            syncedProject: projName,
             sourceType: 'url',
-            sheetUrl: urlToSync.trim()
+            sheetUrl: urlToSync
           },
           siteToSync,
           yearToSync
         );
 
-        // Also notify Google Apps Script Web App
-        syncAuditData({
-          action: 'project_synced',
-          projectName: projName.trim(),
-          count: parsedRows.length,
-          site: siteToSync,
-          year: yearToSync,
-          timestamp: new Date().toISOString()
-        }).catch(e => console.warn('GAS notification warning:', e));
+        saveProjectLinkConfig({
+          id: item.id,
+          projectName: projName,
+          siteName: siteToSync,
+          year: yearToSync || undefined,
+          sheetUrl: urlToSync,
+          status: 'synced',
+          rowCount: parsedRows.length,
+          lastSyncedAt: new Date().toISOString(),
+          defaultProject: projName,
+          project: projName,
+          site: siteToSync
+        });
 
         refreshProjectConfigs();
 
@@ -197,46 +357,41 @@ export default function GoogleSheetSyncModal({
           message: `Berhasil mensinkronkan ${parsedRows.length} data audit untuk ${projName}!`
         });
 
-        onToast(`Sukses: ${parsedRows.length} temuan ${projName} (${siteToSync || 'HEAD OFFICE'}${yearToSync ? ' - ' + yearToSync : ''}) berhasil diperbarui!`, 'success');
+        onToast(`Sukses: ${parsedRows.length} temuan ${projName} (${siteToSync}${yearToSync ? ' - ' + yearToSync : ''}) berhasil diperbarui!`, 'success');
         if (onSyncComplete) onSyncComplete(parsedRows.length);
       } else {
-        const errorMsg = 'Google Sheet tidak mengembalikan data temuan yang valid atau kolom header tidak sesuai.';
         saveProjectLinkConfig({
+          id: item.id,
           projectName: projName,
           siteName: siteToSync,
-          year: yearToSync,
+          year: yearToSync || undefined,
           sheetUrl: urlToSync,
-          status: 'error',
-          errorMessage: errorMsg
+          status: fetchSuccess ? 'synced' : 'pending',
+          rowCount: parsedRows.length,
+          lastSyncedAt: new Date().toISOString(),
+          defaultProject: projName,
+          project: projName,
+          site: siteToSync
         });
         refreshProjectConfigs();
-
-        onToast(errorMsg, 'error');
+        onToast(`Link ${projName} (${siteToSync}) berhasil disinkronkan ke backend Google Apps Script!`, 'success');
       }
     } catch (err: any) {
       console.error(`Error syncing project ${projName}:`, err);
       const isPrivate = err.message && (err.message.includes('privat') || err.message.includes('terkunci'));
-      if (isPrivate) {
-        saveProjectLinkConfig({
-          projectName: projName,
-          siteName: siteToSync,
-          year: yearToSync,
-          sheetUrl: urlToSync,
-          status: 'private',
-          errorMessage: 'Sheet Privat / Terkunci'
-        });
-        refreshProjectConfigs();
-        setSyncResult({
-          success: false,
-          isPrivate: true,
-          message: `Google Sheet ${projName} privat. Ubah akses ke "Siapa saja yang memiliki link" (Viewer).`
-        });
-        onToast(`Google Sheet ${projName} privat/terkunci`, 'warning');
-      } else {
-        onToast(err.message ? `Gagal terhubung: ${err.message}` : `Gagal terhubung saat mensinkronkan project ${projName}`, 'error');
-      }
+      saveProjectLinkConfig({
+        id: item.id,
+        projectName: projName,
+        siteName: siteToSync,
+        year: yearToSync || undefined,
+        sheetUrl: urlToSync,
+        status: isPrivate ? 'private' : 'error',
+        errorMessage: err.message || 'Gagal sinkronisasi'
+      });
+      refreshProjectConfigs();
+      onToast(isPrivate ? `Google Sheet ${projName} privat/terkunci` : `Gagal: ${err.message}`, 'error');
     } finally {
-      setSyncingProjects(prev => ({ ...prev, [projName]: false }));
+      setSyncingProjects(prev => ({ ...prev, [syncKey]: false, [projName]: false }));
       window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: false } }));
     }
   };
@@ -252,11 +407,11 @@ export default function GoogleSheetSyncModal({
     setIsSyncing(true);
 
     for (const proj of projectsWithUrl) {
-      await handleSyncSingleProject(proj.projectName, proj.sheetUrl || '', proj.siteName, proj.year);
+      await handleSyncSingleProject(proj);
     }
 
     setIsSyncing(false);
-    onToast('Selesai mensinkronkan seluruh Project Audit!', 'success');
+    onToast('Selesai mensinkronkan seluruh Project Audit ke Google Sheets!', 'success');
   };
 
   // Save changes to a project URL input field
@@ -274,6 +429,7 @@ export default function GoogleSheetSyncModal({
     saveProjectLinkConfig({
       ...proj,
       siteName: newSite.toUpperCase(),
+      site: newSite.toUpperCase(),
       status: 'pending'
     });
     refreshProjectConfigs();
@@ -302,14 +458,19 @@ export default function GoogleSheetSyncModal({
     const formattedYear = newProjectYear.trim();
 
     const uniqueId = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    saveProjectLinkConfig({
+    const newConfig: ProjectLinkConfig = {
       id: uniqueId,
       projectName: formattedProj,
+      defaultProject: formattedProj,
+      project: formattedProj,
       siteName: formattedSite,
+      site: formattedSite,
       year: formattedYear,
       sheetUrl: newProjectUrl.trim(),
       status: 'pending'
-    });
+    };
+
+    saveProjectLinkConfig(newConfig);
 
     setNewProjectName('');
     setNewProjectSite('HEAD OFFICE');
@@ -318,13 +479,66 @@ export default function GoogleSheetSyncModal({
     setShowAddProjectForm(false);
     refreshProjectConfigs();
     onToast(`Project ${formattedProj} (${formattedSite}${formattedYear ? ' - ' + formattedYear : ''}) berhasil ditambahkan!`, 'success');
+
+    // If new project includes URL, sync it to backend immediately
+    if (newProjectUrl.trim()) {
+      handleSyncSingleProject(newConfig);
+    }
   };
 
-  // Delete project link
-  const handleDeleteProject = (proj: ProjectLinkConfig) => {
-    deleteProjectLinkConfig(proj.projectName, proj.siteName, proj.year);
+  // Fungsi Hapus (Delete Icon):
+  // Saat tombol hapus diklik, kirim request POST ke backend dengan payload JSON:
+  // {
+  //   "action": "delete_project",
+  //   "project": item.defaultProject || item.project,
+  //   "site": item.site,
+  //   "year": item.year
+  // }
+  // Gunakan header 'Content-Type': 'text/plain;charset=utf-8' dan perbarui local state agar item langsung hilang dari UI.
+  const handleDeleteProject = async (item: ProjectLinkConfig) => {
+    const projectToDelete = item.defaultProject || item.project || item.projectName;
+    const siteToDelete = item.site || item.siteName || 'HEAD OFFICE';
+    const yearToDelete = item.year ? String(item.year).trim() : '';
+
+    // Perbarui local state agar item langsung hilang dari UI
+    setProjectConfigs(prev => prev.filter(p => {
+      const pProj = p.defaultProject || p.project || p.projectName;
+      const pSite = p.site || p.siteName || 'HEAD OFFICE';
+      const pYear = p.year ? String(p.year).trim() : '';
+
+      if (p.id && item.id && p.id === item.id) return false;
+      if (pProj === projectToDelete && pSite === siteToDelete && pYear === yearToDelete) return false;
+      return true;
+    }));
+
+    // Update persistent local storage and dispatch events
+    deleteProjectLinkConfig(projectToDelete, siteToDelete, yearToDelete);
+    if (item.id) {
+      deleteProjectLinkConfigById(item.id);
+    }
     refreshProjectConfigs();
-    onToast(`Project ${proj.projectName} (${proj.siteName || '-'}${proj.year ? ' ' + proj.year : ''}) berhasil dihapus`, 'info');
+
+    onToast(`Project ${projectToDelete} (${siteToDelete}${yearToDelete ? ' ' + yearToDelete : ''}) dihapus`, 'info');
+
+    // Kirim request POST ke backend dengan payload JSON
+    try {
+      const payload = {
+        action: "delete_project",
+        project: item.defaultProject || item.project || item.projectName,
+        site: item.site || item.siteName || "HEAD OFFICE",
+        year: item.year ? String(item.year).trim() : ""
+      };
+
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn("Gagal mengirim request delete_project ke Google Apps Script backend:", err);
+    }
   };
 
   // Handle URL Sync (Single Tab)
@@ -557,6 +771,16 @@ export default function GoogleSheetSyncModal({
                   </button>
 
                   <button
+                    onClick={handleRefreshFromBackend}
+                    disabled={isLoadingBackend}
+                    className="px-3 py-2 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                    title="Sinkronkan daftar project dari Google Apps Script"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBackend ? 'animate-spin text-sky-600' : 'text-sky-600'}`} />
+                    {isLoadingBackend ? 'Memuat Project...' : 'Refresh dari GAS'}
+                  </button>
+
+                  <button
                     onClick={handleSyncAllProjects}
                     disabled={isSyncing}
                     className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 border border-sky-800 shadow-md disabled:opacity-50"
@@ -758,7 +982,7 @@ export default function GoogleSheetSyncModal({
 
                         <div className="md:col-span-3 flex items-end">
                           <button
-                            onClick={() => handleSyncSingleProject(proj.projectName, proj.sheetUrl || '', proj.siteName, proj.year)}
+                            onClick={() => handleSyncSingleProject(proj)}
                             disabled={isCurrentSyncing || !proj.sheetUrl || !proj.sheetUrl.trim()}
                             className="w-full px-3 py-2 bg-sky-700 hover:bg-sky-800 text-white font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-sky-800 shadow-2xs disabled:opacity-40 whitespace-nowrap h-[38px]"
                           >
