@@ -563,7 +563,7 @@ export default function LandingPage({
                     className="text-[11px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 hover:underline cursor-pointer transition-colors"
                   >
                     <Search className="w-3 h-3" />
-                    <span>Cek Master Database ({masterEmployees.length.toLocaleString('id-ID')} Data)</span>
+                    <span>Cek Master Database ({getAllEmployees().length.toLocaleString('id-ID')} Data)</span>
                   </button>
                 </div>
                 <div className="relative">

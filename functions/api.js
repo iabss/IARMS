@@ -11,7 +11,7 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWqHvGuhMZiZo0luz3avtesqza3y5RLaUsUGym5v32dKPjU_daFFguwuwr62tgTAM_GQ/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
 
   try {
     if (request.method === "POST") {
@@ -19,15 +19,27 @@ export async function onRequest(context) {
       const response = await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
         body: body,
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "text/plain;charset=utf-8" }
       });
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        result = { status: "success", text };
+      }
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (request.method === "GET") {
       const response = await fetch(GOOGLE_SCRIPT_URL);
-      const result = await response.json();
+      const text = await response.text();
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        result = { status: "success", text };
+      }
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   } catch (err) {

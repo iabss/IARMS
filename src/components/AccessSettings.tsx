@@ -31,7 +31,8 @@ import {
   Upload,
   Link,
   Loader2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 import { UserProfile, UserRole, InternalAuditMember, MenuItemConfig } from '../types';
 import { 
