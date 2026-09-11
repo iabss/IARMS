@@ -234,9 +234,11 @@ export default function LandingPage({
 
       setRegisteredTempInfo(res);
       setViewMode('register_success');
-      onToast('Pendaftaran akun berhasil! Kata sandi telah dikirim ke email.', 'success');
+      onToast('Registrasi berhasil! Silakan cek email Anda untuk mendapatkan password.', 'success');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal mendaftarkan akun.');
+      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -758,23 +760,23 @@ export default function LandingPage({
                 <span className="text-slate-300 truncate max-w-[200px]">{registeredTempInfo.user.email}</span>
               </div>
 
-              {/* Password temporary box */}
-              <div className="pt-2 border-t border-slate-700/60">
-                <span className="block text-[11px] text-slate-400 mb-1">
-                  Kata Sandi Sementara (Dikirim ke Email):
-                </span>
-                <div className="flex items-center justify-between p-2.5 bg-black/40 border border-sky-500/40 rounded-lg">
-                  <span className="font-mono text-base font-black text-amber-400 tracking-wider">
-                    {registeredTempInfo.generatedPassword}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyTempPassword}
-                    className="px-2.5 py-1 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-md flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    {copiedPassword ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedPassword ? 'Tersalin' : 'Salin'}</span>
-                  </button>
+              {/* Notification: Sent to Email */}
+              <div className="pt-3 border-t border-slate-700/60 space-y-2">
+                <div className="p-3 bg-sky-950/40 border border-sky-500/30 rounded-lg flex items-start gap-2.5 text-left">
+                  <div className="p-1.5 bg-sky-500/20 text-sky-400 rounded-md shrink-0 mt-0.5">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-xs font-bold text-sky-200">
+                      Kata Sandi Sementara Telah Dikirim ke Email
+                    </span>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Demi keamanan akun, kata sandi sementara tidak ditampilkan di layar dan telah dikirimkan langsung ke alamat email <strong className="text-white font-semibold">{registeredTempInfo.user.email}</strong>.
+                    </p>
+                    <p className="text-[10px] text-sky-300/80 italic">
+                      * Silakan periksa folder Kotak Masuk (Inbox) atau Spam pada email Anda untuk melihat kata sandi sementara.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -783,7 +785,7 @@ export default function LandingPage({
               type="button"
               onClick={() => {
                 setLoginIdentifier(registeredTempInfo.user.nik);
-                setLoginPassword(registeredTempInfo.generatedPassword);
+                setLoginPassword('');
                 setViewMode('login');
               }}
               className="w-full py-3 px-4 bg-[#00a3ff] hover:bg-[#0094e8] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"

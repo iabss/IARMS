@@ -124,6 +124,7 @@ export interface UserProfile {
   isCustomAccount?: boolean;
   mustChangePassword?: boolean;
   tempPassword?: string;
+  welcomeEmailSent?: boolean;
   allowedMenus?: string[];
 }
 

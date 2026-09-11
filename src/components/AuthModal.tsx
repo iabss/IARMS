@@ -141,9 +141,11 @@ export default function AuthModal({
 
       setRegisteredTempInfo(result);
       setMode('register_success');
-      onToast(`Akun berhasil dibuat! Kata sandi acak telah dikirimkan ke email ${result.user.email}`, 'success');
+      onToast('Registrasi berhasil! Silakan cek email Anda untuk mendapatkan password.', 'success');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal melakukan registrasi akun.');
+      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -557,29 +559,26 @@ export default function AuthModal({
               </div>
 
               {/* Password Box */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2 max-w-sm mx-auto">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Kata Sandi Sementara Anda:</span>
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                    Wajib Ganti saat Login
-                  </span>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-3 max-w-sm mx-auto">
+                <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl flex items-start gap-2.5">
+                  <div className="p-1.5 bg-sky-100 text-sky-600 rounded-lg shrink-0 mt-0.5">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-xs font-bold text-sky-900">
+                      Kata Sandi Sementara Dikirim ke Email
+                    </span>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Demi keamanan akun, kata sandi sementara tidak ditampilkan di layar dan telah dikirimkan langsung ke alamat email:{' '}
+                      <strong className="text-slate-900 font-semibold">{registeredTempInfo.user.email}</strong>
+                    </p>
+                    <p className="text-[10px] text-slate-500 italic">
+                      * Silakan periksa folder Kotak Masuk (Inbox) atau Spam pada email Anda untuk melihat kata sandi.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between bg-white border border-slate-300 rounded-xl px-3 py-2">
-                  <span className="font-mono text-sm font-black text-sky-800 tracking-wider">
-                    {registeredTempInfo.generatedPassword}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyTempPassword}
-                    className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-                    title="Salin Kata Sandi"
-                  >
-                    {copiedPassword ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-
-                <div className="text-[11px] text-slate-500 space-y-1 pt-1">
+                <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-200">
                   <p>&bull; NIK: <strong className="text-slate-800">{registeredTempInfo.user.nik}</strong></p>
                   <p>&bull; Status Akses: <strong className="text-slate-800">{registeredTempInfo.user.isInternalAudit ? 'Internal Audit (Akses Semua Menu)' : 'Non-Internal Audit (Akses Dibatasi)'}</strong></p>
                 </div>
@@ -590,12 +589,12 @@ export default function AuthModal({
                   type="button"
                   onClick={() => {
                     setLoginIdentifier(registeredTempInfo.user.nik);
-                    setLoginPassword(registeredTempInfo.generatedPassword);
+                    setLoginPassword('');
                     setMode('login');
                   }}
                   className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Gunakan Password Ini untuk Masuk</span>
+                  <span>Lanjut Masuk ke Sistem</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

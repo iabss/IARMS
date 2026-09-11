@@ -78,6 +78,67 @@ export async function syncSheetUrlToBackend(item: {
 }
 
 /**
+ * Send register notification to Google Apps Script backend
+ * Triggering automatic welcome / confirmation email via MailApp.sendEmail()
+ * 
+ * Required Payload format:
+ * {
+ *   "action": "register_user",
+ *   "nik": inputNik,
+ *   "email": inputEmail,
+ *   "name": inputNama,
+ *   "department": inputDepartemen,
+ *   "role": inputJabatan
+ * }
+ */
+export async function sendRegisterUserToBackend(user: {
+  nik: string;
+  email: string;
+  name: string;
+  department?: string;
+  role: string;
+  tempPassword?: string;
+}): Promise<any> {
+  const payload: Record<string, any> = {
+    action: "register_user",
+    nik: user.nik,
+    email: user.email,
+    name: user.name,
+    department: user.department || "",
+    role: user.role,
+    ...(user.tempPassword ? { tempPassword: user.tempPassword } : {}),
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "text/plain;charset=utf-8" 
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    if (!text) {
+      throw new Error("Empty response from backend");
+    }
+
+    // Google Apps Script HTML error page detection
+    if (text.trim().startsWith("<")) {
+      console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
+      throw new Error("Invalid response from verification backend");
+    }
+
+    const json = JSON.parse(text);
+    return json;
+  } catch (error) {
+    console.error("Gagal mengirim payload registrasi ke Google Apps Script:", error);
+    throw error;
+  }
+}
+
+/**
  * Parse project list returned from Google Apps Script backend GET
  */
 export function parseGasProjectsResponse(json: any): any[] {

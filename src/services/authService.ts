@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from './googleDriveService';
 import { UserProfile, UserRole, MenuItemConfig, InternalAuditMember } from '../types';
-import { syncAuditData } from './api';
+import { syncAuditData, sendRegisterUserToBackend } from './api';
 import { findEmployeeByNik } from '../data/employeeMasterData';
 
 const STORAGE_KEY_CURRENT_USER = 'iarms_current_user_v3';
@@ -475,20 +475,30 @@ export async function registerUserWithNik(params: {
   const finalDept = iaInfo?.departemen || department?.trim() || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional & Unit Kerja');
   const finalTitle = iaInfo?.jabatan || jobTitle?.trim() || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee / PIC');
 
-  // Optional background Firebase Auth attempt
+  // 1. Panggil API Google Apps Script terlebih dahulu SEBELUM menyimpan data ke localStorage
+  const roleOrTitle = finalTitle || (isIA ? 'Internal Auditor' : (assignedRole || 'auditee'));
+  let gasResponse: any = null;
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, generatedPassword);
-    if (userCredential.user) {
-      try {
-        await updateProfile(userCredential.user, { displayName: finalName });
-      } catch (e) {
-        // ignore
-      }
-    }
-  } catch (fbErr: any) {
-    console.warn('Firebase Auth register warning (fallback to local auth):', fbErr.message || fbErr);
+    gasResponse = await sendRegisterUserToBackend({
+      nik: cleanNik,
+      email: cleanEmail,
+      name: finalName,
+      department: finalDept,
+      role: roleOrTitle,
+      tempPassword: generatedPassword
+    });
+  } catch (backendError: any) {
+    console.error('Panggilan API Google Apps Script registrasi gagal:', backendError);
+    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
   }
 
+  // 2. Verifikasi status respon dari backend
+  if (!gasResponse || (gasResponse.status !== 'success' && gasResponse.success !== true)) {
+    console.error('Backend Google Apps Script tidak mengembalikan status success:', gasResponse);
+    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+  }
+
+  // 3. HANYA JIKA respon backend berhasil (status: "success"), simpan data user ke state/localStorage
   const newProfile: UserProfile = {
     uid,
     nik: cleanNik,
@@ -503,26 +513,31 @@ export async function registerUserWithNik(params: {
     isCustomAccount: true,
     mustChangePassword: true, // "untuk login harus buat pasword baru"
     tempPassword: generatedPassword,
+    welcomeEmailSent: true,
     allowedMenus
   };
 
-  // Save to local database with generated password
+  // Optional background Firebase Auth attempt
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, generatedPassword);
+    if (userCredential.user) {
+      try {
+        await updateProfile(userCredential.user, { displayName: finalName });
+      } catch (e) {
+        // ignore
+      }
+    }
+  } catch (fbErr: any) {
+    console.warn('Firebase Auth register warning (fallback to local auth):', fbErr.message || fbErr);
+  }
+
+  // Simpan ke database pengguna lokal (localStorage)
   usersDb.push({
     ...newProfile,
-    password: generatedPassword
+    password: generatedPassword,
+    welcomeEmailSent: true
   });
   localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
-
-  // Send email via Google Apps Script integration
-  syncAuditData({
-    action: 'send_welcome_email',
-    email: cleanEmail,
-    nik: cleanNik,
-    displayName: finalName,
-    tempPassword: generatedPassword,
-    isInternalAudit: isIA,
-    timestamp: new Date().toISOString()
-  }).catch(e => console.warn('Sync email notification warning:', e));
 
   return {
     user: newProfile,
@@ -586,6 +601,24 @@ export async function loginUserWithNikOrEmail(
     };
   }
 
+  // Check if first-time login and welcome email notification has not been triggered
+  if (!matchedUser.welcomeEmailSent) {
+    matchedUser.welcomeEmailSent = true;
+    const userIndex = usersDb.findIndex(u => u.uid === matchedUser.uid);
+    if (userIndex !== -1) {
+      usersDb[userIndex] = matchedUser;
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+    }
+
+    sendRegisterUserToBackend({
+      nik: updatedProfile.nik,
+      email: updatedProfile.email,
+      name: updatedProfile.displayName,
+      department: updatedProfile.department || '',
+      role: updatedProfile.role
+    }).catch(e => console.warn('Sync first login email warning:', e));
+  }
+
   // Session activated
   setCurrentUser(updatedProfile);
   return {
@@ -615,6 +648,7 @@ export async function completeFirstLoginPasswordChange(
   target.mustChangePassword = false;
   target.tempPassword = undefined;
   target.lastLoginAt = new Date().toISOString();
+  target.welcomeEmailSent = true;
 
   usersDb[idx] = target;
   localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
@@ -624,10 +658,20 @@ export async function completeFirstLoginPasswordChange(
   const updatedUser: UserProfile = {
     ...(safeProfile as UserProfile),
     isInternalAudit: isIA,
-    mustChangePassword: false
+    mustChangePassword: false,
+    welcomeEmailSent: true
   };
 
   setCurrentUser(updatedUser);
+
+  // Send first login completion notification via Google Apps Script (action: register_user)
+  sendRegisterUserToBackend({
+    nik: updatedUser.nik,
+    email: updatedUser.email,
+    name: updatedUser.displayName,
+    department: updatedUser.department || '',
+    role: updatedUser.role
+  }).catch(e => console.warn('Sync first login register_user email warning:', e));
 
   // Sync password change
   syncAuditData({
