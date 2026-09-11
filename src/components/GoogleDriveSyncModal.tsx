@@ -13,8 +13,6 @@ import {
   ShieldCheck,
   FileCode,
   Trash2,
-  Sparkles,
-  ArrowRight,
   Server
 } from 'lucide-react';
 import { 
@@ -28,11 +26,7 @@ import {
   BackupHistoryItem
 } from '../services/googleDriveService';
 import { GOOGLE_SCRIPT_URL } from '../services/api';
-import { 
-  getMergedSheetRows, 
-  getAchievementSnapshots, 
-  getProjectLinkConfigs 
-} from '../data/dataSyncManager';
+import { getMergedSheetRows } from '../data/dataSyncManager';
 
 interface GoogleDriveSyncModalProps {
   isOpen: boolean;
@@ -58,22 +52,10 @@ export default function GoogleDriveSyncModal({
     timestamp: string;
   } | null>(null);
 
-  // Metrics overview
-  const [stats, setStats] = useState({
-    findings: 0,
-    projects: 0,
-    snapshots: 0
-  });
-
-  // Load metrics & backup history when opened
+  // Load backup history when opened
   useEffect(() => {
     if (isOpen) {
       setRecentBackups(getRecentBackups());
-      setStats({
-        findings: getMergedSheetRows().length,
-        projects: getProjectLinkConfigs().length,
-        snapshots: getAchievementSnapshots().length
-      });
       setUploadStep(0);
       setUploadProgress(null);
     }
@@ -265,93 +247,25 @@ export default function GoogleDriveSyncModal({
                 Data dikirimkan langsung ke backend dan disimpan ke Google Drive tanpa memerlukan izin login Google OAuth browser.
               </p>
             </div>
-          </div>
 
-          {/* Database Metrics Summary */}
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Temuan Audit</span>
-              <span className="text-base font-black text-slate-800">{stats.findings.toLocaleString()}</span>
-            </div>
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Project Link</span>
-              <span className="text-base font-black text-slate-800">{stats.projects}</span>
-            </div>
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Snapshot Cutoff</span>
-              <span className="text-base font-black text-slate-800">{stats.snapshots}</span>
-            </div>
-          </div>
-
-          {/* Action Options */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                Pilihan Eksekusi Backup Langsung
-              </h4>
-              <span className="text-[11px] font-bold text-sky-700 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-sky-600" />
-                1-Click Direct Cloud Upload
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Option 1: Full Database JSON */}
+            {/* Direct Backup Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
               <button
                 onClick={handleBackupDatabaseJson}
                 disabled={isUploading}
-                className="p-4 rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 bg-gradient-to-br from-white to-indigo-50/40 text-left transition-all group disabled:opacity-50 shadow-2xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-2xs group-hover:scale-105 transition-transform">
-                      <Database className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 uppercase">
-                      .JSON
-                    </span>
-                  </div>
-                  <h5 className="text-sm font-black text-slate-900 group-hover:text-indigo-700 mt-2.5">
-                    Backup Database Lengkap
-                  </h5>
-                  <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
-                    Menyimpan data temuan, log cut-off harian, riwayat snapshot tren, dan master project.
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-indigo-100/70 flex items-center justify-between text-xs font-bold text-indigo-700">
-                  <span>{isUploading && uploadStep === 1 ? 'Memproses...' : 'Kirim ke Google Drive'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
+                <Database className="w-4 h-4" />
+                <span>{isUploading && uploadStep === 1 ? 'Memproses...' : 'Backup Database Manual'}</span>
               </button>
-
-              {/* Option 2: Findings CSV / Spreadsheet */}
               <button
                 onClick={handleBackupCsv}
                 disabled={isUploading}
-                className="p-4 rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 bg-gradient-to-br from-white to-emerald-50/40 text-left transition-all group disabled:opacity-50 shadow-2xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                title="Ekspor temuan audit ke spreadsheet format CSV"
               >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-2xs group-hover:scale-105 transition-transform">
-                      <FileSpreadsheet className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 uppercase">
-                      .CSV
-                    </span>
-                  </div>
-                  <h5 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 mt-2.5">
-                    Ekspor Spreadsheet Temuan
-                  </h5>
-                  <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
-                    Tabel temuan audit lengkap terformat yang siap dibuka langsung di Google Sheets & Excel.
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-emerald-100/70 flex items-center justify-between text-xs font-bold text-emerald-700">
-                  <span>{isUploading && uploadStep === 2 ? 'Memproses...' : 'Kirim ke Google Drive'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>{isUploading && uploadStep === 2 ? 'Memproses...' : 'Ekspor Spreadsheet (.CSV)'}</span>
               </button>
             </div>
           </div>
