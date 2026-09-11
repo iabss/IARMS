@@ -11,6 +11,7 @@ import {
   getDriveAccessToken, 
   compileFullDatabase, 
   compileFindingsToCsv, 
+  sendBackupToGasBackend,
   uploadToDrive,
   getActiveFolderId 
 } from './googleDriveService';
@@ -69,51 +70,42 @@ export async function runDailyCutoffProcess(
     // 3. Perform Google Drive auto-backup if enabled
     let driveMessage = '';
     if (config.autoDriveBackup) {
-      let token = tokenOverride || await getDriveAccessToken();
+      try {
+        const dbData = compileFullDatabase();
+        // Annotate cutoff metadata in the backup payload
+        const backupPayload = {
+          ...dbData,
+          cutoffType: isManual ? 'manual_cutoff' : 'daily_09_00_cutoff',
+          cutoffDate: dateStr,
+          cutoffTime: '09:00:00',
+          cutoffMetrics: {
+            closeRate: snapshot.closeRate,
+            totalFindings: snapshot.totalRows,
+            closedFindings: snapshot.closedRows,
+            openFindings: snapshot.openRows,
+            progressFindings: snapshot.progressRows
+          }
+        };
 
-      if (token) {
-        try {
-          const dbData = compileFullDatabase();
-          // Annotate cutoff metadata in the backup payload
-          const backupPayload = {
-            ...dbData,
-            cutoffType: isManual ? 'manual_cutoff' : 'daily_09_00_cutoff',
-            cutoffDate: dateStr,
-            cutoffTime: '09:00:00',
-            cutoffMetrics: {
-              closeRate: snapshot.closeRate,
-              totalFindings: snapshot.totalRows,
-              closedFindings: snapshot.closedRows,
-              openFindings: snapshot.openRows,
-              progressFindings: snapshot.progressRows
-            }
-          };
+        const fileName = `IAMS_Daily_Cutoff_09_00_${dateStr}.json`;
+        const targetFolder = config.targetFolderId || getActiveFolderId();
 
-          const fileName = `IAMS_Daily_Cutoff_09_00_${dateStr}.json`;
-          const targetFolder = config.targetFolderId || getActiveFolderId();
+        const uploaded = await sendBackupToGasBackend(
+          fileName,
+          backupPayload,
+          'json',
+          targetFolder
+        );
 
-          const uploaded = await uploadToDrive(
-            token,
-            fileName,
-            JSON.stringify(backupPayload, null, 2),
-            'application/json',
-            targetFolder
-          );
-
-          cutoffLog.driveSyncStatus = 'success';
-          cutoffLog.driveFileName = fileName;
-          cutoffLog.driveFileLink = uploaded.webViewLink;
-          driveMessage = ' Data berhasil otomatis di-backup ke Google Drive!';
-        } catch (driveErr: any) {
-          console.error('Auto Drive Cutoff Upload Failed:', driveErr);
-          cutoffLog.driveSyncStatus = 'failed';
-          cutoffLog.errorMessage = driveErr.message || 'Gagal upload ke Google Drive';
-          driveMessage = ' (Upload ke Drive gagal, periksa koneksi akun Google).';
-        }
-      } else {
-        cutoffLog.driveSyncStatus = 'skipped';
-        cutoffLog.errorMessage = 'Akun Google belum terhubung';
-        driveMessage = ' (Opsi Google Drive aktif, namun akun Google belum login).';
+        cutoffLog.driveSyncStatus = 'success';
+        cutoffLog.driveFileName = fileName;
+        cutoffLog.driveFileLink = uploaded.webViewLink;
+        driveMessage = ' Data berhasil otomatis di-backup ke Google Drive via GAS Backend!';
+      } catch (driveErr: any) {
+        console.error('Auto Drive Cutoff Upload Failed:', driveErr);
+        cutoffLog.driveSyncStatus = 'failed';
+        cutoffLog.errorMessage = driveErr.message || 'Gagal upload ke Google Drive';
+        driveMessage = ' (Upload ke Drive gagal, periksa koneksi backend).';
       }
     } else {
       cutoffLog.driveSyncStatus = 'skipped';

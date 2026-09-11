@@ -9,22 +9,19 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { getMergedSheetRows, getAchievementSnapshots, getProjectLinkConfigs } from '../data/dataSyncManager';
+import { GOOGLE_SCRIPT_URL } from './api';
 
 // Initialize Firebase App instance safely (singleton)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
-// Google Auth Provider with Google Drive scopes
+// Google Drive Target Folder ID
 export const DRIVE_FOLDER_ID = '1zDCtRFoFEDWzakB0I5lpr88PP2vwDAAs';
 export const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/drive'
 ];
 
-const provider = new GoogleAuthProvider();
-SCOPES.forEach((scope) => provider.addScope(scope));
-
-let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 let activeFolderId: string = DRIVE_FOLDER_ID;
 
@@ -38,55 +35,52 @@ export function setActiveFolderId(id: string) {
   }
 }
 
-// Initialize auth state listener
-export const initGoogleAuth = (
-  onSuccess?: (user: User, token: string) => void,
-  onFailure?: () => void
-) => {
-  return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user) {
-      if (cachedAccessToken) {
-        if (onSuccess) onSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        cachedAccessToken = null;
-        if (onFailure) onFailure();
-      }
-    } else {
-      cachedAccessToken = null;
-      if (onFailure) onFailure();
-    }
-  });
-};
+// Backup History in localStorage
+const STORAGE_KEY_RECENT_BACKUPS = 'iams_recent_backups_v2';
 
-// Sign in with Google Popup
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export interface BackupHistoryItem {
+  id: string;
+  fileName: string;
+  type: 'json' | 'csv';
+  folderId: string;
+  timestamp: string;
+  recordCount?: number;
+  status: 'success' | 'failed';
+  webViewLink?: string;
+  sizeFormatted?: string;
+}
+
+export function getRecentBackups(): BackupHistoryItem[] {
   try {
-    isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Gagal mendapatkan token akses Google Drive.');
-    }
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
-    console.error('Google Drive Sign in error:', error);
-    throw error;
-  } finally {
-    isSigningIn = false;
+    const raw = localStorage.getItem(STORAGE_KEY_RECENT_BACKUPS);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
   }
-};
+}
 
-// Get current cached token
-export const getDriveAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
-};
+export function saveBackupHistoryItem(item: BackupHistoryItem): BackupHistoryItem[] {
+  try {
+    const existing = getRecentBackups();
+    // Keep max 20 items, most recent first
+    const updated = [item, ...existing.filter(x => x.id !== item.id)].slice(0, 20);
+    localStorage.setItem(STORAGE_KEY_RECENT_BACKUPS, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('iams_backup_saved', { detail: { item, history: updated } }));
+    return updated;
+  } catch {
+    return [];
+  }
+}
 
-// Sign out
-export const googleSignOut = async () => {
-  await signOut(auth);
-  cachedAccessToken = null;
-};
+export function clearBackupHistory(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_RECENT_BACKUPS);
+    window.dispatchEvent(new CustomEvent('iams_backup_saved', { detail: { history: [] } }));
+  } catch (err) {
+    console.warn('Failed to clear backup history:', err);
+  }
+}
 
 // Helper: Compile full application state into a clean backup JSON object
 export function compileFullDatabase() {
@@ -183,161 +177,201 @@ export interface DriveUploadedFile {
   createdTime?: string;
 }
 
-// Find or create dedicated folder for IAMS backups if specified folder is not accessible
-export async function getOrCreateAppFolder(token: string, folderName: string = 'IAMS_Audit_Backup'): Promise<string> {
-  try {
-    const query = `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,webViewLink)`;
-    
-    const searchRes = await fetch(searchUrl, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      if (data.files && data.files.length > 0) {
-        return data.files[0].id;
-      }
-    }
-
-    // Create new folder in Drive
-    const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name,webViewLink', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: folderName,
-        mimeType: 'application/vnd.google-apps.folder'
-      })
-    });
-
-    if (createRes.ok) {
-      const createdData = await createRes.json();
-      return createdData.id;
-    }
-  } catch (err) {
-    console.error('Error finding/creating App folder:', err);
-  }
-  return '';
+export interface GasBackupResponse {
+  success: boolean;
+  message?: string;
+  status?: string;
+  fileName: string;
+  folderId: string;
+  webViewLink?: string;
+  fileId?: string;
+  uploadedAt: string;
+  type: 'json' | 'csv';
+  recordCount?: number;
 }
 
-// Helper: Raw multipart upload request
-async function executeMultipartUpload(
-  token: string,
+/**
+ * Send backup payload directly to Google Apps Script backend URL
+ * without requiring OAuth sign-in popups.
+ */
+export async function sendBackupToGasBackend(
   fileName: string,
-  contentString: string,
-  mimeType: string,
-  targetFolderId?: string
-): Promise<Response> {
-  const metadata: Record<string, any> = {
-    name: fileName,
-    mimeType: mimeType
+  content: string | object,
+  type: 'json' | 'csv',
+  folderId: string = activeFolderId
+): Promise<GasBackupResponse> {
+  const contentString = typeof content === 'object' ? JSON.stringify(content, null, 2) : content;
+  const contentBytes = new Blob([contentString]).size;
+  const sizeFormatted = contentBytes > 1024 * 1024 
+    ? `${(contentBytes / (1024 * 1024)).toFixed(2)} MB` 
+    : `${Math.round(contentBytes / 1024)} KB`;
+
+  let recordCount = 0;
+  if (typeof content === 'object' && (content as any)?.metrics?.totalFindings !== undefined) {
+    recordCount = (content as any).metrics.totalFindings;
+  } else if (type === 'csv') {
+    recordCount = getMergedSheetRows().length;
+  }
+
+  const payload = {
+    action: "backup_drive",
+    backupType: type,
+    type: type === 'json' ? 'database_json' : 'findings_csv',
+    fileName: fileName,
+    folderId: folderId,
+    timestamp: new Date().toISOString(),
+    recordCount: recordCount,
+    sizeBytes: contentBytes,
+    fileContent: contentString,
+    content: contentString,
+    data: typeof content === 'object' ? content : undefined,
+    metadata: {
+      appName: 'IAMS - Internal Audit Management System',
+      version: '2.0',
+      folderId: folderId,
+      exportedAt: new Date().toISOString()
+    }
   };
 
-  if (targetFolderId && targetFolderId.trim()) {
-    metadata.parents = [targetFolderId.trim()];
-  }
-
-  const boundary = '-------314159265358979323846';
-  const delimiter = `\r\n--${boundary}\r\n`;
-  const closeDelimiter = `\r\n--${boundary}--`;
-
-  const multipartRequestBody =
-    delimiter +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify(metadata) +
-    delimiter +
-    `Content-Type: ${mimeType}\r\n\r\n` +
-    contentString +
-    closeDelimiter;
-
-  return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,webViewLink,parents', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`
-    },
-    body: multipartRequestBody
-  });
-}
-
-// Upload file to Google Drive folder with smart fallback
-export async function uploadToDrive(
-  token: string,
-  fileName: string,
-  content: string | Blob,
-  mimeType: string,
-  folderId: string = activeFolderId
-): Promise<DriveUploadedFile> {
-  let contentString: string;
-  if (content instanceof Blob) {
-    contentString = await content.text();
-  } else {
-    contentString = content;
-  }
-
-  // 1. First Attempt: Upload to the targeted folderId
-  let response = await executeMultipartUpload(token, fileName, contentString, mimeType, folderId);
-
-  // 2. If 404 (e.g. Folder not found under current OAuth scope or permissions)
-  if (response.status === 404) {
-    console.warn(`Target folder ${folderId} returned 404. Creating/using IAMS_Audit_Backup folder...`);
-    
-    // Automatically find or create an accessible IAMS_Audit_Backup folder in the user's Google Drive
-    const fallbackFolderId = await getOrCreateAppFolder(token, 'IAMS_Audit_Backup');
-    
-    if (fallbackFolderId) {
-      setActiveFolderId(fallbackFolderId);
-      response = await executeMultipartUpload(token, fileName, contentString, mimeType, fallbackFolderId);
-    } else {
-      // Direct root upload fallback
-      response = await executeMultipartUpload(token, fileName, contentString, mimeType, undefined);
-    }
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Google Drive Upload Error:', errorText);
-    throw new Error(`Upload ke Google Drive gagal: ${response.status} ${response.statusText} (${errorText})`);
-  }
-
-  const data = await response.json();
-  return data;
-}
-
-// List files in the target Google Drive folder or recent IAMS backup files
-export async function listFolderFiles(token: string, folderId: string = activeFolderId): Promise<DriveUploadedFile[]> {
   try {
-    let query = `'${folderId}' in parents and trashed = false`;
-    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,webViewLink,createdTime,size)&orderBy=createdTime desc&pageSize=15`;
-
-    let res = await fetch(url, {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload)
     });
 
-    if (res.status === 404 || !res.ok) {
-      // Fallback search: files with IAMS_ prefix in name
-      const fallbackQuery = `name contains 'IAMS_' and trashed = false`;
-      const fallbackUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(fallbackQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,webViewLink,createdTime,size)&orderBy=createdTime desc&pageSize=15`;
-      res = await fetch(fallbackUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    let webViewLink = `https://drive.google.com/drive/folders/${folderId}?usp=drive_link`;
+    let responseData: any = null;
+
+    if (response.ok) {
+      try {
+        const text = await response.text();
+        if (text) {
+          responseData = JSON.parse(text);
+          if (responseData.webViewLink || responseData.fileUrl || responseData.url) {
+            webViewLink = responseData.webViewLink || responseData.fileUrl || responseData.url;
+          }
         }
-      });
+      } catch {
+        // GAS response might be plain text or HTML, which is okay as long as HTTP status is ok
+      }
+    } else {
+      throw new Error(`Google Apps Script merespon dengan status ${response.status}: ${response.statusText}`);
     }
 
-    if (!res.ok) {
-      return [];
-    }
+    const backupResult: GasBackupResponse = {
+      success: true,
+      status: 'success',
+      fileName: fileName,
+      folderId: folderId,
+      webViewLink: webViewLink,
+      fileId: responseData?.fileId || responseData?.id,
+      uploadedAt: new Date().toISOString(),
+      type: type,
+      recordCount: recordCount
+    };
 
-    const data = await res.json();
-    return data.files || [];
-  } catch (err) {
-    console.error('Failed to list files in Drive folder:', err);
-    return [];
+    // Record in local history
+    saveBackupHistoryItem({
+      id: `backup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      fileName: fileName,
+      type: type,
+      folderId: folderId,
+      timestamp: new Date().toISOString(),
+      recordCount: recordCount,
+      status: 'success',
+      webViewLink: webViewLink,
+      sizeFormatted: sizeFormatted
+    });
+
+    return backupResult;
+  } catch (error: any) {
+    console.error('Error sending backup to GAS Backend:', error);
+    
+    // Record failed attempt in local history for transparency
+    saveBackupHistoryItem({
+      id: `backup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      fileName: fileName,
+      type: type,
+      folderId: folderId,
+      timestamp: new Date().toISOString(),
+      recordCount: recordCount,
+      status: 'failed',
+      sizeFormatted: sizeFormatted
+    });
+
+    throw error;
   }
 }
+
+// Backwards compatibility functions for other callers
+export const initGoogleAuth = (
+  onSuccess?: (user: User, token: string) => void,
+  onFailure?: () => void
+) => {
+  return onAuthStateChanged(auth, async (user: User | null) => {
+    if (user) {
+      if (cachedAccessToken && onSuccess) {
+        onSuccess(user, cachedAccessToken);
+      }
+    } else {
+      if (onFailure) onFailure();
+    }
+  });
+};
+
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  try {
+    const provider = new GoogleAuthProvider();
+    SCOPES.forEach((scope) => provider.addScope(scope));
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    cachedAccessToken = credential?.accessToken || null;
+    return { user: result.user, accessToken: cachedAccessToken || '' };
+  } catch (error: any) {
+    console.error('Google Drive Sign in error:', error);
+    throw error;
+  }
+};
+
+export const getDriveAccessToken = async (): Promise<string | null> => {
+  return cachedAccessToken;
+};
+
+export const googleSignOut = async () => {
+  await signOut(auth);
+  cachedAccessToken = null;
+};
+
+export async function uploadToDrive(
+  _token: string,
+  fileName: string,
+  content: string | Blob,
+  _mimeType: string,
+  folderId: string = activeFolderId
+): Promise<DriveUploadedFile> {
+  const contentString = content instanceof Blob ? await content.text() : content;
+  const isCsv = fileName.toLowerCase().endsWith('.csv');
+  const res = await sendBackupToGasBackend(fileName, contentString, isCsv ? 'csv' : 'json', folderId);
+  return {
+    id: res.fileId || `drive_${Date.now()}`,
+    name: fileName,
+    mimeType: isCsv ? 'text/csv' : 'application/json',
+    webViewLink: res.webViewLink,
+    createdTime: res.uploadedAt
+  };
+}
+
+export async function listFolderFiles(_token?: string, _folderId: string = activeFolderId): Promise<DriveUploadedFile[]> {
+  const history = getRecentBackups();
+  return history.map(h => ({
+    id: h.id,
+    name: h.fileName,
+    mimeType: h.type === 'json' ? 'application/json' : 'text/csv',
+    webViewLink: h.webViewLink,
+    createdTime: h.timestamp
+  }));
+}
+

@@ -36,17 +36,13 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
   const [config, setConfig] = useState<DailyCutoffConfig>(getDailyCutoffConfig());
   const [logs, setLogs] = useState<DailyCutoffLog[]>(getDailyCutoffLogs());
   const [isRunning, setIsRunning] = useState(false);
-  const [isDriveConnected, setIsDriveConnected] = useState(false);
+  const [isDriveConnected, setIsDriveConnected] = useState(true);
   const [folderId, setFolderId] = useState<string>(getActiveFolderId());
   const [selectedCutoffDate, setSelectedCutoffDate] = useState<string>('2026-08-18');
 
-  // Check drive token status & listen for cutoff events
+  // Check drive status & listen for cutoff events
   useEffect(() => {
-    const checkToken = async () => {
-      const token = await getDriveAccessToken();
-      setIsDriveConnected(!!token);
-    };
-    checkToken();
+    setIsDriveConnected(true);
 
     const handleLogUpdate = (e: any) => {
       if (e.detail?.history) {
@@ -268,7 +264,7 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg font-black text-slate-900">
-                {isDriveConnected ? 'Akun Google Terhubung' : 'Google Drive Belum Login'}
+                GAS Cloud Gateway Aktif
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
@@ -277,25 +273,16 @@ export default function DailyCutoffPanel({ onToast, onOpenDriveBackup }: DailyCu
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            {!isDriveConnected ? (
-              <button
-                onClick={handleConnectDrive}
-                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1"
-              >
-                <span>Login Google Sekarang</span>
-              </button>
-            ) : (
-              <span className="text-emerald-600 font-bold flex items-center gap-1 text-[11px]">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Otomatis Unggah Siap</span>
-              </span>
-            )}
+            <span className="text-emerald-600 font-bold flex items-center gap-1 text-[11px]">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Otomatis Backup Siap (GAS)</span>
+            </span>
             {onOpenDriveBackup && (
               <button
                 onClick={onOpenDriveBackup}
-                className="text-slate-500 hover:text-slate-800 text-[11px] font-semibold"
+                className="text-indigo-600 hover:text-indigo-800 text-[11px] font-semibold cursor-pointer"
               >
-                Kelola Akun
+                Buka Backup Drive
               </button>
             )}
           </div>
