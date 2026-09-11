@@ -22,10 +22,16 @@ import Timeframe from './components/Timeframe';
 import NewAuditModal from './components/NewAuditModal';
 import GoogleDriveSyncModal from './components/GoogleDriveSyncModal';
 import DailyCutoffPanel from './components/DailyCutoffPanel';
-import { AuditEngagement, PublicAuditItem, ToastMessage } from './types';
+import AuthModal from './components/AuthModal';
+import UserProfileModal from './components/UserProfileModal';
+import AccessSettings from './components/AccessSettings';
+import LandingPage from './components/LandingPage';
+import { AuditEngagement, PublicAuditItem, ToastMessage, UserProfile, UserRole } from './types';
 import { autoSyncAllProjects, syncWithServer } from './data/dataSyncManager';
 import { initDailyCutoffScheduler } from './services/cutoffService';
 import { fetchAuditData, syncAuditData } from './services/api';
+import { getCurrentUser, onAuthChange, logoutUser, canUserAccessMenu } from './services/authService';
+import { LogIn, UserPlus, LogOut, User as UserIcon, Shield, KeyRound, ShieldCheck } from 'lucide-react';
 
 // Initial Mock Data matching the original specification
 const INITIAL_AUDIT_DATA: AuditEngagement[] = [
@@ -47,13 +53,39 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('public-portal');
   const [afsFilter, setAfsFilter] = useState<{ dept?: string; search?: string; status?: string; project?: string; remarks?: string } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [userRole, setUserRole] = useState<'public' | 'auditor'>('auditor');
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
+  const [userRole, setUserRole] = useState<UserRole>(() => getCurrentUser()?.role || 'auditor');
+  const [exploreAsGuest, setExploreAsGuest] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [auditData, setAuditData] = useState<AuditEngagement[]>(INITIAL_AUDIT_DATA);
   const [publicAuditList] = useState<PublicAuditItem[]>(INITIAL_PUBLIC_AUDIT_LIST);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [currentKkaTitle, setCurrentKkaTitle] = useState('Pengujian Kontrol & Monitoring Log');
+
+  // Listen to global auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthChange((user) => {
+      setCurrentUser(user);
+      if (user) {
+        setUserRole(user.role);
+      } else {
+        setUserRole('public');
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Enforce menu access security based on NIK and permissions
+  useEffect(() => {
+    if (!canUserAccessMenu(currentUser, activeTab)) {
+      setActiveTab('public-portal');
+      triggerToast('Akses dibatasi: NIK Anda tidak memiliki izin untuk membuka menu tersebut.', 'warning');
+    }
+  }, [activeTab, currentUser]);
 
   const handleNavigateToAFS = (filter?: { dept?: string; search?: string; status?: string; project?: string; remarks?: string }) => {
     if (filter) {
@@ -170,6 +202,65 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // If user is not logged in and not exploring as public guest, render the Landing Page
+  if (!currentUser && !exploreAsGuest) {
+    return (
+      <div className="min-h-screen bg-[#0b1120] text-slate-100 font-sans antialiased selection:bg-sky-500 selection:text-white">
+        <LandingPage
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            setUserRole(user.role);
+            setExploreAsGuest(false);
+          }}
+          onExplorePublic={() => {
+            setExploreAsGuest(true);
+            setActiveTab('public-portal');
+          }}
+          onToast={triggerToast}
+        />
+
+        {/* Global Toast Notifications on Landing Page */}
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none px-4">
+          <AnimatePresence>
+            {toasts.map((toast) => (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className={`pointer-events-auto p-3.5 rounded-xl shadow-xl flex items-start gap-3 border text-xs leading-relaxed backdrop-blur-md ${
+                  toast.type === 'success'
+                    ? 'bg-emerald-900/90 text-emerald-100 border-emerald-500/50 shadow-emerald-950/40'
+                    : toast.type === 'warning'
+                    ? 'bg-amber-900/90 text-amber-100 border-amber-500/50 shadow-amber-950/40'
+                    : toast.type === 'error'
+                    ? 'bg-rose-900/90 text-rose-100 border-rose-500/50 shadow-rose-950/40'
+                    : 'bg-slate-900/90 text-slate-100 border-slate-700 shadow-slate-950/40'
+                }`}
+              >
+                <div className="flex-shrink-0 mt-0.5">
+                  {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
+                  {toast.type === 'error' && <XCircle className="w-4 h-4 text-rose-400" />}
+                  {toast.type === 'info' && <Info className="w-4 h-4 text-sky-400" />}
+                </div>
+                <div className="flex-1 font-medium">{toast.message}</div>
+                <button
+                  type="button"
+                  onClick={() => removeToast(toast.id)}
+                  className="text-white/60 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-slate-50 text-slate-800 min-h-screen md:h-screen flex flex-col md:flex-row md:overflow-hidden antialiased selection:bg-sky-500 selection:text-white font-sans">
       
@@ -181,6 +272,11 @@ export default function App() {
         setIsCollapsed={setIsSidebarCollapsed}
         userRole={userRole}
         setUserRole={setUserRole}
+        currentUser={currentUser}
+        onOpenAuth={() => {
+          setExploreAsGuest(false);
+        }}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
         onToast={triggerToast}
         onOpenDriveBackup={() => setIsDriveModalOpen(true)}
       />
@@ -188,25 +284,116 @@ export default function App() {
       {/* Main Content Area Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 md:h-screen md:overflow-y-auto scroll-smooth">
         
+        {/* Top Header Bar with Auth Controls */}
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-end gap-3 sticky top-0 z-40 shadow-2xs">
+          {/* Right Auth / Profile Controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="flex items-center gap-2 p-1 sm:px-3 sm:py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl transition-all cursor-pointer group"
+                  title="Lihat profil & pengaturan akun"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-500 to-blue-700 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0">
+                    {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : 'US'}
+                  </div>
+                  <div className="hidden sm:flex flex-col text-left">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-sky-700 max-w-[140px] truncate">
+                        {currentUser.displayName}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 capitalize flex items-center gap-1">
+                      {currentUser.isInternalAudit ? (
+                        <span className="text-emerald-600 font-bold flex items-center gap-0.5">
+                          <ShieldCheck className="w-2.5 h-2.5" /> Internal Audit
+                        </span>
+                      ) : (
+                        <span>Non-IA ({currentUser.role})</span>
+                      )}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Return to Landing button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutUser();
+                    setCurrentUser(null);
+                    setUserRole('public');
+                    setExploreAsGuest(false);
+                    triggerToast('Kembali ke Halaman Masuk.', 'info');
+                  }}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs text-slate-600 hover:text-sky-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Kembali ke Halaman Landing"
+                >
+                  <Shield className="w-3.5 h-3.5 text-sky-500" />
+                  <span className="hidden sm:inline font-semibold">Landing Page</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutUser();
+                    setCurrentUser(null);
+                    setUserRole('public');
+                    setExploreAsGuest(false);
+                    triggerToast('Anda telah keluar dari akun.', 'info');
+                  }}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Keluar / Logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline font-semibold">Keluar</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExploreAsGuest(false)}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#00a3ff] hover:bg-[#0094e8] rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Buka Halaman Masuk & Pendaftaran"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Halaman Masuk (Login / Register)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+
         {/* Top Mobile Role Switcher Bar */}
-        <div className="md:hidden flex items-center justify-between p-3 bg-white border-b border-slate-200 text-xs">
-          <select
-            value={userRole}
-            onChange={(e) => {
-              const nextRole = e.target.value as 'public' | 'auditor';
-              setUserRole(nextRole);
-              if (nextRole === 'public') {
-                setActiveTab('public-portal');
-                triggerToast('Mode Akses Publik: Fitur KKA Internal Dibatasi', 'warning');
-              } else {
-                triggerToast('Mode Lead Auditor: Akses Penuh Sistem Terbuka', 'success');
-              }
-            }}
-            className="bg-slate-100 text-sky-700 font-bold border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none"
-          >
-            <option value="public">Mode: Akses Publik</option>
-            <option value="auditor">Mode: Lead Auditor</option>
-          </select>
+        <div className="md:hidden flex items-center justify-between p-2.5 bg-slate-50 border-b border-slate-200 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Mode:</span>
+            <select
+              value={userRole}
+              onChange={(e) => {
+                const nextRole = e.target.value as UserRole;
+                setUserRole(nextRole);
+                if (nextRole === 'public') {
+                  setActiveTab('public-portal');
+                  triggerToast('Mode Akses Publik: Fitur KKA Internal Dibatasi', 'warning');
+                } else if (nextRole === 'auditee') {
+                  triggerToast('Mode Auditee: Fokus Tindak Lanjut Temuan & Closing', 'info');
+                } else if (nextRole === 'management') {
+                  triggerToast('Mode Manajemen: Ringkasan Eksekutif & Risk Matrix', 'info');
+                } else {
+                  triggerToast('Mode Lead Auditor: Akses Penuh Sistem Terbuka', 'success');
+                }
+              }}
+              className="bg-white text-sky-700 font-bold border border-slate-300 rounded-lg px-2 py-1 text-xs focus:outline-none"
+            >
+              <option value="auditor">Lead Auditor</option>
+              <option value="auditee">Auditee / PIC</option>
+              <option value="management">Manajemen</option>
+              <option value="public">Akses Publik</option>
+            </select>
+          </div>
           <span className="text-emerald-600 text-[10px] font-semibold flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Systems Online
           </span>
@@ -295,6 +482,13 @@ export default function App() {
                 />
               </div>
             )}
+            {activeTab === 'access-settings' && (
+              <AccessSettings 
+                key="access-settings" 
+                currentUser={currentUser} 
+                onToast={triggerToast} 
+              />
+            )}
           </AnimatePresence>
         </main>
       </div>
@@ -313,6 +507,39 @@ export default function App() {
         <NewAuditModal
           onClose={() => setIsModalOpen(false)}
           onSubmit={handleCreateAudit}
+        />
+      )}
+
+      {/* Login & Registration Modal */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          initialMode={authModalMode}
+          onClose={() => setIsAuthModalOpen(false)}
+          onToast={triggerToast}
+          onSuccess={(user) => {
+            setCurrentUser(user);
+            setUserRole(user.role);
+          }}
+        />
+      )}
+
+      {/* User Profile & Management Modal */}
+      {isProfileModalOpen && (
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          currentUser={currentUser}
+          onClose={() => setIsProfileModalOpen(false)}
+          onToast={triggerToast}
+          onLogout={() => {
+            setCurrentUser(null);
+            setUserRole('public');
+          }}
+          onOpenLogin={() => {
+            setIsProfileModalOpen(false);
+            setAuthModalMode('login');
+            setIsAuthModalOpen(true);
+          }}
         />
       )}
 

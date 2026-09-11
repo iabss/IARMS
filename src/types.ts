@@ -106,3 +106,44 @@ export interface RiskRegisterItem {
   expectedLikelihood?: string;
   expectedRiskLevel?: string;
 }
+
+export type UserRole = 'auditor' | 'auditee' | 'management' | 'public';
+
+export interface UserProfile {
+  uid: string;
+  nik: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  isInternalAudit: boolean;
+  department?: string;
+  jobTitle?: string;
+  photoURL?: string;
+  createdAt?: string;
+  lastLoginAt?: string;
+  isCustomAccount?: boolean;
+  mustChangePassword?: boolean;
+  tempPassword?: string;
+  allowedMenus?: string[];
+}
+
+export interface MenuItemConfig {
+  id: string;
+  label: string;
+  category: string;
+  description: string;
+  defaultRoles: UserRole[];
+}
+
+export interface InternalAuditMember {
+  nik: string;
+  nama: string;
+  jabatan?: string;
+  departemen?: string;
+  email?: string;
+}
+
+export interface RoleMenuPermissions {
+  role: UserRole;
+  allowedMenus: string[];
+}

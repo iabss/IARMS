@@ -542,6 +542,142 @@ app.post('/api/sync-all-server', async (req, res) => {
   }
 });
 
+// Employee Master Data Endpoints
+const EMPLOYEE_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'employeeMasterData.json');
+
+app.get('/api/employees', (req, res) => {
+  try {
+    if (fs.existsSync(EMPLOYEE_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(EMPLOYEE_FILE_PATH, 'utf-8'));
+      return res.json({ success: true, total: data.length, employees: data });
+    }
+    return res.json({ success: true, total: 0, employees: [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/employees/bulk', (req, res) => {
+  try {
+    const { employees } = req.body;
+    if (!Array.isArray(employees) || employees.length === 0) {
+      return res.status(400).json({ success: false, error: 'Data karyawan tidak valid atau kosong' });
+    }
+
+    // Clean and validate employee list
+    const validEmployees = employees.map((emp: any) => ({
+      nik: String(emp.nik || emp.Nik || emp.NIK || '').trim(),
+      name: String(emp.name || emp.nama || emp.Nama || emp.NAMA || '').trim(),
+      jobTitle: String(emp.jobTitle || emp.jabatan || emp.Jabatan || emp.JABATAN || 'Staff').trim(),
+      department: String(emp.department || emp.departemen || emp.Departemen || emp.DEPARTEMEN || 'Umum').trim(),
+      site: String(emp.site || emp.Site || emp.SITE || 'BAYAN').trim(),
+      joinDate: String(emp.joinDate || emp.masuk || emp.Masuk || emp.MASUK || '').trim()
+    })).filter(e => e.nik && e.name);
+
+    if (validEmployees.length === 0) {
+      return res.status(400).json({ success: false, error: 'Tidak ditemukan data NIK dan Nama valid' });
+    }
+
+    // Save to employeeMasterData.json
+    fs.writeFileSync(EMPLOYEE_FILE_PATH, JSON.stringify(validEmployees, null, 2), 'utf-8');
+
+    return res.json({
+      success: true,
+      message: `Berhasil memperbarui database master dengan ${validEmployees.length} karyawan`,
+      total: validEmployees.length
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/employees/sync-sheet', async (req, res) => {
+  try {
+    const { sheetUrl } = req.body;
+    if (!sheetUrl) {
+      return res.status(400).json({ success: false, error: 'sheetUrl wajib diisi' });
+    }
+
+    const { sheetId, gid } = parseGoogleSheetUrl(sheetUrl);
+    if (!sheetId) {
+      return res.status(400).json({ success: false, error: 'Format URL Google Spreadsheet tidak valid' });
+    }
+
+    const candidateUrls = [
+      `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`,
+      `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`,
+      `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`
+    ];
+
+    let csvText = '';
+    for (const url of candidateUrls) {
+      try {
+        const result = await fetchUrl(url);
+        if (result.statusCode === 200 && result.data && (result.data.includes(',') || result.data.includes('\t'))) {
+          csvText = result.data;
+          break;
+        }
+      } catch (e) {}
+    }
+
+    if (!csvText) {
+      return res.status(400).json({ success: false, error: 'Gagal mengunduh CSV dari Google Spreadsheet. Pastikan link dapat diakses publik (Anyone with the link can view).' });
+    }
+
+    // Parse CSV lines
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2) {
+      return res.status(400).json({ success: false, error: 'Spreadsheet tidak berisi data karyawan' });
+    }
+
+    const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(delimiter).map(h => h.trim().toUpperCase().replace(/^"(.*)"$/, '$1'));
+
+    const findIdx = (keywords: string[]) => {
+      return headers.findIndex(h => keywords.some(kw => h === kw || h.includes(kw)));
+    };
+
+    const nikIdx = findIdx(['NIK', 'NO INDUK', 'NOMOR INDUK', 'ID']);
+    const namaIdx = findIdx(['NAMA', 'NAME', 'KARYAWAN', 'EMPLOYEE']);
+    const jabatanIdx = findIdx(['JABATAN', 'TITLE', 'POSITION', 'POSISI', 'JOB']);
+    const deptIdx = findIdx(['DEPARTEMEN', 'DEPT', 'DEPARTMENT', 'DIVISI']);
+    const siteIdx = findIdx(['SITE', 'LOKASI', 'LOCATION', 'CABANG']);
+    const masukIdx = findIdx(['MASUK', 'JOIN', 'TANGGAL', 'DATE']);
+
+    const employees: any[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(delimiter).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+      const nik = nikIdx !== -1 ? row[nikIdx] : row[0];
+      const name = namaIdx !== -1 ? row[namaIdx] : row[1];
+      if (!nik || !name) continue;
+
+      employees.push({
+        nik: nik.trim(),
+        name: name.trim(),
+        jobTitle: jabatanIdx !== -1 && row[jabatanIdx] ? row[jabatanIdx].trim() : 'Staff',
+        department: deptIdx !== -1 && row[deptIdx] ? row[deptIdx].trim() : 'Umum',
+        site: siteIdx !== -1 && row[siteIdx] ? row[siteIdx].trim() : 'BAYAN',
+        joinDate: masukIdx !== -1 && row[masukIdx] ? row[masukIdx].trim() : ''
+      });
+    }
+
+    if (employees.length === 0) {
+      return res.status(400).json({ success: false, error: 'Tidak ada baris karyawan yang valid ditemukan dalam spreadsheet' });
+    }
+
+    fs.writeFileSync(EMPLOYEE_FILE_PATH, JSON.stringify(employees, null, 2), 'utf-8');
+
+    return res.json({
+      success: true,
+      message: `Berhasil mengimpor ${employees.length} karyawan dari Google Sheets`,
+      total: employees.length,
+      employees
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Vite Middleware & Static Server
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
