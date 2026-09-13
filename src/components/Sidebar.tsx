@@ -136,10 +136,10 @@ export default function Sidebar({
                 exit={{ opacity: 0, x: -10 }}
                 className="sidebar-text whitespace-nowrap"
               >
-                <h1 className="font-bold text-base leading-tight text-slate-900">
-                  IAMS
+                <h1 id="sidebar-brand-title" className="font-bold text-base leading-tight text-slate-900">
+                  IARMS
                 </h1>
-                <p className="text-[10px] text-slate-500 font-medium">Internal Audit Management</p>
+                <p id="sidebar-brand-subtitle" className="text-[10px] text-slate-500 font-medium">Internal Audit Risk Management System</p>
               </motion.div>
             )}
           </div>
