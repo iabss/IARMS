@@ -142,6 +142,7 @@ export interface InternalAuditMember {
   jabatan?: string;
   departemen?: string;
   email?: string;
+  openAllAccess?: boolean; // Admin toggle: memberikan full access (12 menu) tanpa mengharuskan registrasi terlebih dahulu
 }
 
 export interface RoleMenuPermissions {

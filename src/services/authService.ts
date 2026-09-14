@@ -153,6 +153,32 @@ export function saveInternalAuditMembers(members: InternalAuditMember[]): void {
   }
 }
 
+// Check if an IA member has Open All Access enabled without requiring registration first
+export function isIaMemberOpenAllAccess(nik?: string): boolean {
+  if (!nik) return false;
+  const cleanNik = nik.trim();
+  const members = getInternalAuditMembers();
+  const match = members.find(m => m.nik === cleanNik);
+  return Boolean(match?.openAllAccess);
+}
+
+// Toggle or set Open All Access for an IA member (Admin action)
+export function toggleIaMemberOpenAllAccess(nik: string, openAllAccess?: boolean): InternalAuditMember[] {
+  const cleanNik = nik.trim();
+  const members = getInternalAuditMembers();
+  const updated = members.map(m => {
+    if (m.nik === cleanNik) {
+      return {
+        ...m,
+        openAllAccess: openAllAccess !== undefined ? openAllAccess : !m.openAllAccess
+      };
+    }
+    return m;
+  });
+  saveInternalAuditMembers(updated);
+  return updated;
+}
+
 // Find if NIK belongs to Internal Audit
 export function getInternalAuditInfo(nik?: string): InternalAuditMember | undefined {
   if (!nik) return undefined;

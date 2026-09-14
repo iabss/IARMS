@@ -39,6 +39,7 @@ import {
   SYSTEM_MENUS, 
   getInternalAuditMembers, 
   saveInternalAuditMembers, 
+  toggleIaMemberOpenAllAccess,
   getAuditeeConfiguredMenus, 
   saveAuditeeConfiguredMenus, 
   getRegisteredUsers, 
@@ -263,6 +264,18 @@ export default function AccessSettings({ currentUser, onToast }: AccessSettingsP
       setIaMembers(updated);
       saveInternalAuditMembers(updated);
       onToast(`NIK ${nik} (${nama}) dipindahkan menjadi Auditee akses terbatas.`, 'info');
+    }
+  };
+
+  // Toggle "Open All Access" for IA Member (Admin Toggle tanpa harus registrasi dahulu)
+  const handleToggleOpenAllAccess = (nik: string, currentVal?: boolean, nama?: string) => {
+    const newVal = !currentVal;
+    const updated = toggleIaMemberOpenAllAccess(nik, newVal);
+    setIaMembers(updated);
+    if (newVal) {
+      onToast(`"Open All Access" DIAKTIFKAN untuk ${nama || nik}. Seluruh menu terbuka penuh tanpa harus registrasi terlebih dahulu.`, 'success');
+    } else {
+      onToast(`"Open All Access" dinonaktifkan untuk ${nama || nik}. Hak akses mengikuti status akun reguler.`, 'info');
     }
   };
 
@@ -677,53 +690,121 @@ export default function AccessSettings({ currentUser, onToast }: AccessSettingsP
                   <th className="px-4 py-3">No</th>
                   <th className="px-4 py-3">NIK</th>
                   <th className="px-4 py-3">Nama Lengkap</th>
-                  <th className="px-4 py-3">Jabatan</th>
-                  <th className="px-4 py-3">Departemen</th>
+                  <th className="px-4 py-3">Jabatan & Dept</th>
+                  <th className="px-4 py-3">Status Akun</th>
+                  <th className="px-4 py-3">Open All Access</th>
                   <th className="px-4 py-3">Otorisasi Menu</th>
                   <th className="px-4 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {iaMembers.map((member, index) => (
-                  <tr key={member.nik} className="hover:bg-sky-50/40 transition-colors">
-                    <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">{index + 1}</td>
-                    <td className="px-4 py-3 font-mono font-black text-slate-900 bg-slate-50/60">
-                      {member.nik}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-900">
-                      {member.nama}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {member.jabatan || 'Internal Auditor'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {member.departemen || 'Internal Audit'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        Akses Penuh (12 Menu)
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveIaMember(member.nik, member.nama)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Pindahkan ke Auditee (Akses Terbatas)"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {iaMembers.map((member, index) => {
+                  const registeredAccount = registeredUsers.find(
+                    u => u.nik && u.nik.toLowerCase() === member.nik.toLowerCase()
+                  );
+                  const isRegistered = Boolean(registeredAccount);
+                  const isOpenAll = Boolean(member.openAllAccess);
+
+                  return (
+                    <tr key={member.nik} className="hover:bg-sky-50/40 transition-colors">
+                      <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">{index + 1}</td>
+                      <td className="px-4 py-3 font-mono font-black text-slate-900 bg-slate-50/60">
+                        {member.nik}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-slate-900">{member.nama}</div>
+                        {member.email && <div className="text-[10px] text-slate-400">{member.email}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        <div className="font-medium text-slate-800">{member.jabatan || 'Internal Auditor'}</div>
+                        <div className="text-[10px] text-slate-400">{member.departemen || 'Internal Audit'}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isRegistered ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Terdaftar
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            Belum Registrasi
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOpenAllAccess(member.nik, member.openAllAccess, member.nama)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                              isOpenAll ? 'bg-indigo-600' : 'bg-slate-300'
+                            }`}
+                            title={isOpenAll ? 'Nonaktifkan Open All Access' : 'Aktifkan Open All Access (Akses Semua Menu Tanpa Registrasi)'}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                isOpenAll ? 'translate-x-4' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                          <span className={`text-[10px] font-bold ${isOpenAll ? 'text-indigo-700' : 'text-slate-400'}`}>
+                            {isOpenAll ? 'Bypass ON' : 'Off'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isOpenAll ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-indigo-600" />
+                            Full (Bypass Admin)
+                          </span>
+                        ) : isRegistered ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                            Akses Penuh (12 Menu)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                            <Info className="w-3 h-3 text-amber-600" />
+                            Menunggu Registrasi
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveIaMember(member.nik, member.nama)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Pindahkan ke Auditee (Akses Terbatas)"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          <p className="text-[11px] text-slate-400 italic">
-            * Personel Internal Audit yang terdaftar di atas dapat langsung mendaftar atau login menggunakan NIK masing-masing dan secara otomatis memiliki hak akses administrator.
-          </p>
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-[11px] text-slate-600">
+            <p className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-sky-600" />
+              Catatan Regulasi Hak Akses & Status Registrasi:
+            </p>
+            <ul className="list-disc list-inside space-y-1 pl-1 text-slate-500 text-[10px]">
+              <li>
+                <strong>Pemisahan Dataset:</strong> Terdaftar sebagai Anggota IA resmi bukan berarti akun tersebut otomatis sudah memiliki password/terdaftar di sistem.
+              </li>
+              <li>
+                <strong>Registrasi Mandiri:</strong> Personel IA yang berstatus "Belum Registrasi" dapat melakukan registrasi mandiri di form pendaftaran. NIK mereka tidak akan diblokir dan setelah verifikasi selesai otomatis mendapatkan role <em>Internal Auditor / Full Access</em>.
+              </li>
+              <li>
+                <strong>Open All Access (Admin Bypass):</strong> Toggle ini memungkinkan Admin memberikan hak akses penuh langsung kepada anggota IA tertentu tanpa mengharuskan mereka registrasi terlebih dahulu.
+              </li>
+            </ul>
+          </div>
         </div>
       )}
 
