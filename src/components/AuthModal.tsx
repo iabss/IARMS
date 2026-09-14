@@ -31,6 +31,9 @@ import {
   quickLoginDemo, 
   checkIsInternalAudit,
   getInternalAuditInfo,
+  updateStuckAccountEmail,
+  requestPasswordReset,
+  completePasswordReset,
   DEMO_ACCOUNTS 
 } from '../services/authService';
 import { findEmployeeByNik } from '../data/employeeMasterData';
@@ -50,7 +53,9 @@ export default function AuthModal({
   onToast,
   onSuccess
 }: AuthModalProps) {
-  const [mode, setMode] = useState<'login' | 'register' | 'change_password_required' | 'register_success'>(initialMode);
+  const [mode, setMode] = useState<
+    'login' | 'register' | 'change_password_required' | 'register_success' | 'resend_verification' | 'forgot_password_request' | 'forgot_password_verify'
+  >(initialMode);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -70,6 +75,18 @@ export default function AuthModal({
   // Master Employee Auto-Lookup State
   const [isNikMatched, setIsNikMatched] = useState(false);
   const [nikValidationMessage, setNikValidationMessage] = useState<string | null>(null);
+
+  // Resend / Update Email State (Fitur Akun Tersangkut)
+  const [resendNik, setResendNik] = useState('');
+  const [resendEmail, setResendEmail] = useState('');
+
+  // Forgot Password / Reset OTP States
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [resetTargetEmail, setResetTargetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Handle NIK change with instant auto-lookup
   const handleNikChange = (value: string) => {
@@ -230,6 +247,108 @@ export default function AuthModal({
     }
   };
 
+  // Handle Resend Verification / Update Email (Fitur Akun Tersangkut)
+  const handleResendVerificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (!resendNik.trim()) {
+      setErrorMessage('Nomor Induk Karyawan (NIK) wajib diisi.');
+      return;
+    }
+    if (!resendEmail.trim() || !resendEmail.includes('@')) {
+      setErrorMessage('Masukkan alamat email yang valid.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await updateStuckAccountEmail({
+        nik: resendNik.trim(),
+        newEmail: resendEmail.trim()
+      });
+
+      setRegisteredTempInfo(result);
+      setMode('register_success');
+      onToast('Email berhasil diperbarui! Password baru telah dikirimkan ke email Anda.', 'success');
+    } catch (err: any) {
+      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Lupa Password Step 1: Request OTP
+  const handleForgotPasswordRequest = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMessage(null);
+
+    const targetId = forgotIdentifier.trim() || loginIdentifier.trim();
+    if (!targetId) {
+      setErrorMessage('Mohon masukkan NIK atau Email terdaftar Anda.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await requestPasswordReset(targetId);
+      setForgotIdentifier(targetId);
+      setResetTargetEmail(result.email);
+      setResetOtp('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+      setMode('forgot_password_verify');
+      onToast(`Kode OTP 6-digit berhasil dikirimkan ke email: ${result.email}`, 'success');
+    } catch (err: any) {
+      const msg = err.message || 'Gagal mengirim email verifikasi reset password. Pastikan akun terdaftar.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Lupa Password Step 2: Verify OTP & Set New Password
+  const handleForgotPasswordVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const cleanOtp = resetOtp.trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setErrorMessage('Masukkan 6-digit kode OTP yang dikirimkan ke email Anda.');
+      return;
+    }
+    if (resetNewPassword.length < 6) {
+      setErrorMessage('Kata sandi baru minimal harus 6 karakter.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setErrorMessage('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updatedUser = await completePasswordReset({
+        identifier: forgotIdentifier.trim(),
+        otp: cleanOtp,
+        newPassword: resetNewPassword
+      });
+
+      onToast(`Kata sandi berhasil direset! Selamat datang kembali, ${updatedUser.displayName}.`, 'success');
+      if (onSuccess) onSuccess(updatedUser);
+      onClose();
+    } catch (err: any) {
+      const msg = err.message || 'Gagal mereset kata sandi. Periksa kode OTP Anda.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Quick Demo Login
   const handleQuickDemoLogin = (account: typeof DEMO_ACCOUNTS[0]) => {
     setErrorMessage(null);
@@ -314,19 +433,70 @@ export default function AuthModal({
               </button>
             </div>
           )}
+
+          {/* Sub-mode header banners */}
+          {mode === 'resend_verification' && (
+            <div className="mt-4 flex items-center justify-between bg-black/25 px-3 py-2 rounded-xl text-xs">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <KeyRound className="w-4 h-4 text-sky-300" /> Pembaruan Email & Kirim Ulang
+              </span>
+              <button
+                type="button"
+                onClick={() => { setMode('register'); setErrorMessage(null); }}
+                className="text-sky-200 hover:text-white underline cursor-pointer text-[11px]"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
+          )}
+          {(mode === 'forgot_password_request' || mode === 'forgot_password_verify') && (
+            <div className="mt-4 flex items-center justify-between bg-black/25 px-3 py-2 rounded-xl text-xs">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <KeyRound className="w-4 h-4 text-amber-300" /> Reset Kata Sandi
+              </span>
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setErrorMessage(null); }}
+                className="text-sky-200 hover:text-white underline cursor-pointer text-[11px]"
+              >
+                Kembali ke Masuk
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Modal Form Body */}
         <div className="p-6 max-h-[75vh] overflow-y-auto">
-          {/* Error Message Alert */}
+          {/* Error Message Alert with contextual action */}
           {errorMessage && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2.5"
+              className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2.5"
             >
               <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              <span className="flex-1 font-medium leading-relaxed">{errorMessage}</span>
+              <div className="flex-1 space-y-2">
+                <span className="font-medium leading-relaxed block">{errorMessage}</span>
+                
+                {/* Fitur Update Email / Akun Tersangkut Action Link */}
+                {(errorMessage.toLowerCase().includes('sudah terdaftar') || errorMessage.toLowerCase().includes('terdaftar')) && mode !== 'resend_verification' && (
+                  <div className="pt-2 border-t border-rose-200/80 flex items-center justify-between flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResendNik(regNik.trim() || loginIdentifier.trim());
+                        setResendEmail(regEmail.trim());
+                        setErrorMessage(null);
+                        setMode('resend_verification');
+                      }}
+                      className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-white px-3 py-1.5 rounded-lg border border-sky-300 shadow-xs hover:shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span>Salah Email / Belum Terima Email? Kirim Ulang Verifikasi</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
 
@@ -355,7 +525,17 @@ export default function AuthModal({
                   <label className="block text-xs font-bold text-slate-700">
                     Kata Sandi
                   </label>
-                  <span className="text-[11px] text-slate-400">Kata sandi akun / email</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotIdentifier(loginIdentifier || '');
+                      setErrorMessage(null);
+                      setMode('forgot_password_request');
+                    }}
+                    className="text-[11px] text-sky-600 hover:text-sky-800 font-bold hover:underline cursor-pointer"
+                  >
+                    Lupa Password?
+                  </button>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -617,6 +797,283 @@ export default function AuthModal({
                   </>
                 )}
               </button>
+
+              {/* Link Kirim Ulang Verifikasi / Salah Email */}
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResendNik(regNik.trim());
+                    setResendEmail(regEmail.trim());
+                    setErrorMessage(null);
+                    setMode('resend_verification');
+                  }}
+                  className="text-xs text-sky-600 hover:text-sky-800 font-semibold hover:underline cursor-pointer"
+                >
+                  Salah Email / Belum Terima Email? Kirim Ulang Verifikasi
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ===== 2B. FITUR UPDATE EMAIL / RESEND VERIFICATION (AKUN TERSANGKUT) ===== */}
+          {mode === 'resend_verification' && (
+            <form onSubmit={handleResendVerificationSubmit} className="space-y-4">
+              <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 flex items-start gap-2.5">
+                <Mail className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Kirim Ulang Verifikasi & Koreksi Email</p>
+                  <p className="text-[11px] text-sky-800 mt-0.5 leading-relaxed">
+                    Jika NIK Anda sudah terdaftar namun Anda salah memasukkan alamat email atau belum menerima email verifikasi, masukkan alamat email yang benar di bawah ini. Kata sandi baru akan dikirimkan ke email tersebut.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Nomor Induk Karyawan (NIK) *
+                </label>
+                <div className="relative">
+                  <Hash className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={resendNik}
+                    onChange={(e) => setResendNik(e.target.value)}
+                    placeholder="Contoh: 1021048"
+                    className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Alamat Email Baru yang Benar * (Untuk Menerima Password)
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    placeholder="nama.karyawan@perusahaan.co.id"
+                    className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mengirimkan Verifikasi ke Email Baru...
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4" />
+                    Kirim Ulang Verifikasi & Password Baru
+                  </>
+                )}
+              </button>
+
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setMode('register');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  &larr; Kembali ke Form Registrasi
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ===== 2C. LUPA PASSWORD STEP 1: INPUT NIK / EMAIL ===== */}
+          {mode === 'forgot_password_request' && (
+            <form onSubmit={handleForgotPasswordRequest} className="space-y-4">
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                <KeyRound className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Lupa Kata Sandi Akun</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    Masukkan NIK atau alamat email terdaftar Anda. Kami akan mengirimkan kode verifikasi OTP 6-digit ke email tersebut untuk mengatur ulang kata sandi Anda.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Nomor Induk Karyawan (NIK) atau Email Terdaftar *
+                </label>
+                <div className="relative">
+                  <Hash className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={forgotIdentifier}
+                    onChange={(e) => setForgotIdentifier(e.target.value)}
+                    placeholder="Contoh: 1021048 atau nama@iarms.co.id"
+                    className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-medium"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mengirimkan Kode OTP ke Email...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Kirim Kode OTP Verifikasi
+                  </>
+                )}
+              </button>
+
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setMode('login');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  &larr; Batal & Kembali ke Halaman Masuk
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ===== 2D. LUPA PASSWORD STEP 2: INPUT OTP 6-DIGIT & PASSWORD BARU ===== */}
+          {mode === 'forgot_password_verify' && (
+            <form onSubmit={handleForgotPasswordVerify} className="space-y-4">
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Kode OTP Berhasil Dikirim!</p>
+                  <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                    Kode verifikasi OTP 6-digit telah dikirim ke: <strong className="text-emerald-950">{resetTargetEmail}</strong>. Masukkan kode tersebut dan buat kata sandi baru Anda.
+                  </p>
+                </div>
+              </div>
+
+              {/* OTP 6-Digit Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Kode OTP 6-Digit *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={resetOtp}
+                    onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full py-2.5 px-4 text-center tracking-[0.4em] font-mono text-xl font-black bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all text-slate-800"
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-1.5">
+                  <span className="text-[11px] text-slate-400">Cek Kotak Masuk atau Spam</span>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleForgotPasswordRequest()}
+                    className="text-[11px] text-sky-600 hover:text-sky-800 font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    Kirim Ulang OTP
+                  </button>
+                </div>
+              </div>
+
+              {/* Kata Sandi Baru */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Kata Sandi Baru * (Minimal 6 Karakter)
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    required
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    placeholder="Masukkan kata sandi baru"
+                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Konfirmasi Kata Sandi Baru */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Ulangi Kata Sandi Baru *
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    required
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    placeholder="Ketik ulang kata sandi baru"
+                    className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Menyimpan Kata Sandi Baru...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Simpan Kata Sandi Baru & Masuk
+                  </>
+                )}
+              </button>
+
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setMode('login');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  &larr; Batal & Kembali ke Halaman Masuk
+                </button>
+              </div>
             </form>
           )}
 

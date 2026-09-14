@@ -139,6 +139,111 @@ export async function sendRegisterUserToBackend(user: {
 }
 
 /**
+ * Send password reset request to Google Apps Script backend
+ * Triggering automatic OTP email via MailApp.sendEmail()
+ * 
+ * Required Payload format:
+ * {
+ *   "action": "reset_password",
+ *   "nik": inputNik,
+ *   "email": inputEmail,
+ *   "name": inputNama,
+ *   "otp": 6DigitOtp
+ * }
+ */
+export async function sendResetPasswordToBackend(params: {
+  nik: string;
+  email: string;
+  name?: string;
+  otp?: string;
+}): Promise<any> {
+  const payload: Record<string, any> = {
+    action: "reset_password",
+    nik: params.nik.trim(),
+    email: params.email.trim(),
+    name: params.name || "",
+    ...(params.otp ? { otp: params.otp } : {}),
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    if (!text) {
+      throw new Error("Empty response from reset password backend");
+    }
+
+    if (text.trim().startsWith("<")) {
+      console.warn("GAS returned HTML error page instead of JSON for reset_password:", text.substring(0, 150));
+      throw new Error("Invalid response from reset password backend");
+    }
+
+    const json = JSON.parse(text);
+    return json;
+  } catch (error) {
+    console.error("Gagal mengirim payload reset_password ke Google Apps Script:", error);
+    throw error;
+  }
+}
+
+/**
+ * Send email update and resend verification credentials to Google Apps Script backend
+ */
+export async function sendResendVerificationToBackend(params: {
+  nik: string;
+  email: string;
+  name?: string;
+  department?: string;
+  role?: string;
+  tempPassword?: string;
+}): Promise<any> {
+  const payload: Record<string, any> = {
+    action: "register_user",
+    subAction: "resend_verification",
+    nik: params.nik.trim(),
+    email: params.email.trim(),
+    name: params.name || "",
+    department: params.department || "",
+    role: params.role || "auditee",
+    ...(params.tempPassword ? { tempPassword: params.tempPassword } : {}),
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    if (!text) {
+      throw new Error("Empty response from resend verification backend");
+    }
+
+    if (text.trim().startsWith("<")) {
+      console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
+      throw new Error("Invalid response from resend verification backend");
+    }
+
+    const json = JSON.parse(text);
+    return json;
+  } catch (error) {
+    console.error("Gagal mengirim payload resend_verification ke Google Apps Script:", error);
+    throw error;
+  }
+}
+
+/**
  * Parse project list returned from Google Apps Script backend GET
  */
 export function parseGasProjectsResponse(json: any): any[] {

@@ -28,27 +28,32 @@ function doPost(e) {
 
     const action = (payload.action || "").trim();
 
-    // 1. ACTION: register_user / send_welcome_email
-    if (action === "register_user" || action === "send_welcome_email") {
+    // 1. ACTION: register_user / send_welcome_email / resend_verification / update_user_email
+    if (action === "register_user" || action === "send_welcome_email" || action === "resend_verification" || action === "update_user_email") {
       return handleRegisterUser(payload);
     }
 
-    // 2. ACTION: sync_sheet_url
+    // 2. ACTION: reset_password
+    if (action === "reset_password") {
+      return handleResetPassword(payload);
+    }
+
+    // 3. ACTION: sync_sheet_url
     if (action === "sync_sheet_url") {
       return handleSyncSheetUrl(payload);
     }
 
-    // 3. ACTION: delete_project
+    // 4. ACTION: delete_project
     if (action === "delete_project") {
       return handleDeleteProject(payload);
     }
 
-    // 4. ACTION: backup_drive
+    // 5. ACTION: backup_drive
     if (action === "backup_drive") {
       return handleBackupDrive(payload);
     }
 
-    // 5. ACTION: password_updated
+    // 6. ACTION: password_updated
     if (action === "password_updated") {
       return handlePasswordUpdated(payload);
     }
@@ -425,6 +430,133 @@ function handleBackupDrive(payload) {
       status: "error",
       success: false,
       error: err.toString()
+    });
+  }
+}
+
+/**
+ * Handler for action: "reset_password"
+ * Sends OTP verification code for password reset via MailApp.sendEmail()
+ */
+function handleResetPassword(payload) {
+  const email = (payload.email || "").trim();
+  const name = (payload.name || payload.displayName || "Karyawan").trim();
+  const nik = (payload.nik || "-").trim();
+  
+  // Gunakan OTP yang dikirim frontend atau generate 6-digit acak jika kosong
+  let otpCode = (payload.otp || "").trim();
+  if (!otpCode) {
+    otpCode = String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  if (!email || email.indexOf("@") === -1) {
+    return createJsonResponse({
+      status: "error",
+      success: false,
+      message: "Alamat email tidak valid atau kosong: " + email
+    });
+  }
+
+  const subject = "[IARMS] Kode Verifikasi OTP Reset Kata Sandi (" + otpCode + ")";
+
+  const plainTextBody = "Halo " + name + ",\n\n" +
+    "Kami menerima permintaan reset kata sandi untuk akun IARMS Anda.\n\n" +
+    "Kode OTP Verifikasi Anda adalah: " + otpCode + "\n\n" +
+    "Kode OTP ini berlaku selama 15 menit. Masukkan kode ini pada aplikasi untuk menyelesaikan reset kata sandi.\n\n" +
+    "Jika Anda tidak melakukan permintaan ini, abaikan email ini. Akun Anda tetap aman.\n\n" +
+    "Salam,\nTim Internal Audit IARMS";
+
+  const htmlBody = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kode OTP Reset Kata Sandi IARMS</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 30px 10px;">
+      <tr>
+        <td align="center">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #1e293b; border-radius: 16px; overflow: hidden; border: 1px solid #334155;">
+            <tr>
+              <td style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 32px 36px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
+                  IARMS SECURITY
+                </h1>
+                <p style="margin: 6px 0 0 0; font-size: 13px; color: #e0f2fe; font-weight: 500;">
+                  Permintaan Reset Kata Sandi Akun
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 32px 36px;">
+                <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #cbd5e1;">
+                  Halo <strong style="color: #ffffff;">${escapeHtml(name)}</strong> (NIK: ${escapeHtml(nik)}),
+                </p>
+                <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 22px; color: #94a3b8;">
+                  Kami menerima permintaan untuk mereset kata sandi akun IARMS Anda. Gunakan kode verifikasi OTP di bawah ini untuk melanjutkan:
+                </p>
+
+                <div style="background-color: #082f49; border: 2px dashed #0284c7; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center;">
+                  <div style="font-size: 11px; font-weight: 700; color: #7dd3fc; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">
+                    Kode OTP Verifikasi (6-Digit)
+                  </div>
+                  <div style="display: inline-block; background-color: #0b1120; border: 1px solid #38bdf8; border-radius: 8px; padding: 12px 28px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 28px; font-weight: 900; color: #38bdf8; letter-spacing: 6px;">
+                    ${escapeHtml(otpCode)}
+                  </div>
+                  <div style="font-size: 12px; color: #bae6fd; margin-top: 12px; line-height: 18px;">
+                    * Berlaku selama 15 menit. JANGAN bagikan kode ini kepada siapapun.
+                  </div>
+                </div>
+
+                <p style="margin: 0; font-size: 12px; line-height: 20px; color: #64748b; border-top: 1px solid #334155; padding-top: 20px;">
+                  Jika Anda tidak melakukan permintaan reset kata sandi, abaikan email ini atau segera hubungi Tim Internal Audit.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color: #090d16; padding: 20px 36px; text-align: center; border-top: 1px solid #1e293b;">
+                <div style="font-size: 11px; color: #64748b;">
+                  &copy; ${new Date().getFullYear()} IARMS - Internal Audit Management System.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: plainTextBody,
+      htmlBody: htmlBody,
+      name: "IARMS Security"
+    });
+
+    const sheet = getOrCreateLogSheet("User_Activity_Logs");
+    if (sheet) {
+      sheet.appendRow([new Date().toISOString(), "reset_password_otp_sent", nik, email]);
+    }
+
+    return createJsonResponse({
+      status: "success",
+      success: true,
+      message: "Kode OTP reset password berhasil dikirim ke email " + email,
+      email: email,
+      otp: otpCode
+    });
+  } catch (mailError) {
+    return createJsonResponse({
+      status: "error",
+      success: false,
+      message: "Gagal mengirim email verifikasi: " + mailError.toString(),
+      email: email
     });
   }
 }

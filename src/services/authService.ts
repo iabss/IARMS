@@ -6,7 +6,12 @@ import {
 } from 'firebase/auth';
 import { auth } from './googleDriveService';
 import { UserProfile, UserRole, MenuItemConfig, InternalAuditMember } from '../types';
-import { syncAuditData, sendRegisterUserToBackend } from './api';
+import { 
+  syncAuditData, 
+  sendRegisterUserToBackend, 
+  sendResetPasswordToBackend, 
+  sendResendVerificationToBackend 
+} from './api';
 import { findEmployeeByNik } from '../data/employeeMasterData';
 
 const STORAGE_KEY_CURRENT_USER = 'iarms_current_user_v3';
@@ -551,6 +556,330 @@ export async function registerUserWithNik(params: {
     user: newProfile,
     generatedPassword
   };
+}
+
+/**
+ * Fitur Update Email / Akun Tersangkut
+ * Memungkinkan pengguna memperbarui alamat email jika salah input atau belum menerima email verifikasi,
+ * lalu mengirimkan ulang kredensial verifikasi ke email yang baru melalui Google Apps Script.
+ * ATOMIC: Hanya menyimpan perubahan jika respon backend adalah "success".
+ */
+export async function updateStuckAccountEmail(params: {
+  nik: string;
+  newEmail: string;
+}): Promise<{ user: UserProfile; generatedPassword: string }> {
+  const cleanNik = params.nik.trim();
+  const cleanEmail = params.newEmail.trim().toLowerCase();
+
+  if (!cleanNik) {
+    throw new Error('NIK (Nomor Induk Karyawan) wajib diisi.');
+  }
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Alamat email baru tidak valid.');
+  }
+
+  const usersDb = initUsersDatabase();
+  const existingByNikIndex = usersDb.findIndex(
+    u => u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase()
+  );
+
+  // Periksa apakah email baru telah digunakan oleh akun dengan NIK berbeda
+  const conflictEmail = usersDb.find(
+    u => u.email && u.email.toLowerCase() === cleanEmail && (!u.nik || u.nik.toLowerCase() !== cleanNik.toLowerCase())
+  );
+  if (conflictEmail) {
+    throw new Error(`Email "${cleanEmail}" telah terdaftar dengan NIK lain (${conflictEmail.nik}). Gunakan alamat email Anda yang valid.`);
+  }
+
+  // Dapatkan profil karyawan dari IA whitelist atau Master Data
+  const iaInfo = getInternalAuditInfo(cleanNik);
+  const masterEmp = findEmployeeByNik(cleanNik);
+  const isIA = Boolean(iaInfo) || checkIsInternalAudit(cleanNik);
+  const assignedRole: UserRole = isIA ? 'auditor' : 'auditee';
+
+  const existing = existingByNikIndex !== -1 ? usersDb[existingByNikIndex] : null;
+  const finalName = existing?.displayName || iaInfo?.nama || masterEmp?.name || `Karyawan (${cleanNik})`;
+  const finalDept = existing?.department || iaInfo?.departemen || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional & Unit Kerja');
+  const finalTitle = existing?.jobTitle || iaInfo?.jabatan || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee / PIC');
+  const allowedMenus = existing?.allowedMenus || (isIA ? SYSTEM_MENUS.map(m => m.id) : getAuditeeConfiguredMenus());
+
+  const generatedPassword = generateRandomPassword(8);
+
+  // 1. Panggil API Google Apps Script terlebih dahulu SEBELUM menyimpan data ke localStorage
+  let gasResponse: any = null;
+  try {
+    gasResponse = await sendResendVerificationToBackend({
+      nik: cleanNik,
+      email: cleanEmail,
+      name: finalName,
+      department: finalDept,
+      role: finalTitle,
+      tempPassword: generatedPassword
+    });
+  } catch (backendError: any) {
+    console.error('Panggilan API GAS update email gagal:', backendError);
+    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+  }
+
+  // 2. Verifikasi status respon dari backend
+  if (!gasResponse || (gasResponse.status !== 'success' && gasResponse.success !== true)) {
+    console.error('Backend Google Apps Script tidak mengembalikan status success untuk update email:', gasResponse);
+    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+  }
+
+  // 3. ATOMIC: Hanya jika respon backend berhasil (status: "success"), perbarui data di localStorage
+  let updatedProfile: UserProfile;
+  if (existingByNikIndex !== -1) {
+    usersDb[existingByNikIndex].email = cleanEmail;
+    usersDb[existingByNikIndex].password = generatedPassword;
+    usersDb[existingByNikIndex].tempPassword = generatedPassword;
+    usersDb[existingByNikIndex].mustChangePassword = true;
+    usersDb[existingByNikIndex].welcomeEmailSent = true;
+    usersDb[existingByNikIndex].lastLoginAt = new Date().toISOString();
+    
+    const { password: _, tempPassword: __, ...safe } = usersDb[existingByNikIndex];
+    updatedProfile = safe as UserProfile;
+  } else {
+    const uid = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const newRecord: UserProfile & { password?: string; tempPassword?: string } = {
+      uid,
+      nik: cleanNik,
+      displayName: finalName,
+      email: cleanEmail,
+      role: assignedRole,
+      isInternalAudit: isIA,
+      department: finalDept,
+      jobTitle: finalTitle,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      isCustomAccount: true,
+      mustChangePassword: true,
+      tempPassword: generatedPassword,
+      welcomeEmailSent: true,
+      allowedMenus,
+      password: generatedPassword
+    };
+    usersDb.push(newRecord);
+    const { password: _, tempPassword: __, ...safe } = newRecord;
+    updatedProfile = safe as UserProfile;
+  }
+
+  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+
+  return {
+    user: updatedProfile,
+    generatedPassword
+  };
+}
+
+/**
+ * Logika Reset Password: Step 1 - Minta Kode OTP
+ * Mengirimkan payload action: "reset_password" ke Google Apps Script backend.
+ */
+export async function requestPasswordReset(identifier: string): Promise<{
+  success: boolean;
+  email: string;
+  nik: string;
+  name: string;
+  message: string;
+}> {
+  const cleanId = identifier.trim().toLowerCase();
+  if (!cleanId) {
+    throw new Error('Masukkan NIK atau Email terdaftar Anda.');
+  }
+
+  const usersDb = initUsersDatabase();
+  const matchedUser = usersDb.find(
+    u => (u.nik && u.nik.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId)
+  );
+
+  let targetNik = '';
+  let targetEmail = '';
+  let targetName = '';
+
+  if (matchedUser) {
+    targetNik = matchedUser.nik || '';
+    targetEmail = matchedUser.email || '';
+    targetName = matchedUser.displayName || '';
+  } else {
+    // Check in Internal Audit list
+    const iaMember = getInternalAuditInfo(identifier.trim());
+    if (iaMember) {
+      targetNik = iaMember.nik;
+      targetEmail = iaMember.email || '';
+      targetName = iaMember.nama;
+    } else {
+      // Check Master Employee list
+      const emp = findEmployeeByNik(identifier.trim());
+      if (emp) {
+        targetNik = emp.nik;
+        targetEmail = cleanId.includes('@') ? cleanId : ((emp as any).email || '');
+        targetName = emp.name;
+      }
+    }
+  }
+
+  if (!targetNik && !targetEmail) {
+    throw new Error(`Akun dengan NIK/Email "${identifier}" tidak ditemukan dalam sistem.`);
+  }
+
+  if (!targetEmail || !targetEmail.includes('@')) {
+    throw new Error(`Akun NIK ${targetNik} belum memiliki alamat email terdaftar.`);
+  }
+
+  // Generate 6-digit random numeric OTP
+  const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+
+  // Kirimkan payload action: "reset_password" ke Google Apps Script
+  let gasResponse: any = null;
+  try {
+    gasResponse = await sendResetPasswordToBackend({
+      nik: targetNik,
+      email: targetEmail,
+      name: targetName,
+      otp: otpCode
+    });
+  } catch (backendError: any) {
+    console.error('GAS reset password request failed:', backendError);
+    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+  }
+
+  if (!gasResponse || (gasResponse.status !== 'success' && gasResponse.success !== true)) {
+    console.error('GAS backend response not success for reset_password:', gasResponse);
+    throw new Error('Gagal mengirim email verifikasi. Pastikan email Anda aktif.');
+  }
+
+  // Simpan state sesi verifikasi OTP ke sessionStorage (berlaku 15 menit)
+  const sessionData = {
+    nik: targetNik,
+    email: targetEmail,
+    name: targetName,
+    otp: otpCode,
+    expiresAt: Date.now() + 15 * 60 * 1000
+  };
+  try {
+    sessionStorage.setItem('iarms_reset_pwd_session', JSON.stringify(sessionData));
+  } catch (e) {
+    // ignore
+  }
+
+  return {
+    success: true,
+    email: targetEmail,
+    nik: targetNik,
+    name: targetName,
+    message: `Kode OTP 6-digit telah berhasil dikirimkan ke email: ${targetEmail}`
+  };
+}
+
+/**
+ * Logika Reset Password: Step 2 - Verifikasi OTP & Simpan Password Baru
+ */
+export async function completePasswordReset(params: {
+  identifier: string;
+  otp: string;
+  newPassword: string;
+}): Promise<UserProfile> {
+  const { otp, newPassword } = params;
+  const cleanOtp = otp.trim();
+
+  if (!cleanOtp || cleanOtp.length !== 6) {
+    throw new Error('Masukkan 6 digit kode OTP verifikasi dengan lengkap.');
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Kata sandi baru minimal harus 6 karakter.');
+  }
+
+  // Verifikasi kode OTP dari sessionStorage
+  let savedSession: any = null;
+  try {
+    const raw = sessionStorage.getItem('iarms_reset_pwd_session');
+    if (raw) savedSession = JSON.parse(raw);
+  } catch (e) {
+    // ignore
+  }
+
+  if (!savedSession) {
+    throw new Error('Sesi verifikasi reset kata sandi tidak ditemukan atau telah berakhir. Silakan minta kode OTP baru.');
+  }
+
+  if (Date.now() > savedSession.expiresAt) {
+    sessionStorage.removeItem('iarms_reset_pwd_session');
+    throw new Error('Kode OTP telah kedaluwarsa (berlaku 15 menit). Silakan minta kode OTP baru.');
+  }
+
+  if (savedSession.otp !== cleanOtp) {
+    throw new Error('Kode OTP yang Anda masukkan salah. Silakan periksa kembali email Anda.');
+  }
+
+  const targetNik = savedSession.nik;
+  const targetEmail = savedSession.email;
+
+  const usersDb = initUsersDatabase();
+  let userIndex = usersDb.findIndex(
+    u => (u.nik && u.nik.toLowerCase() === targetNik.toLowerCase()) || 
+         (u.email && u.email.toLowerCase() === targetEmail.toLowerCase())
+  );
+
+  let updatedUser: UserProfile;
+
+  if (userIndex !== -1) {
+    usersDb[userIndex].password = newPassword;
+    usersDb[userIndex].tempPassword = undefined;
+    usersDb[userIndex].mustChangePassword = false;
+    usersDb[userIndex].lastLoginAt = new Date().toISOString();
+
+    const { password: _, tempPassword: __, ...safe } = usersDb[userIndex];
+    updatedUser = safe as UserProfile;
+  } else {
+    // Buat profil jika belum ada di localStorage
+    const iaInfo = getInternalAuditInfo(targetNik);
+    const masterEmp = findEmployeeByNik(targetNik);
+    const isIA = Boolean(iaInfo) || checkIsInternalAudit(targetNik);
+    const assignedRole: UserRole = isIA ? 'auditor' : 'auditee';
+    const finalName = savedSession.name || iaInfo?.nama || masterEmp?.name || `Karyawan (${targetNik})`;
+    const finalDept = iaInfo?.departemen || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional');
+    const finalTitle = iaInfo?.jabatan || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee');
+    const allowedMenus = isIA ? SYSTEM_MENUS.map(m => m.id) : getAuditeeConfiguredMenus();
+
+    const uid = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const newRecord = {
+      uid,
+      nik: targetNik,
+      displayName: finalName,
+      email: targetEmail,
+      role: assignedRole,
+      isInternalAudit: isIA,
+      department: finalDept,
+      jobTitle: finalTitle,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      isCustomAccount: true,
+      mustChangePassword: false,
+      allowedMenus,
+      password: newPassword
+    };
+    usersDb.push(newRecord);
+    const { password: _, ...safe } = newRecord;
+    updatedUser = safe as UserProfile;
+  }
+
+  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+  sessionStorage.removeItem('iarms_reset_pwd_session');
+
+  // Beritahukan sinkronisasi ke backend (action: password_updated)
+  syncAuditData({
+    action: 'password_updated',
+    nik: targetNik,
+    email: targetEmail,
+    timestamp: new Date().toISOString()
+  }).catch(e => console.warn('Sync password updated warning:', e));
+
+  // Set currentUser langsung ke sesi aktif
+  setCurrentUser(updatedUser);
+
+  return updatedUser;
 }
 
 // Login user with NIK or Email and Password
