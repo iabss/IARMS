@@ -69,6 +69,7 @@ export default function Sidebar({
     { id: 'trend-achievement', label: 'Trend Achievement Closing Audit', icon: TrendingUp, color: 'text-emerald-600' },
     { id: 'achievement-department', label: 'Achievement Department', icon: Building2, color: 'text-indigo-600' },
     { id: 'finding-statement', label: 'Resume AFS', icon: FileSpreadsheet, color: 'text-violet-600' },
+    { id: 'priority-recommendations', label: 'Rekomendasi Prioritas', icon: Sparkles, color: 'text-amber-500' },
     { id: 'risk-register', label: 'Risk Register', icon: ShieldAlert, color: 'text-rose-600' },
     { id: 'dashboard', label: 'Company Risk Matrix', icon: LayoutDashboard, color: 'text-indigo-600' },
     { id: 'field-mobile', label: 'Mobile Field App', icon: Smartphone, color: 'text-emerald-600' },

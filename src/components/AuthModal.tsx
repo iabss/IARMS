@@ -67,6 +67,53 @@ export default function AuthModal({
   const [regJobTitle, setRegJobTitle] = useState('');
   const [regRole, setRegRole] = useState<UserRole>('auditee');
 
+  // Master Employee Auto-Lookup State
+  const [isNikMatched, setIsNikMatched] = useState(false);
+  const [nikValidationMessage, setNikValidationMessage] = useState<string | null>(null);
+
+  // Handle NIK change with instant auto-lookup
+  const handleNikChange = (value: string) => {
+    setRegNik(value);
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      setIsNikMatched(false);
+      setNikValidationMessage(null);
+      setRegDisplayName('');
+      setRegDepartment('');
+      setRegJobTitle('');
+      return;
+    }
+
+    // 1. Check Internal Audit personnel whitelist
+    const ia = getInternalAuditInfo(trimmed);
+    if (ia) {
+      setIsNikMatched(true);
+      setNikValidationMessage(null);
+      setRegDisplayName(ia.nama);
+      setRegDepartment(ia.departemen || 'Internal Audit');
+      setRegJobTitle(ia.jabatan || 'Internal Auditor');
+      setRegRole('auditor');
+      return;
+    }
+
+    // 2. Check Master Employee database
+    const emp = findEmployeeByNik(trimmed);
+    if (emp) {
+      setIsNikMatched(true);
+      setNikValidationMessage(null);
+      setRegDisplayName(emp.name);
+      setRegDepartment(emp.department || '');
+      setRegJobTitle(emp.jobTitle || '');
+      setRegRole('auditee');
+      return;
+    }
+
+    // 3. NIK not found
+    setIsNikMatched(false);
+    setNikValidationMessage('NIK tidak terdaftar dalam database karyawan.');
+  };
+
   // Register Success State
   const [registeredTempInfo, setRegisteredTempInfo] = useState<{
     user: UserProfile;
@@ -121,6 +168,10 @@ export default function AuthModal({
 
     if (!regNik.trim()) {
       setErrorMessage('Nomor Induk Karyawan (NIK) wajib diisi.');
+      return;
+    }
+    if (!isNikMatched) {
+      setErrorMessage('NIK tidak terdaftar dalam database karyawan.');
       return;
     }
     if (!regEmail.trim() || !regEmail.includes('@')) {
@@ -389,7 +440,7 @@ export default function AuthModal({
                 </p>
               </div>
 
-              {/* NIK Input */}
+              {/* NIK Input with Auto-Lookup */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Nomor Induk Karyawan (NIK) *
@@ -400,33 +451,33 @@ export default function AuthModal({
                     type="text"
                     required
                     value={regNik}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setRegNik(val);
-                      const ia = getInternalAuditInfo(val);
-                      if (ia) {
-                        setRegDisplayName(ia.nama);
-                        setRegDepartment(ia.departemen || 'Internal Audit');
-                        setRegJobTitle(ia.jabatan || 'Internal Auditor');
-                        return;
-                      }
-                      const emp = findEmployeeByNik(val);
-                      if (emp) {
-                        setRegDisplayName(emp.name);
-                        setRegDepartment(emp.department || '');
-                        setRegJobTitle(emp.jobTitle || '');
-                        return;
-                      }
-                      // Jika NIK tidak ditemukan di database, kosongkan agar data lama tidak tertinggal
-                      setRegDisplayName('');
-                      setRegDepartment('');
-                      setRegJobTitle('');
-                    }}
+                    onChange={(e) => handleNikChange(e.target.value)}
                     placeholder="Contoh NIK: 1021048 atau 1006059 atau NIK Auditee"
-                    className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-mono font-bold"
+                    className={`w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border rounded-xl focus:bg-white focus:outline-none transition-all font-mono font-bold ${
+                      isNikMatched
+                        ? 'border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
+                        : nikValidationMessage
+                          ? 'border-rose-400 focus:ring-2 focus:ring-rose-500/20'
+                          : 'border-slate-300 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500'
+                    }`}
                   />
+                  {isNikMatched && (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-500">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
-                {regNik && (
+
+                {/* Validation message if NIK is not found in Master Database */}
+                {nikValidationMessage && (
+                  <p className="mt-1.5 text-[11px] text-rose-600 font-medium flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                    <span>{nikValidationMessage}</span>
+                  </p>
+                )}
+
+                {/* Success verification message */}
+                {isNikMatched && (
                   <div className="mt-1.5 text-[11px] font-medium">
                     {isNikInternalAudit ? (
                       <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 flex items-center gap-1.5">
@@ -436,10 +487,10 @@ export default function AuthModal({
                         </span>
                       </div>
                     ) : (
-                      <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 flex items-center gap-1.5">
-                        <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <div className="p-2 bg-emerald-50/80 border border-emerald-200 rounded-lg text-emerald-800 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                         <span>
-                          Status: <strong>Auditee (Akses Terbatas)</strong> — Hanya dapat mengakses menu yang diaktifkan oleh Tim Internal Audit.
+                          NIK terverifikasi: <strong>{regDisplayName}</strong> ({regDepartment || 'Operasional'})
                         </span>
                       </div>
                     )}
@@ -491,33 +542,59 @@ export default function AuthModal({
               {/* Department & Role */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Departemen / Unit Kerja
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Departemen / Unit Kerja
+                    </label>
+                    {isNikMatched && (
+                      <span className="text-[10px] text-sky-600 font-semibold flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" /> Terkunci
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={regDepartment}
                       onChange={(e) => setRegDepartment(e.target.value)}
+                      readOnly={isNikMatched}
+                      disabled={isNikMatched}
                       placeholder="Departemen / Unit Kerja"
-                      className="w-full pl-10 pr-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                      className={`w-full pl-10 pr-3.5 py-2 text-xs border rounded-xl focus:outline-none transition-all ${
+                        isNikMatched
+                          ? 'bg-slate-100/90 border-slate-300 text-slate-600 cursor-not-allowed select-none'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500'
+                      }`}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Jabatan / Posisi
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Jabatan / Posisi
+                    </label>
+                    {isNikMatched && (
+                      <span className="text-[10px] text-sky-600 font-semibold flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" /> Terkunci
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={regJobTitle}
                       onChange={(e) => setRegJobTitle(e.target.value)}
+                      readOnly={isNikMatched}
+                      disabled={isNikMatched}
                       placeholder="Jabatan / Posisi"
-                      className="w-full pl-10 pr-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                      className={`w-full pl-10 pr-3.5 py-2 text-xs border rounded-xl focus:outline-none transition-all ${
+                        isNikMatched
+                          ? 'bg-slate-100/90 border-slate-300 text-slate-600 cursor-not-allowed select-none'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500'
+                      }`}
                     />
                   </div>
                 </div>

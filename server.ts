@@ -3,6 +3,8 @@ import path from 'path';
 import https from 'https';
 import http from 'http';
 import fs from 'fs';
+import 'dotenv/config';
+import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
@@ -675,6 +677,90 @@ app.post('/api/employees/sync-sheet', async (req, res) => {
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Gemini Client Lazy Initializer
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI | null {
+  if (!process.env.GEMINI_API_KEY) {
+    return null;
+  }
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return geminiClient;
+}
+
+// AI Scoring & Executive Prioritization Analysis Endpoint
+app.post('/api/ai/prioritize-recommendations', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'Items array is required' });
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.json({
+        success: false,
+        message: 'GEMINI_API_KEY tidak dikonfigurasi, sistem menggunakan algoritma internal multi-faktor',
+        enrichedItems: []
+      });
+    }
+
+    const promptText = `Anda adalah Chief Audit Executive (CAE) dan Pakar Manajemen Risiko Enterprise di sistem IARMS (Internal Audit Risk Management Systems).
+Berikut adalah daftar temuan audit yang menjadi kandidat Top Prioritas Kritis berdasarkan analisis dampak finansial dan disrupsi operasional.
+
+Tugas Anda:
+Analisis setiap temuan di bawah ini. Berikan penjelasan rasional eksekutif ringkas (1-2 kalimat padat profesional dalam Bahasa Indonesia) yang menjelaskan MENGAPA temuan ini kritis, potensi dampak terburuk jika diabaikan, serta 1 aksi mitigasi prioritas taktis.
+
+Daftar Temuan:
+${JSON.stringify(items.slice(0, 10), null, 2)}
+
+Harap kembalikan respon HANYA dalam format JSON valid tanpa markdown, dengan struktur array berikut:
+{
+  "enrichedItems": [
+    {
+      "rank": <nomor rank yang sama>,
+      "aiRationale": "<alasan eksekutif 1-2 kalimat tajam dan berbobot>",
+      "keyMitigationAction": "<tindakan mitigasi taktis prioritas>"
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.2
+      }
+    });
+
+    const responseText = response.text || '';
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      const match = responseText.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      }
+    }
+
+    return res.json({
+      success: true,
+      enrichedItems: parsed.enrichedItems || [],
+      source: 'gemini-3.8-flash'
+    });
+  } catch (err: any) {
+    console.error('Error in AI prioritization endpoint:', err);
+    return res.json({
+      success: false,
+      error: err.message,
+      enrichedItems: []
+    });
   }
 });
 

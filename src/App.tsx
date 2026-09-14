@@ -14,6 +14,7 @@ import InputFindingStatement from './components/InputFindingStatement';
 import TrendAchievement from './components/TrendAchievement';
 import AchievementDepartment from './components/AchievementDepartment';
 import FindingStatement from './components/FindingStatement';
+import PriorityRecommendations from './components/PriorityRecommendations';
 import RiskRegister from './components/RiskRegister';
 import Dashboard from './components/Dashboard';
 import WorkingPaper from './components/WorkingPaper';
@@ -438,6 +439,13 @@ export default function App() {
                 onToast={triggerToast}
                 onNavigateToInputAFS={() => setActiveTab('input-finding-statement')}
                 initialFilter={afsFilter}
+              />
+            )}
+            {activeTab === 'priority-recommendations' && (
+              <PriorityRecommendations
+                key="priority-recommendations"
+                onToast={triggerToast}
+                onNavigateToAFS={handleNavigateToAFS}
               />
             )}
             {activeTab === 'risk-register' && (

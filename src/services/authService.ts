@@ -57,6 +57,13 @@ export const SYSTEM_MENUS: MenuItemConfig[] = [
     defaultRoles: ['auditor', 'auditee', 'management', 'public']
   },
   {
+    id: 'priority-recommendations',
+    label: 'Rekomendasi Prioritas',
+    category: 'Temuan & Tindak Lanjut',
+    description: 'Top 10 Rekomendasi Paling Kritis dengan AI Scoring berbasis dampak finansial dan operasional.',
+    defaultRoles: ['auditor', 'auditee', 'management', 'public']
+  },
+  {
     id: 'input-finding-statement',
     label: 'Input Finding Statement',
     category: 'Audit Execution',
@@ -179,7 +186,8 @@ export const DEFAULT_AUDITEE_MENUS: string[] = [
   'public-portal',
   'trend-achievement',
   'achievement-department',
-  'finding-statement'
+  'finding-statement',
+  'priority-recommendations'
 ];
 
 // Get Auditee Configured Menus (Menu apa saja yang bisa diakses oleh Auditee)
@@ -469,11 +477,11 @@ export async function registerUserWithNik(params: {
   const auditeeMenus = getAuditeeConfiguredMenus();
   const allowedMenus = isIA ? SYSTEM_MENUS.map(m => m.id) : auditeeMenus;
 
-  // Name and department pre-fill from IA list or Master Employee database
+  // User manual input priority with fallback to IA whitelist or Master Employee database
   const masterEmp = findEmployeeByNik(cleanNik);
-  const finalName = iaInfo?.nama || displayName?.trim() || masterEmp?.name || `Karyawan (${cleanNik})`;
-  const finalDept = iaInfo?.departemen || department?.trim() || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional & Unit Kerja');
-  const finalTitle = iaInfo?.jabatan || jobTitle?.trim() || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee / PIC');
+  const finalName = displayName?.trim() || iaInfo?.nama || masterEmp?.name || `Karyawan (${cleanNik})`;
+  const finalDept = department?.trim() || iaInfo?.departemen || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional & Unit Kerja');
+  const finalTitle = jobTitle?.trim() || iaInfo?.jabatan || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee / PIC');
 
   // 1. Panggil API Google Apps Script terlebih dahulu SEBELUM menyimpan data ke localStorage
   const roleOrTitle = finalTitle || (isIA ? 'Internal Auditor' : (assignedRole || 'auditee'));
