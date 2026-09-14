@@ -398,8 +398,8 @@ export default function LandingPage({
                         className="w-full text-left p-1.5 px-2.5 hover:bg-slate-800/80 rounded-lg text-xs text-slate-200 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div>
-                          <p className="font-bold text-sky-300">1021048 - Miftahul Majid</p>
-                          <p className="text-[10px] text-slate-400">Lead Auditor (Akses 12 Menu Penuh)</p>
+                          <p className="font-bold text-sky-300">Demo Internal Auditor</p>
+                          <p className="text-[10px] text-slate-400">Mode Uji Coba Auditor (Akses Penuh 12 Menu)</p>
                         </div>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
                           IA Full
@@ -412,25 +412,25 @@ export default function LandingPage({
                         className="w-full text-left p-1.5 px-2.5 hover:bg-slate-800/80 rounded-lg text-xs text-slate-200 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div>
-                          <p className="font-bold text-sky-300">1006059 - Renny Antikawati</p>
-                          <p className="text-[10px] text-slate-400">Internal Auditor (Akses 12 Menu Penuh)</p>
+                          <p className="font-bold text-amber-300">Demo Auditee PIC</p>
+                          <p className="text-[10px] text-slate-400">Mode Uji Coba Auditee (Akses Terbatas)</p>
                         </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
-                          IA Full
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
+                          Auditee
                         </span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleQuickDemo(DEMO_ACCOUNTS[3])}
+                        onClick={() => handleQuickDemo(DEMO_ACCOUNTS[2])}
                         className="w-full text-left p-1.5 px-2.5 hover:bg-slate-800/80 rounded-lg text-xs text-slate-200 flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div>
-                          <p className="font-bold text-amber-300">1088921 - Ahmad Yani</p>
-                          <p className="text-[10px] text-slate-400">Auditee PIC Operasional (Akses Terbatas)</p>
+                          <p className="font-bold text-indigo-300">Demo Management</p>
+                          <p className="text-[10px] text-slate-400">Mode Uji Coba Eksekutif (Dashboard & Risk)</p>
                         </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
-                          Auditee
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-bold">
+                          Executive
                         </span>
                       </button>
                     </div>

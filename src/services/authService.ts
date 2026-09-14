@@ -22,13 +22,13 @@ const STORAGE_KEY_MENU_PERMISSIONS = 'iarms_menu_permissions_v3';
 
 // OFFICIAL MASTER LIST OF INTERNAL AUDIT PERSONNEL
 export const OFFICIAL_INTERNAL_AUDIT_MEMBERS: InternalAuditMember[] = [
-  { nik: '1006059', nama: 'Renny Antikawati', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'renny.antikawati@iarms.co.id' },
-  { nik: '1013751', nama: 'Farhan Zulfikar R', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'farhan.zulfikar@iarms.co.id' },
-  { nik: '1015590', nama: 'Habibie Rahman', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'habibie.rahman@iarms.co.id' },
-  { nik: '1018646', nama: 'Josua Mandala Putra', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'josua.mandala@iarms.co.id' },
-  { nik: '1021048', nama: 'Miftahul Majid', jabatan: 'Lead Internal Auditor', departemen: 'Internal Audit', email: 'miftahul.majid@iarms.co.id' },
-  { nik: '1021485', nama: 'Rangga Primayuda', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'rangga.primayuda@iarms.co.id' },
-  { nik: '1022189', nama: 'Mahardian Ardhi Bramantyo', jabatan: 'Internal Auditor', departemen: 'Internal Audit', email: 'mahardian.bramantyo@iarms.co.id' }
+  { nik: '1006059', nama: 'Renny Antikawati', jabatan: 'Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1013751', nama: 'Farhan Zulfikar R', jabatan: 'Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1015590', nama: 'Habibie Rahman', jabatan: 'Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1018646', nama: 'Josua Mandala Putra', jabatan: 'Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1021048', nama: 'Miftahul Majid', jabatan: 'Lead Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1021485', nama: 'Rangga Primayuda', jabatan: 'Internal Auditor', departemen: 'Internal Audit' },
+  { nik: '1022189', nama: 'Mahardian Ardhi Bramantyo', jabatan: 'Internal Auditor', departemen: 'Internal Audit' }
 ];
 
 // System Available Menus (12 Full System Menus)
@@ -257,31 +257,17 @@ export function saveAuditeeConfiguredMenus(allowedMenus: string[]): void {
   }
 }
 
-// Preset default demo accounts with official Internal Audit members and Auditee
+// Preset default demo accounts for quick role-testing without conflicting with real employee NIKs
 export const DEMO_ACCOUNTS: (UserProfile & { password?: string })[] = [
   {
-    uid: 'demo-ia-majid',
-    nik: '1021048',
-    displayName: 'Miftahul Majid',
-    email: 'miftahul.majid@iarms.co.id',
+    uid: 'demo-ia-auditor',
+    nik: 'DEMO-IA01',
+    displayName: 'Demo Internal Auditor',
+    email: 'demo.auditor@iarms.demo',
     role: 'auditor',
     isInternalAudit: true,
     department: 'Internal Audit',
-    jobTitle: 'Lead Internal Auditor',
-    password: 'password123',
-    mustChangePassword: false,
-    createdAt: '2026-01-01T08:00:00.000Z',
-    allowedMenus: SYSTEM_MENUS.map(m => m.id)
-  },
-  {
-    uid: 'demo-ia-renny',
-    nik: '1006059',
-    displayName: 'Renny Antikawati',
-    email: 'renny.antikawati@iarms.co.id',
-    role: 'auditor',
-    isInternalAudit: true,
-    department: 'Internal Audit',
-    jobTitle: 'Internal Auditor',
+    jobTitle: 'Internal Auditor (Demo)',
     password: 'password123',
     mustChangePassword: false,
     createdAt: '2026-01-01T08:00:00.000Z',
@@ -289,27 +275,27 @@ export const DEMO_ACCOUNTS: (UserProfile & { password?: string })[] = [
   },
   {
     uid: 'demo-auditee-pic',
-    nik: '1088921',
-    displayName: 'Ahmad Yani',
-    email: 'ahmad.pic@iarms.co.id',
+    nik: 'DEMO-AUD01',
+    displayName: 'Demo Auditee PIC',
+    email: 'demo.auditee@iarms.demo',
     role: 'auditee',
     isInternalAudit: false,
     department: 'Plant & Operasional Site AGM',
-    jobTitle: 'Supervisor Plant Operasional',
+    jobTitle: 'Supervisor Operasional (Demo)',
     password: 'password123',
     mustChangePassword: false,
     createdAt: '2026-02-15T09:30:00.000Z',
     allowedMenus: DEFAULT_AUDITEE_MENUS
   },
   {
-    uid: 'demo-mgmt-bambang',
-    nik: '2019045',
-    displayName: 'Bambang Soediro',
-    email: 'bambang.mgmt@iarms.co.id',
+    uid: 'demo-mgmt-exec',
+    nik: 'DEMO-MGT01',
+    displayName: 'Demo Executive Management',
+    email: 'demo.mgmt@iarms.demo',
     role: 'management',
     isInternalAudit: false,
     department: 'Executive Committee',
-    jobTitle: 'VP Risk & Compliance',
+    jobTitle: 'VP Risk & Compliance (Demo)',
     password: 'password123',
     mustChangePassword: false,
     createdAt: '2026-01-10T11:00:00.000Z',
@@ -346,22 +332,35 @@ export function generateRandomPassword(length = 8): string {
   return pwd.split('').sort(() => 0.5 - Math.random()).join('');
 }
 
-// Initialize users database in local storage
+// Initialize users database in local storage.
+// CRITICAL: Registered users database ONLY stores genuinely registered accounts.
+// Legacy demo accounts are pruned so they never block real employees/IA members from registering.
 export function initUsersDatabase(): (UserProfile & { password?: string })[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USERS_DB);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DEMO_ACCOUNTS));
-      return DEMO_ACCOUNTS;
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify([]));
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DEMO_ACCOUNTS));
-      return DEMO_ACCOUNTS;
+    if (!Array.isArray(parsed)) {
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify([]));
+      return [];
     }
-    return parsed;
+    // Prune any legacy demo placeholder accounts that were mistakenly seeded into registered users
+    const cleaned = parsed.filter(u => 
+      u && 
+      u.uid && 
+      !u.uid.startsWith('demo-') && 
+      !u.isDemo && 
+      !(u.nik && u.nik.toUpperCase().startsWith('DEMO-'))
+    );
+    if (cleaned.length !== parsed.length) {
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(cleaned));
+    }
+    return cleaned;
   } catch (e) {
-    return DEMO_ACCOUNTS;
+    return [];
   }
 }
 
@@ -484,13 +483,17 @@ export async function registerUserWithNik(params: {
 
   const usersDb = initUsersDatabase();
 
-  // Check duplicate NIK or Email
-  const existingByNik = usersDb.find(u => u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase());
+  // Check duplicate NIK or Email against genuinely registered users (ignore any demo/test accounts)
+  const existingByNik = usersDb.find(
+    u => u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase() && !u.uid?.startsWith('demo-') && !u.isDemo
+  );
   if (existingByNik) {
     throw new Error(`NIK "${cleanNik}" sudah terdaftar atas nama ${existingByNik.displayName} (${existingByNik.email}). Silakan masuk.`);
   }
 
-  const existingByEmail = usersDb.find(u => u.email.toLowerCase() === cleanEmail);
+  const existingByEmail = usersDb.find(
+    u => u.email && u.email.toLowerCase() === cleanEmail && !u.uid?.startsWith('demo-') && !u.isDemo
+  );
   if (existingByEmail) {
     throw new Error(`Email "${cleanEmail}" sudah terdaftar dengan NIK ${existingByEmail.nik}. Silakan gunakan menu Masuk.`);
   }
@@ -570,13 +573,18 @@ export async function registerUserWithNik(params: {
     console.warn('Firebase Auth register warning (fallback to local auth):', fbErr.message || fbErr);
   }
 
-  // Simpan ke database pengguna lokal (localStorage)
-  usersDb.push({
+  // Simpan ke database pengguna lokal (localStorage), pastikan tidak ada data demo yang tertinggal
+  const cleanDb = usersDb.filter(
+    u => !(u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase() && (u.uid?.startsWith('demo-') || u.isDemo)) &&
+         !(u.email && u.email.toLowerCase() === cleanEmail && (u.uid?.startsWith('demo-') || u.isDemo))
+  );
+
+  cleanDb.push({
     ...newProfile,
     password: generatedPassword,
     welcomeEmailSent: true
   });
-  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(cleanDb));
 
   return {
     user: newProfile,
@@ -716,7 +724,10 @@ export async function requestPasswordReset(identifier: string): Promise<{
 
   const usersDb = initUsersDatabase();
   const matchedUser = usersDb.find(
-    u => (u.nik && u.nik.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId)
+    u => !u.uid?.startsWith('demo-') && !u.isDemo && (
+      (u.nik && u.nik.toLowerCase() === cleanId) || 
+      (u.email && u.email.toLowerCase() === cleanId)
+    )
   );
 
   let targetNik = '';
@@ -731,22 +742,16 @@ export async function requestPasswordReset(identifier: string): Promise<{
     // Check in Internal Audit list
     const iaMember = getInternalAuditInfo(identifier.trim());
     if (iaMember) {
-      targetNik = iaMember.nik;
-      targetEmail = iaMember.email || '';
-      targetName = iaMember.nama;
-    } else {
-      // Check Master Employee list
-      const emp = findEmployeeByNik(identifier.trim());
-      if (emp) {
-        targetNik = emp.nik;
-        targetEmail = cleanId.includes('@') ? cleanId : ((emp as any).email || '');
-        targetName = emp.name;
-      }
+      throw new Error(`NIK "${identifier}" terdaftar sebagai Internal Audit (${iaMember.nama}), namun belum memiliki akun terdaftar. Silakan lakukan pendaftaran pada tab "Daftar Akun" terlebih dahulu.`);
     }
-  }
 
-  if (!targetNik && !targetEmail) {
-    throw new Error(`Akun dengan NIK/Email "${identifier}" tidak ditemukan dalam sistem.`);
+    // Check Master Employee list
+    const emp = findEmployeeByNik(identifier.trim());
+    if (emp) {
+      throw new Error(`NIK "${identifier}" terdaftar atas nama ${emp.name}, namun belum menyelesaikan registrasi akun. Silakan klik tab "Daftar Akun" untuk mendaftar.`);
+    }
+
+    throw new Error(`Akun dengan NIK/Email "${identifier}" belum terdaftar dalam sistem. Silakan klik tab "Daftar Akun" untuk membuat akun baru.`);
   }
 
   if (!targetEmail || !targetEmail.includes('@')) {
@@ -916,11 +921,24 @@ export async function loginUserWithNikOrEmail(
   const cleanId = identifier.trim().toLowerCase();
   const usersDb = initUsersDatabase();
 
-  // Find user by NIK or Email
-  const matchedUser = usersDb.find(u => 
-    (u.nik && u.nik.toLowerCase() === cleanId) || 
-    (u.email && u.email.toLowerCase() === cleanId)
+  // Find user by NIK or Email in registered users database
+  let matchedUser = usersDb.find(u => 
+    !u.uid?.startsWith('demo-') && !u.isDemo && (
+      (u.nik && u.nik.toLowerCase() === cleanId) || 
+      (u.email && u.email.toLowerCase() === cleanId)
+    )
   );
+
+  // Fallback: check demo accounts for testing convenience
+  if (!matchedUser) {
+    const demoMatch = DEMO_ACCOUNTS.find(d => 
+      (d.nik && d.nik.toLowerCase() === cleanId) || 
+      (d.email && d.email.toLowerCase() === cleanId)
+    );
+    if (demoMatch && (demoMatch.password === passwordInput || passwordInput === 'password123')) {
+      matchedUser = demoMatch;
+    }
+  }
 
   if (!matchedUser) {
     // Check if identifier is in official Internal Audit list but hasn't logged in yet
@@ -1086,11 +1104,8 @@ export function updateUserMenuPermissions(
   return user;
 }
 
-// Quick login using predefined demo account
+// Quick login using predefined demo account (Session-only; does NOT write into registered users database)
 export function quickLoginDemo(account: UserProfile): UserProfile {
-  const usersDb = initUsersDatabase();
-  const existing = usersDb.find(u => (u.nik && u.nik === account.nik) || u.email.toLowerCase() === account.email.toLowerCase());
-
   const isIA = checkIsInternalAudit(account.nik, account.role, account.department);
   const profile: UserProfile = {
     ...account,
@@ -1098,11 +1113,6 @@ export function quickLoginDemo(account: UserProfile): UserProfile {
     lastLoginAt: new Date().toISOString(),
     allowedMenus: isIA ? SYSTEM_MENUS.map(m => m.id) : (account.allowedMenus || getAuditeeConfiguredMenus())
   };
-
-  if (!existing) {
-    usersDb.push(profile);
-    localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
-  }
 
   setCurrentUser(profile);
   return profile;
@@ -1144,10 +1154,12 @@ export function updateUserProfile(updates: Partial<UserProfile>): UserProfile {
   return updated;
 }
 
-// Get all registered users for administration
+// Get all registered users for administration (strictly excludes demo test accounts)
 export function getRegisteredUsers(): UserProfile[] {
   const usersDb = initUsersDatabase();
-  return usersDb.map(({ password, tempPassword, ...safe }) => safe as UserProfile);
+  return usersDb
+    .filter(u => u && !u.uid?.startsWith('demo-') && !u.isDemo && !(u.nik && u.nik.toUpperCase().startsWith('DEMO-')))
+    .map(({ password, tempPassword, ...safe }) => safe as UserProfile);
 }
 
 // Listen to auth changes

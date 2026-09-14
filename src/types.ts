@@ -126,6 +126,7 @@ export interface UserProfile {
   tempPassword?: string;
   welcomeEmailSent?: boolean;
   allowedMenus?: string[];
+  isDemo?: boolean;
 }
 
 export interface MenuItemConfig {

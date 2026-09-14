@@ -700,7 +700,7 @@ export default function AccessSettings({ currentUser, onToast }: AccessSettingsP
               <tbody className="divide-y divide-slate-200">
                 {iaMembers.map((member, index) => {
                   const registeredAccount = registeredUsers.find(
-                    u => u.nik && u.nik.toLowerCase() === member.nik.toLowerCase()
+                    u => u.nik && u.nik.toLowerCase() === member.nik.toLowerCase() && !u.uid?.startsWith('demo-') && !u.isDemo
                   );
                   const isRegistered = Boolean(registeredAccount);
                   const isOpenAll = Boolean(member.openAllAccess);
@@ -713,7 +713,15 @@ export default function AccessSettings({ currentUser, onToast }: AccessSettingsP
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-bold text-slate-900">{member.nama}</div>
-                        {member.email && <div className="text-[10px] text-slate-400">{member.email}</div>}
+                        {registeredAccount?.email ? (
+                          <div className="text-[11px] text-emerald-700 font-mono font-semibold">
+                            {registeredAccount.email}
+                          </div>
+                        ) : member.email && !member.email.endsWith('@iarms.co.id') ? (
+                          <div className="text-[10px] text-slate-500 font-mono">{member.email}</div>
+                        ) : (
+                          <div className="text-[10px] text-slate-400 italic">Belum mendaftarkan email</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         <div className="font-medium text-slate-800">{member.jabatan || 'Internal Auditor'}</div>
