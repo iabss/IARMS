@@ -531,13 +531,16 @@ export async function registerUserWithNik(params: {
     });
   } catch (backendError: any) {
     console.error('Panggilan API Google Apps Script registrasi gagal:', backendError);
-    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+    // NIK tetap berstatus BELUM TERDAFTAR karena tidak disimpan ke localStorage
+    throw new Error('Gagal mengirim password ke email. Silakan coba lagi.');
   }
 
-  // 2. Verifikasi status respon dari backend
-  if (!gasResponse || (gasResponse.status !== 'success' && gasResponse.success !== true)) {
-    console.error('Backend Google Apps Script tidak mengembalikan status success:', gasResponse);
-    throw new Error('Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.');
+  // 2. Verifikasi status respon dari backend (Wajib status: "success")
+  const isBackendSuccess = Boolean(gasResponse && (gasResponse.status === 'success' || gasResponse.success === true));
+  if (!isBackendSuccess) {
+    console.error('Backend Google Apps Script tidak mengembalikan status: "success":', gasResponse);
+    // NIK tetap berstatus BELUM TERDAFTAR karena tidak disimpan ke localStorage
+    throw new Error('Gagal mengirim password ke email. Silakan coba lagi.');
   }
 
   // 3. HANYA JIKA respon backend berhasil (status: "success"), simpan data user ke state/localStorage

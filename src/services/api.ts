@@ -119,22 +119,35 @@ export async function sendRegisterUserToBackend(user: {
       body: JSON.stringify(payload),
     });
 
-    const text = await response.text();
-    if (!text) {
-      throw new Error("Empty response from backend");
+    // Check HTTP status (500, 403, 404, etc.)
+    if (!response.ok) {
+      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
-    // Google Apps Script HTML error page detection
+    const text = await response.text();
+    if (!text || !text.trim()) {
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
+    // Google Apps Script HTML error page detection (e.g. 403 authorization required or 500 internal server error page)
     if (text.trim().startsWith("<")) {
       console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
-      throw new Error("Invalid response from verification backend");
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
-    const json = JSON.parse(text);
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch (parseErr) {
+      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
     return json;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal mengirim payload registrasi ke Google Apps Script:", error);
-    throw error;
+    throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
   }
 }
 

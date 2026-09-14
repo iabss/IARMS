@@ -211,7 +211,7 @@ export default function AuthModal({
       setMode('register_success');
       onToast('Registrasi berhasil! Silakan cek email Anda untuk mendapatkan password.', 'success');
     } catch (err: any) {
-      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      const msg = err.message || 'Gagal mengirim password ke email. Silakan coba lagi.';
       setErrorMessage(msg);
       onToast(msg, 'error');
     } finally {
@@ -783,17 +783,17 @@ export default function AuthModal({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 tracking-wider uppercase"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Mendaftarkan & Mengirimkan Password...
+                    <span>Mengirim Password ke Email...</span>
                   </>
                 ) : (
                   <>
                     <KeyRound className="w-4 h-4" />
-                    Daftar & Kirim Password Acak ke Email
+                    <span>DAFTAR & DAPATKAN PASSWORD</span>
                   </>
                 )}
               </button>
