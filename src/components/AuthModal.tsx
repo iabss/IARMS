@@ -628,11 +628,11 @@ export default function AuthModal({
                 <div className="relative">
                   <Hash className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    id="modal-reg-nik"
                     type="text"
                     required
                     value={regNik}
                     onChange={(e) => handleNikChange(e.target.value)}
-                    placeholder="Contoh NIK: 1021048 atau 1006059 atau NIK Auditee"
                     className={`w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border rounded-xl focus:bg-white focus:outline-none transition-all font-mono font-bold ${
                       isNikMatched
                         ? 'border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'

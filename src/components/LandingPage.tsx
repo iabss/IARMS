@@ -190,7 +190,7 @@ export default function LandingPage({
       setViewMode('register_success');
       onToast('Registrasi berhasil! Silakan cek email Anda untuk mendapatkan password.', 'success');
     } catch (err: any) {
-      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      const msg = err.message || 'Gagal mengirim password ke email. Silakan coba lagi.';
       setErrorMessage(msg);
       onToast(msg, 'error');
     } finally {
@@ -514,7 +514,6 @@ export default function LandingPage({
                     required
                     value={regNik}
                     onChange={(e) => handleNikChange(e.target.value)}
-                    placeholder="Ketik NIK Anda (contoh: 1021048)..."
                     className={`w-full px-3.5 py-2.5 bg-[#0d1424] border rounded-lg text-white text-xs sm:text-sm placeholder-slate-500 font-mono font-bold focus:outline-none transition-colors ${
                       isNikMatched 
                         ? 'border-emerald-500/60 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' 
@@ -658,7 +657,7 @@ export default function LandingPage({
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>MEMPROSES PENDAFTARAN...</span>
+                      <span>Mengirim Password ke Email...</span>
                     </>
                   ) : (
                     <>

@@ -188,14 +188,19 @@ export async function sendResetPasswordToBackend(params: {
       body: JSON.stringify(payload),
     });
 
+    if (!response.ok) {
+      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      throw new Error("Gagal memproses permintaan reset password. Silakan coba lagi.");
+    }
+
     const text = await response.text();
-    if (!text) {
-      throw new Error("Empty response from reset password backend");
+    if (!text || !text.trim()) {
+      throw new Error("Gagal memproses permintaan reset password. Silakan coba lagi.");
     }
 
     if (text.trim().startsWith("<")) {
       console.warn("GAS returned HTML error page instead of JSON for reset_password:", text.substring(0, 150));
-      throw new Error("Invalid response from reset password backend");
+      throw new Error("Gagal memproses permintaan reset password. Silakan coba lagi.");
     }
 
     const json = JSON.parse(text);
@@ -238,21 +243,26 @@ export async function sendResendVerificationToBackend(params: {
       body: JSON.stringify(payload),
     });
 
+    if (!response.ok) {
+      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
     const text = await response.text();
-    if (!text) {
-      throw new Error("Empty response from resend verification backend");
+    if (!text || !text.trim()) {
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
     if (text.trim().startsWith("<")) {
       console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
-      throw new Error("Invalid response from resend verification backend");
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
     const json = JSON.parse(text);
     return json;
   } catch (error) {
     console.error("Gagal mengirim payload resend_verification ke Google Apps Script:", error);
-    throw error;
+    throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
   }
 }
 
