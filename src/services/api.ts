@@ -275,6 +275,63 @@ export async function sendResendPasswordToBackend(params: {
 }
 
 /**
+ * Send change_password action to Google Apps Script backend
+ * Payload: { action: "change_password", nik, oldPassword, newPassword, timestamp }
+ */
+export async function sendChangePasswordToBackend(params: {
+  nik: string;
+  oldPassword: string;
+  newPassword: string;
+}): Promise<any> {
+  const payload: Record<string, any> = {
+    action: "change_password",
+    nik: params.nik.trim(),
+    oldPassword: params.oldPassword,
+    newPassword: params.newPassword,
+    password: params.newPassword,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      throw new Error("Gagal memperbarui password ke server backend. Silakan coba lagi.");
+    }
+
+    const text = await response.text();
+    if (!text || !text.trim()) {
+      return { status: "success", success: true };
+    }
+
+    if (text.trim().startsWith("<")) {
+      console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
+      throw new Error("Gagal memperbarui password ke server backend. Silakan coba lagi.");
+    }
+
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch (parseErr) {
+      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      return { status: "success", success: true };
+    }
+
+    return json;
+  } catch (error: any) {
+    console.error("Gagal mengirim payload change_password ke Google Apps Script:", error);
+    throw error;
+  }
+}
+
+/**
  * Send email update and resend verification credentials to Google Apps Script backend
  */
 export async function sendResendVerificationToBackend(params: {

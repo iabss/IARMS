@@ -25,6 +25,7 @@ import GoogleDriveSyncModal from './components/GoogleDriveSyncModal';
 import DailyCutoffPanel from './components/DailyCutoffPanel';
 import AuthModal from './components/AuthModal';
 import UserProfileModal from './components/UserProfileModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import AccessSettings from './components/AccessSettings';
 import LandingPage from './components/LandingPage';
 import { AuditEngagement, PublicAuditItem, ToastMessage, UserProfile, UserRole } from './types';
@@ -60,6 +61,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
+  const [isForceChangePassword, setIsForceChangePassword] = useState<boolean>(() => !!getCurrentUser()?.mustChangePassword);
   const [auditData, setAuditData] = useState<AuditEngagement[]>(INITIAL_AUDIT_DATA);
   const [publicAuditList] = useState<PublicAuditItem[]>(INITIAL_PUBLIC_AUDIT_LIST);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -73,8 +76,16 @@ export default function App() {
       setCurrentUser(user);
       if (user) {
         setUserRole(user.role);
+        if (user.mustChangePassword) {
+          setIsForceChangePassword(true);
+          setIsChangePasswordOpen(true);
+        } else {
+          setIsForceChangePassword(false);
+        }
       } else {
         setUserRole('public');
+        setIsForceChangePassword(false);
+        setIsChangePasswordOpen(false);
       }
     });
     return unsubscribe;
@@ -278,6 +289,10 @@ export default function App() {
           setExploreAsGuest(false);
         }}
         onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenChangePassword={() => {
+          setIsForceChangePassword(false);
+          setIsChangePasswordOpen(true);
+        }}
         onToast={triggerToast}
         onOpenDriveBackup={() => setIsDriveModalOpen(true)}
       />
@@ -316,6 +331,20 @@ export default function App() {
                       )}
                     </span>
                   </div>
+                </button>
+
+                {/* Ganti Password button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForceChangePassword(false);
+                    setIsChangePasswordOpen(true);
+                  }}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs text-slate-600 hover:text-sky-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Ganti Password Akun"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="hidden sm:inline font-semibold">Ganti Password</span>
                 </button>
 
                 {/* Return to Landing button */}
@@ -548,6 +577,31 @@ export default function App() {
             setAuthModalMode('login');
             setIsAuthModalOpen(true);
           }}
+          onOpenChangePassword={() => {
+            setIsForceChangePassword(false);
+            setIsChangePasswordOpen(true);
+          }}
+        />
+      )}
+
+      {/* Change Password Modal (Forced or Manual) */}
+      {isChangePasswordOpen && currentUser && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          currentUser={currentUser}
+          isForced={isForceChangePassword}
+          onClose={() => {
+            if (!isForceChangePassword) {
+              setIsChangePasswordOpen(false);
+            }
+          }}
+          onSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsChangePasswordOpen(false);
+            setIsForceChangePassword(false);
+            triggerToast('Kata sandi berhasil diperbarui!', 'success');
+          }}
+          onToast={triggerToast}
         />
       )}
 

@@ -32,6 +32,7 @@ interface SidebarProps {
   currentUser: UserProfile | null;
   onOpenAuth: (mode?: 'login' | 'register') => void;
   onOpenProfile: () => void;
+  onOpenChangePassword?: () => void;
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
   onOpenDriveBackup?: () => void;
 }
@@ -46,6 +47,7 @@ export default function Sidebar({
   currentUser,
   onOpenAuth,
   onOpenProfile,
+  onOpenChangePassword,
   onToast,
   onOpenDriveBackup
 }: SidebarProps) {
@@ -268,13 +270,26 @@ export default function Sidebar({
                 Simulasi Peran
               </label>
               {currentUser && (
-                <button
-                  type="button"
-                  onClick={onOpenProfile}
-                  className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline cursor-pointer"
-                >
-                  Kelola Akun
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {onOpenChangePassword && (
+                    <button
+                      type="button"
+                      onClick={onOpenChangePassword}
+                      className="text-[10px] text-amber-600 hover:text-amber-800 font-semibold hover:underline cursor-pointer"
+                      title="Ganti Password"
+                    >
+                      Ganti Password
+                    </button>
+                  )}
+                  <span className="text-slate-300">•</span>
+                  <button
+                    type="button"
+                    onClick={onOpenProfile}
+                    className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline cursor-pointer"
+                  >
+                    Kelola Akun
+                  </button>
+                </div>
               )}
             </div>
             <select

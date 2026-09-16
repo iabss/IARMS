@@ -34,6 +34,7 @@ interface UserProfileModalProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
   onLogout: () => void;
   onOpenLogin: () => void;
+  onOpenChangePassword?: () => void;
 }
 
 export default function UserProfileModal({
@@ -42,7 +43,8 @@ export default function UserProfileModal({
   currentUser,
   onToast,
   onLogout,
-  onOpenLogin
+  onOpenLogin,
+  onOpenChangePassword
 }: UserProfileModalProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
   const [isEditing, setIsEditing] = useState(false);
@@ -267,26 +269,40 @@ export default function UserProfileModal({
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(true)}
-                      className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                    >
-                      Ubah Data Profil
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logoutUser();
-                        onLogout();
-                        onToast('Anda telah keluar dari sistem.', 'info');
-                        onClose();
-                      }}
-                      className="py-2 px-3.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <LogOut className="w-3.5 h-3.5" /> Keluar
-                    </button>
+                  <div className="space-y-2">
+                    {onOpenChangePassword && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenChangePassword();
+                        }}
+                        className="w-full py-2.5 px-3.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" /> Ganti Password
+                      </button>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                      >
+                        Ubah Data Profil
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          logoutUser();
+                          onLogout();
+                          onToast('Anda telah keluar dari sistem.', 'info');
+                          onClose();
+                        }}
+                        className="py-2 px-3.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" /> Keluar
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

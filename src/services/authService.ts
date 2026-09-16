@@ -11,7 +11,8 @@ import {
   sendRegisterUserToBackend, 
   sendResetPasswordToBackend, 
   sendResendVerificationToBackend,
-  sendResendPasswordToBackend
+  sendResendPasswordToBackend,
+  sendChangePasswordToBackend
 } from './api';
 import { findEmployeeByNik } from '../data/employeeMasterData';
 
@@ -1180,6 +1181,100 @@ export async function completeFirstLoginPasswordChange(
     email: updatedUser.email,
     timestamp: new Date().toISOString()
   }).catch(e => console.warn('Sync password GAS warning:', e));
+
+  // Also notify GAS via change_password action
+  sendChangePasswordToBackend({
+    nik: updatedUser.nik,
+    oldPassword: target.tempPassword || newPassword,
+    newPassword
+  }).catch(e => console.warn('Sync change_password action warning:', e));
+
+  return updatedUser;
+}
+
+/**
+ * Change Password for an active or specified user
+ * 1. Validates old password (matching target.password or target.tempPassword)
+ * 2. Calls Google Apps Script backend action: "change_password" with { nik, oldPassword, newPassword }
+ * 3. Updates local storage database and current user session upon success
+ */
+export async function changeUserPassword(params: {
+  nik: string;
+  oldPassword: string;
+  newPassword: string;
+}): Promise<UserProfile> {
+  const { nik, oldPassword, newPassword } = params;
+
+  if (!oldPassword) {
+    throw new Error('Kata sandi lama atau sementara wajib diisi.');
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Kata sandi baru minimal harus 6 karakter.');
+  }
+
+  if (newPassword === oldPassword) {
+    throw new Error('Kata sandi baru tidak boleh sama dengan kata sandi lama.');
+  }
+
+  const cleanNik = nik.trim();
+  const usersDb = initUsersDatabase();
+  const idx = usersDb.findIndex(u => u.nik?.trim().toLowerCase() === cleanNik.toLowerCase());
+
+  if (idx === -1) {
+    throw new Error(`Data pengguna dengan NIK ${cleanNik} tidak ditemukan dalam database.`);
+  }
+
+  const target = usersDb[idx];
+
+  // Verify old password against stored password or tempPassword
+  const storedPwd = target.password || target.tempPassword;
+  if (storedPwd && storedPwd !== oldPassword) {
+    throw new Error('Kata sandi lama / sementara yang Anda masukkan salah.');
+  }
+
+  // 1. Sync to Google Apps Script backend FIRST
+  try {
+    const backendResult = await sendChangePasswordToBackend({
+      nik: cleanNik,
+      oldPassword,
+      newPassword
+    });
+
+    if (backendResult && backendResult.status === 'error') {
+      throw new Error(backendResult.message || 'Gagal mengubah password di server backend.');
+    }
+  } catch (error: any) {
+    console.error('Backend change_password error:', error);
+    // If backend returns a specific error message, throw it
+    if (error.message && !error.message.includes('fetch')) {
+      throw error;
+    }
+    // Continue if it was just a warning / offline, but throw if critical
+    throw new Error(error.message || 'Gagal menghubungi server Google Apps Script untuk ubah password.');
+  }
+
+  // 2. Update local database
+  target.password = newPassword;
+  target.mustChangePassword = false;
+  target.tempPassword = undefined;
+  target.lastLoginAt = new Date().toISOString();
+  usersDb[idx] = target;
+  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+
+  // 3. Update current user session if it matches
+  const currentUser = getCurrentUser();
+  const { password: _, tempPassword: __, ...safeProfile } = target;
+  const isIA = checkIsInternalAudit(safeProfile.nik, safeProfile.role, safeProfile.department);
+  const updatedUser: UserProfile = {
+    ...(safeProfile as UserProfile),
+    isInternalAudit: isIA,
+    mustChangePassword: false
+  };
+
+  if (currentUser && currentUser.nik?.trim().toLowerCase() === cleanNik.toLowerCase()) {
+    setCurrentUser(updatedUser);
+  }
 
   return updatedUser;
 }
