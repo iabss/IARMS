@@ -10,7 +10,8 @@ import {
   syncAuditData, 
   sendRegisterUserToBackend, 
   sendResetPasswordToBackend, 
-  sendResendVerificationToBackend 
+  sendResendVerificationToBackend,
+  sendResendPasswordToBackend
 } from './api';
 import { findEmployeeByNik } from '../data/employeeMasterData';
 
@@ -488,7 +489,7 @@ export async function registerUserWithNik(params: {
     u => u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase() && !u.uid?.startsWith('demo-') && !u.isDemo
   );
   if (existingByNik) {
-    throw new Error(`NIK "${cleanNik}" sudah terdaftar atas nama ${existingByNik.displayName} (${existingByNik.email}). Silakan masuk.`);
+    throw new Error(`NIK "${cleanNik}" sudah terdaftar atas nama ${existingByNik.displayName} (${existingByNik.email}). Silakan masuk atau gunakan "Kirim Ulang Password" jika belum menerima email.`);
   }
 
   const existingByEmail = usersDb.find(
@@ -592,6 +593,121 @@ export async function registerUserWithNik(params: {
   return {
     user: newProfile,
     generatedPassword
+  };
+}
+
+/**
+ * Opsi Kirim Ulang & Reset Password:
+ * Jika NIK terdeteksi ada di database backend tetapi user belum punya password atau belum terima email,
+ * memanggil action "resend_password" pada Google Apps Script untuk membuat ulang password acak
+ * dan mengirimkannya via MailApp ke email user.
+ * ATOMIC: Hanya menyimpan/memperbarui data lokal jika backend Apps Script mengembalikan status: "success".
+ */
+export async function resendPasswordForUser(params: {
+  nik: string;
+  email?: string;
+}): Promise<{ email: string; message: string; user?: UserProfile }> {
+  const cleanNik = params.nik.trim();
+  const inputEmail = params.email ? params.email.trim().toLowerCase() : '';
+
+  if (!cleanNik) {
+    throw new Error('Nomor Induk Karyawan (NIK) wajib diisi.');
+  }
+
+  const usersDb = initUsersDatabase();
+  const existingUser = usersDb.find(
+    u => u.nik && u.nik.toLowerCase() === cleanNik.toLowerCase() && !u.uid?.startsWith('demo-') && !u.isDemo
+  );
+
+  const iaInfo = getInternalAuditInfo(cleanNik);
+  const masterEmp = findEmployeeByNik(cleanNik);
+  const isIA = Boolean(iaInfo) || checkIsInternalAudit(cleanNik);
+
+  const targetEmail = inputEmail || existingUser?.email || iaInfo?.email || '';
+  if (!targetEmail || !targetEmail.includes('@')) {
+    throw new Error('Alamat email belum terisi atau tidak valid. Silakan lengkapi kolom email.');
+  }
+
+  const targetName = existingUser?.displayName || iaInfo?.nama || masterEmp?.name || `Karyawan (${cleanNik})`;
+  const targetDept = existingUser?.department || iaInfo?.departemen || masterEmp?.department || (isIA ? 'Internal Audit' : 'Operasional & Unit Kerja');
+  const targetRole = existingUser?.jobTitle || iaInfo?.jabatan || masterEmp?.jobTitle || (isIA ? 'Internal Auditor' : 'Auditee / PIC');
+
+  // Generate password acak baru 8 karakter
+  const generatedPassword = generateRandomPassword(8);
+
+  // 1. Panggil action "resend_password" pada Google Apps Script via MailApp
+  let gasResponse: any = null;
+  try {
+    gasResponse = await sendResendPasswordToBackend({
+      nik: cleanNik,
+      email: targetEmail,
+      name: targetName,
+      department: targetDept,
+      role: targetRole,
+      newPassword: generatedPassword
+    });
+  } catch (backendErr: any) {
+    console.error('Panggilan API GAS resend_password gagal:', backendErr);
+    throw new Error('Gagal mengirim password ke email. Silakan coba lagi.');
+  }
+
+  // 2. Verifikasi status respon backend (Wajib status: "success")
+  const isSuccess = Boolean(gasResponse && (gasResponse.status === 'success' || gasResponse.success === true));
+  if (!isSuccess) {
+    console.error('Backend Google Apps Script tidak mengembalikan status: "success":', gasResponse);
+    throw new Error('Gagal mengirim password ke email. Silakan coba lagi.');
+  }
+
+  // 3. ATOMIC: Hanya jika respon backend berhasil (status: "success"), perbarui/simpan data di localStorage
+  let activeProfile: UserProfile;
+  if (existingUser) {
+    const idx = usersDb.findIndex(u => u.uid === existingUser.uid);
+    if (idx !== -1) {
+      usersDb[idx].email = targetEmail;
+      usersDb[idx].tempPassword = generatedPassword;
+      usersDb[idx].password = generatedPassword;
+      usersDb[idx].mustChangePassword = true;
+      usersDb[idx].welcomeEmailSent = true;
+      usersDb[idx].lastLoginAt = new Date().toISOString();
+      
+      const { password: _, tempPassword: __, ...safe } = usersDb[idx];
+      activeProfile = safe as UserProfile;
+    } else {
+      activeProfile = existingUser;
+    }
+  } else {
+    const uid = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const assignedRole: UserRole = isIA ? 'auditor' : 'auditee';
+    const allowedMenus = isIA ? SYSTEM_MENUS.map(m => m.id) : getAuditeeConfiguredMenus();
+    const newRecord: UserProfile & { password?: string; tempPassword?: string } = {
+      uid,
+      nik: cleanNik,
+      displayName: targetName,
+      email: targetEmail,
+      role: assignedRole,
+      isInternalAudit: isIA,
+      department: targetDept,
+      jobTitle: targetRole,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+      isCustomAccount: true,
+      mustChangePassword: true,
+      tempPassword: generatedPassword,
+      password: generatedPassword,
+      welcomeEmailSent: true,
+      allowedMenus
+    };
+    usersDb.push(newRecord);
+    const { password: _, tempPassword: __, ...safe } = newRecord;
+    activeProfile = safe as UserProfile;
+  }
+
+  localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(usersDb));
+
+  return {
+    email: targetEmail,
+    message: `Password acak baru telah dikirimkan ke email ${targetEmail}. Silakan cek kotak masuk atau folder spam Anda.`,
+    user: activeProfile
   };
 }
 

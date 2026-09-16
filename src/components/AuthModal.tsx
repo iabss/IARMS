@@ -21,7 +21,8 @@ import {
   KeyRound,
   ShieldAlert,
   ArrowRight,
-  Hash
+  Hash,
+  RotateCcw
 } from 'lucide-react';
 import { UserRole, UserProfile } from '../types';
 import { 
@@ -32,6 +33,7 @@ import {
   checkIsInternalAudit,
   getInternalAuditInfo,
   updateStuckAccountEmail,
+  resendPasswordForUser,
   requestPasswordReset,
   completePasswordReset,
   DEMO_ACCOUNTS 
@@ -247,7 +249,7 @@ export default function AuthModal({
     }
   };
 
-  // Handle Resend Verification / Update Email (Fitur Akun Tersangkut)
+  // Handle Resend Verification / Kirim Ulang Password (Fitur Akun Tersangkut / Belum Terima Email)
   const handleResendVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -263,16 +265,18 @@ export default function AuthModal({
 
     setLoading(true);
     try {
-      const result = await updateStuckAccountEmail({
+      const result = await resendPasswordForUser({
         nik: resendNik.trim(),
-        newEmail: resendEmail.trim()
+        email: resendEmail.trim()
       });
 
-      setRegisteredTempInfo(result);
-      setMode('register_success');
-      onToast('Email berhasil diperbarui! Password baru telah dikirimkan ke email Anda.', 'success');
+      onToast(result.message, 'success');
+      setErrorMessage(null);
+      setMode('login');
+      setLoginIdentifier(resendNik.trim());
+      setLoginPassword('');
     } catch (err: any) {
-      const msg = err.message || 'Gagal mengirim email verifikasi. Silakan coba beberapa saat lagi.';
+      const msg = err.message || 'Gagal mengirim password ke email. Silakan coba lagi.';
       setErrorMessage(msg);
       onToast(msg, 'error');
     } finally {
@@ -478,8 +482,8 @@ export default function AuthModal({
               <div className="flex-1 space-y-2">
                 <span className="font-medium leading-relaxed block">{errorMessage}</span>
                 
-                {/* Fitur Update Email / Akun Tersangkut Action Link */}
-                {(errorMessage.toLowerCase().includes('sudah terdaftar') || errorMessage.toLowerCase().includes('terdaftar')) && mode !== 'resend_verification' && (
+                {/* Fitur Kirim Ulang Password Action Link */}
+                {(errorMessage.toLowerCase().includes('sudah terdaftar') || errorMessage.toLowerCase().includes('terdaftar') || errorMessage.toLowerCase().includes('gagal mengirim password')) && mode !== 'resend_verification' && (
                   <div className="pt-2 border-t border-rose-200/80 flex items-center justify-between flex-wrap gap-2">
                     <button
                       type="button"
@@ -491,8 +495,8 @@ export default function AuthModal({
                       }}
                       className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-white px-3 py-1.5 rounded-lg border border-sky-300 shadow-xs hover:shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <span>Salah Email / Belum Terima Email? Kirim Ulang Verifikasi</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Belum terima email? Kirim Ulang Password</span>
                     </button>
                   </div>
                 )}
@@ -798,7 +802,7 @@ export default function AuthModal({
                 )}
               </button>
 
-              {/* Link Kirim Ulang Verifikasi / Salah Email */}
+              {/* Link Kirim Ulang Password / Belum Terima Email */}
               <div className="pt-2 text-center">
                 <button
                   type="button"
@@ -808,23 +812,24 @@ export default function AuthModal({
                     setErrorMessage(null);
                     setMode('resend_verification');
                   }}
-                  className="text-xs text-sky-600 hover:text-sky-800 font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-amber-600 hover:text-amber-800 font-semibold hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
                 >
-                  Salah Email / Belum Terima Email? Kirim Ulang Verifikasi
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Belum terima email? <strong>Kirim Ulang Password</strong></span>
                 </button>
               </div>
             </form>
           )}
 
-          {/* ===== 2B. FITUR UPDATE EMAIL / RESEND VERIFICATION (AKUN TERSANGKUT) ===== */}
+          {/* ===== 2B. FITUR KIRIM ULANG PASSWORD (OPSI RESET / RESEND) ===== */}
           {mode === 'resend_verification' && (
             <form onSubmit={handleResendVerificationSubmit} className="space-y-4">
               <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 flex items-start gap-2.5">
-                <Mail className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <RotateCcw className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold">Kirim Ulang Verifikasi & Koreksi Email</p>
+                  <p className="font-bold">Kirim Ulang Password ke Email</p>
                   <p className="text-[11px] text-sky-800 mt-0.5 leading-relaxed">
-                    Jika NIK Anda sudah terdaftar namun Anda salah memasukkan alamat email atau belum menerima email verifikasi, masukkan alamat email yang benar di bawah ini. Kata sandi baru akan dikirimkan ke email tersebut.
+                    Jika NIK Anda sudah terdaftar namun Anda belum menerima email password atau perlu reset, masukkan NIK dan alamat email aktif Anda di bawah ini. Sistem akan membuat ulang password acak baru dan mengirimkannya via MailApp.
                   </p>
                 </div>
               </div>
@@ -839,7 +844,13 @@ export default function AuthModal({
                     type="text"
                     required
                     value={resendNik}
-                    onChange={(e) => setResendNik(e.target.value)}
+                    onChange={(e) => {
+                      setResendNik(e.target.value);
+                      const ia = getInternalAuditInfo(e.target.value.trim());
+                      if (ia?.email && !resendEmail) {
+                        setResendEmail(ia.email);
+                      }
+                    }}
                     placeholder="Contoh: 1021048"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-mono font-bold"
                   />
@@ -848,7 +859,7 @@ export default function AuthModal({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Alamat Email Baru yang Benar * (Untuk Menerima Password)
+                  Alamat Email Penerima Password *
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -871,12 +882,12 @@ export default function AuthModal({
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Mengirimkan Verifikasi ke Email Baru...
+                    Mengirim Password ke Email...
                   </>
                 ) : (
                   <>
-                    <KeyRound className="w-4 h-4" />
-                    Kirim Ulang Verifikasi & Password Baru
+                    <RotateCcw className="w-4 h-4" />
+                    KIRIM ULANG PASSWORD
                   </>
                 )}
               </button>

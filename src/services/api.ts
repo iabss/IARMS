@@ -212,6 +212,69 @@ export async function sendResetPasswordToBackend(params: {
 }
 
 /**
+ * Send resend_password action to Google Apps Script backend
+ * Calls MailApp to generate a new random password and send it to the user's email
+ */
+export async function sendResendPasswordToBackend(params: {
+  nik: string;
+  email: string;
+  name?: string;
+  department?: string;
+  role?: string;
+  newPassword?: string;
+}): Promise<any> {
+  const payload: Record<string, any> = {
+    action: "resend_password",
+    subAction: "resend_password",
+    nik: params.nik.trim(),
+    email: params.email.trim(),
+    name: params.name || "",
+    department: params.department || "",
+    role: params.role || "auditee",
+    ...(params.newPassword ? { tempPassword: params.newPassword, newPassword: params.newPassword, password: params.newPassword } : {}),
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
+    const text = await response.text();
+    if (!text || !text.trim()) {
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
+    if (text.trim().startsWith("<")) {
+      console.warn("GAS returned HTML error page instead of JSON:", text.substring(0, 150));
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch (parseErr) {
+      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+    }
+
+    return json;
+  } catch (error) {
+    console.error("Gagal mengirim payload resend_password ke Google Apps Script:", error);
+    throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
+  }
+}
+
+/**
  * Send email update and resend verification credentials to Google Apps Script backend
  */
 export async function sendResendVerificationToBackend(params: {
@@ -223,14 +286,14 @@ export async function sendResendVerificationToBackend(params: {
   tempPassword?: string;
 }): Promise<any> {
   const payload: Record<string, any> = {
-    action: "register_user",
+    action: "resend_password",
     subAction: "resend_verification",
     nik: params.nik.trim(),
     email: params.email.trim(),
     name: params.name || "",
     department: params.department || "",
     role: params.role || "auditee",
-    ...(params.tempPassword ? { tempPassword: params.tempPassword } : {}),
+    ...(params.tempPassword ? { tempPassword: params.tempPassword, newPassword: params.tempPassword, password: params.tempPassword } : {}),
     timestamp: new Date().toISOString()
   };
 

@@ -21,12 +21,14 @@ import {
   KeyRound,
   UserCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RotateCcw
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../types';
 import { 
   loginUserWithNikOrEmail, 
   registerUserWithNik, 
+  resendPasswordForUser,
   completeFirstLoginPasswordChange,
   quickLoginDemo, 
   getInternalAuditInfo,
@@ -45,7 +47,7 @@ export default function LandingPage({
   onExplorePublic,
   onToast
 }: LandingPageProps) {
-  const [viewMode, setViewMode] = useState<'login' | 'register' | 'register_success' | 'change_password_required'>('login');
+  const [viewMode, setViewMode] = useState<'login' | 'register' | 'register_success' | 'change_password_required' | 'resend_password'>('login');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -61,6 +63,10 @@ export default function LandingPage({
   const [regDepartment, setRegDepartment] = useState('');
   const [regJobTitle, setRegJobTitle] = useState('');
   const [regRole, setRegRole] = useState<UserRole>('auditee');
+
+  // Resend / Kirim Ulang Password States
+  const [resendNik, setResendNik] = useState('');
+  const [resendEmail, setResendEmail] = useState('');
 
   // Master Employee Auto-Lookup States (Privacy-first: no dropdowns or suggestions)
   const [isNikMatched, setIsNikMatched] = useState(false);
@@ -189,6 +195,36 @@ export default function LandingPage({
       setRegisteredTempInfo(res);
       setViewMode('register_success');
       onToast('Registrasi berhasil! Silakan cek email Anda untuk mendapatkan password.', 'success');
+    } catch (err: any) {
+      const msg = err.message || 'Gagal mengirim password ke email. Silakan coba lagi.';
+      setErrorMessage(msg);
+      onToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Kirim Ulang Password
+  const handleResendPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const targetNik = resendNik.trim() || regNik.trim() || loginIdentifier.trim();
+    if (!targetNik) {
+      setErrorMessage('Nomor Induk Karyawan (NIK) wajib diisi.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await resendPasswordForUser({
+        nik: targetNik,
+        email: resendEmail.trim() || regEmail.trim()
+      });
+      onToast(res.message, 'success');
+      setLoginIdentifier(targetNik);
+      setLoginPassword('');
+      setViewMode('login');
     } catch (err: any) {
       const msg = err.message || 'Gagal mengirim password ke email. Silakan coba lagi.';
       setErrorMessage(msg);
@@ -493,10 +529,27 @@ export default function LandingPage({
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2"
+                className="mb-4 p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-2"
               >
-                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{errorMessage}</span>
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{errorMessage}</span>
+                </div>
+                <div className="pt-2 border-t border-rose-500/20 flex items-center justify-between flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResendNik(regNik.trim());
+                      setResendEmail(regEmail.trim());
+                      setErrorMessage(null);
+                      setViewMode('resend_password');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-sky-200 border border-sky-400/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Belum terima email? Kirim Ulang Password</span>
+                  </button>
+                </div>
               </motion.div>
             )}
 
@@ -671,6 +724,22 @@ export default function LandingPage({
               <div className="text-center pt-2">
                 <button
                   type="button"
+                  onClick={() => {
+                    setResendNik(regNik.trim());
+                    setResendEmail(regEmail.trim());
+                    setErrorMessage(null);
+                    setViewMode('resend_password');
+                  }}
+                  className="text-xs text-amber-400/90 hover:text-amber-300 transition-colors flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Belum terima email? <strong className="underline">Kirim Ulang Password</strong></span>
+                </button>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
                   onClick={() => setViewMode('login')}
                   className="text-xs text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
                 >
@@ -820,6 +889,125 @@ export default function LandingPage({
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 <span>Simpan Kata Sandi & Masuk</span>
               </button>
+            </form>
+          </div>
+        )}
+
+        {/* =================================================== */}
+        {/* VIEW 5: KIRIM ULANG PASSWORD (OPSI RESET / RESEND)  */}
+        {/* =================================================== */}
+        {viewMode === 'resend_password' && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setViewMode('register');
+                }}
+                className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Kembali</span>
+              </button>
+              <div className="flex items-center gap-1.5">
+                <RotateCcw className="w-4 h-4 text-sky-400" />
+                <span className="text-xs font-bold text-sky-400">IARMS</span>
+              </div>
+            </div>
+
+            <div className="text-left mb-4">
+              <h2 className="text-base sm:text-lg font-bold text-white">
+                Kirim Ulang Password
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Belum menerima email password atau NIK sudah terdaftar? Masukkan NIK dan email aktif Anda untuk membuat ulang password acak via MailApp.
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMessage}</span>
+              </motion.div>
+            )}
+
+            <form onSubmit={handleResendPasswordSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  NIK (Nomor Induk Karyawan) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={resendNik}
+                  onChange={(e) => {
+                    setResendNik(e.target.value);
+                    const ia = getInternalAuditInfo(e.target.value.trim());
+                    if (ia?.email && !resendEmail) {
+                      setResendEmail(ia.email);
+                    }
+                  }}
+                  placeholder="Contoh: 1021048"
+                  className="w-full px-3.5 py-2.5 bg-[#0d1424] border border-[#22314d] rounded-lg text-white text-xs sm:text-sm placeholder-slate-500 font-mono font-bold focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Alamat Email Penerima Password *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="nama@perusahaan.co.id"
+                  className="w-full px-3.5 py-2.5 bg-[#0d1424] border border-[#22314d] rounded-lg text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="p-2.5 bg-sky-950/40 border border-sky-500/20 rounded-lg text-[11px] text-sky-200/80 leading-relaxed">
+                Sistem akan memanggil backend Apps Script (action <code>resend_password</code>) untuk membuat ulang password acak baru dan mengirimkannya via MailApp ke email Anda.
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-[#00a3ff] hover:bg-[#0094e8] active:bg-[#0085d1] disabled:opacity-50 text-white font-bold text-xs sm:text-sm tracking-wider uppercase rounded-xl shadow-lg shadow-sky-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Mengirim Password ke Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>KIRIM ULANG PASSWORD</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setViewMode('login');
+                  }}
+                  className="text-xs text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
+                >
+                  Sudah punya password? <strong className="text-sky-400">Masuk ke Sistem</strong>
+                </button>
+              </div>
             </form>
           </div>
         )}
