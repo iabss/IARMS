@@ -326,7 +326,7 @@ export default function Sidebar({
                     {currentUser.displayName}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
-                    {currentUser.department || (isInternalAudit ? 'Internal Audit' : 'Operasional')}
+                    {currentUser.jobTitle || currentUser.department || (isInternalAudit ? 'Internal Audit' : 'Operasional')}
                   </span>
                 </motion.div>
               )}

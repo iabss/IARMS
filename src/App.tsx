@@ -321,47 +321,21 @@ export default function App() {
                         {currentUser.displayName}
                       </span>
                     </div>
-                    <span className="text-[9px] text-slate-500 capitalize flex items-center gap-1">
-                      {currentUser.isInternalAudit ? (
+                    <span className="text-[9px] text-slate-500 flex items-center gap-1">
+                      {currentUser.jobTitle ? (
+                        <span className="text-emerald-700 font-semibold flex items-center gap-0.5 truncate max-w-[150px]">
+                          {currentUser.isInternalAudit && <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 flex-shrink-0" />}
+                          <span className="truncate">{currentUser.jobTitle}</span>
+                        </span>
+                      ) : currentUser.isInternalAudit ? (
                         <span className="text-emerald-600 font-bold flex items-center gap-0.5">
-                          <ShieldCheck className="w-2.5 h-2.5" /> Internal Audit
+                          <ShieldCheck className="w-2.5 h-2.5 flex-shrink-0" /> Internal Audit
                         </span>
                       ) : (
-                        <span>Non-IA ({currentUser.role})</span>
+                        <span>{currentUser.department || currentUser.role}</span>
                       )}
                     </span>
                   </div>
-                </button>
-
-                {/* Ganti Password button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsForceChangePassword(false);
-                    setIsChangePasswordOpen(true);
-                  }}
-                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs text-slate-600 hover:text-sky-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Ganti Password Akun"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="hidden sm:inline font-semibold">Ganti Password</span>
-                </button>
-
-                {/* Return to Landing button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    logoutUser();
-                    setCurrentUser(null);
-                    setUserRole('public');
-                    setExploreAsGuest(false);
-                    triggerToast('Kembali ke Halaman Masuk.', 'info');
-                  }}
-                  className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs text-slate-600 hover:text-sky-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Kembali ke Halaman Landing"
-                >
-                  <Shield className="w-3.5 h-3.5 text-sky-500" />
-                  <span className="hidden sm:inline font-semibold">Landing Page</span>
                 </button>
 
                 <button
