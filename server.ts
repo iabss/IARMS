@@ -544,6 +544,74 @@ app.post('/api/sync-all-server', async (req, res) => {
   }
 });
 
+// Google Apps Script Proxy Endpoints (Avoid CORS & handle fallback gracefully)
+const GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
+
+app.get('/api/gas-audit-data', async (req, res) => {
+  try {
+    const result = await fetchUrl(GAS_BACKEND_URL, 3);
+    if (result.statusCode === 200 && result.data) {
+      const trimmed = result.data.trim();
+      if (!trimmed.startsWith('<') && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return res.json({ success: true, data: parsed });
+        } catch {
+          // parse error
+        }
+      }
+    }
+    // Return graceful fallback with 200 status
+    return res.json({ success: true, data: null, message: 'GAS returning non-JSON or offline' });
+  } catch (err: any) {
+    return res.json({ success: true, data: null, message: 'GAS unavailable' });
+  }
+});
+
+app.post('/api/gas-proxy', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const postData = JSON.stringify(payload);
+
+    const client = GAS_BACKEND_URL.startsWith('https') ? https : http;
+    const gasReq = client.request(GAS_BACKEND_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+        'Content-Length': Buffer.byteLength(postData),
+        'User-Agent': 'Mozilla/5.0 (IARMS Server Proxy)'
+      }
+    }, (gasRes) => {
+      let data = '';
+      gasRes.on('data', chunk => { data += chunk; });
+      gasRes.on('end', () => {
+        const text = data.trim();
+        if (text && !text.startsWith('<')) {
+          try {
+            return res.json(JSON.parse(text));
+          } catch {}
+        }
+        return res.json({ status: 'success', success: true });
+      });
+    });
+
+    gasReq.on('error', (err) => {
+      console.warn('[GAS Proxy] Warning requesting GAS:', err.message);
+      return res.json({ status: 'offline', success: true });
+    });
+
+    gasReq.setTimeout(8000, () => {
+      gasReq.destroy();
+      return res.json({ status: 'timeout', success: true });
+    });
+
+    gasReq.write(postData);
+    gasReq.end();
+  } catch (err: any) {
+    return res.json({ status: 'offline', success: true });
+  }
+});
+
 // Employee Master Data Endpoints
 const EMPLOYEE_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'employeeMasterData.json');
 

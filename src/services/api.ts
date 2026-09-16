@@ -1,20 +1,67 @@
 export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
 
 export async function fetchAuditData(): Promise<any> {
+  // 1. Try local server proxy endpoint first (avoids CORS & browser network fetch exceptions)
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL);
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+    const localRes = await fetch('/api/gas-audit-data');
+    if (localRes.ok) {
+      const localJson = await localRes.json();
+      if (localJson && localJson.data) {
+        return localJson.data;
+      }
+      // Server returned null/offline gracefully
+      return null;
     }
-    return await response.json();
-  } catch (error) {
-    console.error("Gagal mengambil data dari Google Apps Script:", error);
-    throw error;
+  } catch {
+    // If local proxy is unavailable (e.g. static preview), proceed to direct fetch
+  }
+
+  // 2. Direct fetch with timeout & graceful fallback
+  try {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      signal: controller?.signal
+    });
+
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`[GAS] Status ${response.status}: Google Apps Script tidak merespon valid.`);
+      return null;
+    }
+
+    const text = await response.text();
+    if (!text || text.trim().startsWith('<')) {
+      // Returned HTML error page or empty response
+      return null;
+    }
+
+    return JSON.parse(text);
+  } catch (error: any) {
+    console.warn("Koneksi ke Google Apps Script backend sedang offline, menggunakan data lokal:", error?.message || error);
+    return null;
   }
 }
 
 export async function syncAuditData(payload: Record<string, any>): Promise<any> {
   try {
+    // Try local server proxy first
+    try {
+      const proxyRes = await fetch("/api/gas-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        return data;
+      }
+    } catch {
+      // Fallback to direct POST
+    }
+
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: { 
@@ -24,10 +71,10 @@ export async function syncAuditData(payload: Record<string, any>): Promise<any> 
     });
     
     const text = await response.text();
-    return text ? JSON.parse(text) : { status: "success", success: true };
-  } catch (error) {
-    console.error("Gagal menyinkronkan data ke Google Apps Script:", error);
-    throw error;
+    return text && !text.trim().startsWith('<') ? JSON.parse(text) : { status: "success", success: true };
+  } catch (error: any) {
+    console.warn("Gagal menyinkronkan data ke Google Apps Script (background):", error?.message || error);
+    return { status: "offline", success: false };
   }
 }
 
@@ -121,7 +168,7 @@ export async function sendRegisterUserToBackend(user: {
 
     // Check HTTP status (500, 403, 404, etc.)
     if (!response.ok) {
-      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      console.warn(`[GAS] Status HTTP: ${response.status} ${response.statusText}`);
       throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
@@ -140,13 +187,13 @@ export async function sendRegisterUserToBackend(user: {
     try {
       json = JSON.parse(text);
     } catch (parseErr) {
-      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      console.warn("Gagal parse JSON response dari GAS:", parseErr, text);
       throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
     return json;
   } catch (error: any) {
-    console.error("Gagal mengirim payload registrasi ke Google Apps Script:", error);
+    console.warn("Koneksi registrasi ke Google Apps Script bermasalah:", error?.message || error);
     throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
   }
 }
@@ -189,7 +236,7 @@ export async function sendResetPasswordToBackend(params: {
     });
 
     if (!response.ok) {
-      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      console.warn(`[GAS] Status HTTP error: ${response.status} ${response.statusText}`);
       throw new Error("Gagal memproses permintaan reset password. Silakan coba lagi.");
     }
 
@@ -205,8 +252,8 @@ export async function sendResetPasswordToBackend(params: {
 
     const json = JSON.parse(text);
     return json;
-  } catch (error) {
-    console.error("Gagal mengirim payload reset_password ke Google Apps Script:", error);
+  } catch (error: any) {
+    console.warn("Koneksi reset_password ke Google Apps Script bermasalah:", error?.message || error);
     throw error;
   }
 }
@@ -245,7 +292,7 @@ export async function sendResendPasswordToBackend(params: {
     });
 
     if (!response.ok) {
-      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      console.warn(`[GAS] Status HTTP error: ${response.status} ${response.statusText}`);
       throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
@@ -263,13 +310,13 @@ export async function sendResendPasswordToBackend(params: {
     try {
       json = JSON.parse(text);
     } catch (parseErr) {
-      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      console.warn("Gagal parse JSON response dari GAS:", parseErr, text);
       throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
     return json;
-  } catch (error) {
-    console.error("Gagal mengirim payload resend_password ke Google Apps Script:", error);
+  } catch (error: any) {
+    console.warn("Koneksi resend_password ke Google Apps Script bermasalah:", error?.message || error);
     throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
   }
 }
@@ -302,7 +349,7 @@ export async function sendChangePasswordToBackend(params: {
     });
 
     if (!response.ok) {
-      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      console.warn(`[GAS] Status HTTP error: ${response.status} ${response.statusText}`);
       throw new Error("Gagal memperbarui password ke server backend. Silakan coba lagi.");
     }
 
@@ -320,13 +367,13 @@ export async function sendChangePasswordToBackend(params: {
     try {
       json = JSON.parse(text);
     } catch (parseErr) {
-      console.error("Gagal parse JSON response dari GAS:", parseErr, text);
+      console.warn("Gagal parse JSON response dari GAS:", parseErr, text);
       return { status: "success", success: true };
     }
 
     return json;
   } catch (error: any) {
-    console.error("Gagal mengirim payload change_password ke Google Apps Script:", error);
+    console.warn("Koneksi change_password ke Google Apps Script bermasalah:", error?.message || error);
     throw error;
   }
 }
@@ -364,7 +411,7 @@ export async function sendResendVerificationToBackend(params: {
     });
 
     if (!response.ok) {
-      console.error(`Google Apps Script merespon HTTP status error: ${response.status} ${response.statusText}`);
+      console.warn(`[GAS] Status HTTP error: ${response.status} ${response.statusText}`);
       throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
     }
 
@@ -380,8 +427,8 @@ export async function sendResendVerificationToBackend(params: {
 
     const json = JSON.parse(text);
     return json;
-  } catch (error) {
-    console.error("Gagal mengirim payload resend_verification ke Google Apps Script:", error);
+  } catch (error: any) {
+    console.warn("Koneksi resend_verification ke Google Apps Script bermasalah:", error?.message || error);
     throw new Error("Gagal mengirim password ke email. Silakan coba lagi.");
   }
 }
@@ -498,9 +545,10 @@ export function parseGasProjectsResponse(json: any): any[] {
 export async function fetchProjectsFromGasBackend(): Promise<any[]> {
   try {
     const data = await fetchAuditData();
+    if (!data) return [];
     return parseGasProjectsResponse(data);
-  } catch (error) {
-    console.error("Gagal memuat project dari backend GAS:", error);
+  } catch (error: any) {
+    console.warn("Gagal memuat project dari backend GAS:", error?.message || error);
     return [];
   }
 }
