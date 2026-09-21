@@ -41,6 +41,7 @@ import {
   cleanupDuplicates,
   getDeletedProjectKeys,
   getProjectCompositeKey,
+  overrideProjectLinkConfigs,
   ProjectLinkConfig
 } from '../data/dataSyncManager';
 
@@ -95,52 +96,54 @@ export default function GoogleSheetSyncModal({
   const meta = getSyncMetadata();
 
   // Load initial data on mount (useEffect):
-  // Saat halaman dimuat, lakukan GET ke URL backend di atas untuk menyinkronkan
-  // daftar project yang tersimpan di Google Sheets dengan UI aplikasi.
+  // Saat halaman dimuat, Wajib panggil fungsi doGet ke Google Apps Script terlebih dahulu.
+  // Jika data dari Apps Script berhasil diterima, langsung TIMPA (OVERRIDE) state afsProjects
+  // dan localStorage browser dengan data dari server tersebut. Jangan menggabungkan (merge) dengan data lokal lama.
   useEffect(() => {
     if (isOpen) {
       setSyncResult(null);
-      // Auto-cleanup any duplicate project configs or rows on open
-      cleanupDuplicates();
-      setProjectConfigs(getProjectLinkConfigs());
-
       let isMounted = true;
       setIsLoadingBackend(true);
 
+      // Panggil doGet ke Google Apps Script terlebih dahulu
       fetchProjectsFromGasBackend()
         .then((backendProjects) => {
           if (!isMounted) return;
           if (backendProjects && backendProjects.length > 0) {
-            const deletedKeys = getDeletedProjectKeys();
-
-            backendProjects.forEach(bp => {
-              const bpProj = bp.defaultProject || bp.project || bp.projectName;
-              const bpSite = bp.site || bp.siteName || 'HEAD OFFICE';
+            const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
+              const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+              const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
               const bpYear = bp.year ? String(bp.year).trim() : '';
-              const bpKey = getProjectCompositeKey(bpProj, bpSite, bpYear);
+              const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
 
-              if (!deletedKeys.has(bpKey) && !deletedKeys.has(bpProj)) {
-                saveProjectLinkConfig({
-                  id: bp.id || bpKey,
-                  projectName: bpProj,
-                  siteName: bpSite,
-                  year: bpYear || undefined,
-                  sheetUrl: bp.sheetUrl || '',
-                  rowCount: bp.rowCount,
-                  status: bp.sheetUrl ? 'synced' : 'pending',
-                  lastSyncedAt: bp.lastSyncedAt,
-                  defaultProject: bpProj,
-                  project: bpProj,
-                  site: bpSite
-                });
-              }
+              return {
+                id: bpKey,
+                projectName: bpProj,
+                siteName: bpSite,
+                year: bpYear || undefined,
+                sheetUrl: bp.sheetUrl || '',
+                rowCount: bp.rowCount || 0,
+                status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
+                lastSyncedAt: bp.lastSyncedAt || null,
+                defaultProject: bpProj,
+                project: bpProj,
+                site: bpSite
+              };
             });
 
+            // Langsung TIMPA (OVERRIDE) state dan localStorage tanpa merge
+            overrideProjectLinkConfigs(mappedConfigs);
+            setProjectConfigs(mappedConfigs);
+          } else {
+            // Jika backend kosong/offline, gunakan config yang ada
             setProjectConfigs(getProjectLinkConfigs());
           }
         })
         .catch((err) => {
           console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
+          if (isMounted) {
+            setProjectConfigs(getProjectLinkConfigs());
+          }
         })
         .finally(() => {
           if (isMounted) setIsLoadingBackend(false);
@@ -168,36 +171,36 @@ export default function GoogleSheetSyncModal({
     setProjectConfigs(getProjectLinkConfigs());
   };
 
-  // Manual refresh from backend GAS
+  // Manual refresh from backend GAS (Override state & localStorage)
   const handleRefreshFromBackend = async () => {
     setIsLoadingBackend(true);
     try {
       const backendProjects = await fetchProjectsFromGasBackend();
       if (backendProjects && backendProjects.length > 0) {
-        const deletedKeys = getDeletedProjectKeys();
-        backendProjects.forEach(bp => {
-          const bpProj = bp.defaultProject || bp.project || bp.projectName;
-          const bpSite = bp.site || bp.siteName || 'HEAD OFFICE';
+        const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
+          const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+          const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
           const bpYear = bp.year ? String(bp.year).trim() : '';
-          const bpKey = getProjectCompositeKey(bpProj, bpSite, bpYear);
+          const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
 
-          if (!deletedKeys.has(bpKey) && !deletedKeys.has(bpProj)) {
-            saveProjectLinkConfig({
-              id: bp.id || bpKey,
-              projectName: bpProj,
-              siteName: bpSite,
-              year: bpYear || undefined,
-              sheetUrl: bp.sheetUrl || '',
-              rowCount: bp.rowCount,
-              status: bp.sheetUrl ? 'synced' : 'pending',
-              lastSyncedAt: bp.lastSyncedAt,
-              defaultProject: bpProj,
-              project: bpProj,
-              site: bpSite
-            });
-          }
+          return {
+            id: bpKey,
+            projectName: bpProj,
+            siteName: bpSite,
+            year: bpYear || undefined,
+            sheetUrl: bp.sheetUrl || '',
+            rowCount: bp.rowCount || 0,
+            status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
+            lastSyncedAt: bp.lastSyncedAt || null,
+            defaultProject: bpProj,
+            project: bpProj,
+            site: bpSite
+          };
         });
-        setProjectConfigs(getProjectLinkConfigs());
+
+        // Langsung TIMPA (OVERRIDE) state dan localStorage dengan data dari Apps Script
+        overrideProjectLinkConfigs(mappedConfigs);
+        setProjectConfigs(mappedConfigs);
         onToast(`Berhasil memuat ${backendProjects.length} project dari Google Apps Script!`, 'success');
       } else {
         onToast('Daftar project di Google Apps Script sudah up-to-date', 'info');
@@ -408,6 +411,37 @@ export default function GoogleSheetSyncModal({
 
     for (const proj of projectsWithUrl) {
       await handleSyncSingleProject(proj);
+    }
+
+    // Auto-refresh dari backend GAS setelah semua project disinkronkan
+    try {
+      const refreshedProjects = await fetchProjectsFromGasBackend();
+      if (refreshedProjects && refreshedProjects.length > 0) {
+        const mappedConfigs: ProjectLinkConfig[] = refreshedProjects.map(bp => {
+          const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+          const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
+          const bpYear = bp.year ? String(bp.year).trim() : '';
+          const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
+
+          return {
+            id: bpKey,
+            projectName: bpProj,
+            siteName: bpSite,
+            year: bpYear || undefined,
+            sheetUrl: bp.sheetUrl || '',
+            rowCount: bp.rowCount || 0,
+            status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
+            lastSyncedAt: bp.lastSyncedAt || null,
+            defaultProject: bpProj,
+            project: bpProj,
+            site: bpSite
+          };
+        });
+        overrideProjectLinkConfigs(mappedConfigs);
+        setProjectConfigs(mappedConfigs);
+      }
+    } catch (err) {
+      console.warn('Auto-refresh backend setelah sync gagal:', err);
     }
 
     setIsSyncing(false);

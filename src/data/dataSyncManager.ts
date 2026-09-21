@@ -566,14 +566,11 @@ export async function syncWithServer(): Promise<boolean> {
     const { projectConfigs, customRows, deletedKeys, trendExclusions, snapshots } = json.state;
     let hasUpdated = false;
 
-    // Hydrate projectConfigs if present
+    // Hydrate projectConfigs if present - override with server global master data
     if (Array.isArray(projectConfigs) && projectConfigs.length > 0) {
-      const localConfigs = localStorage.getItem(STORAGE_KEY_PROJECT_LINKS);
-      if (!localConfigs) {
-        localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(projectConfigs));
-        inMemoryProjectConfigs = projectConfigs;
-        hasUpdated = true;
-      }
+      localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(projectConfigs));
+      inMemoryProjectConfigs = projectConfigs;
+      hasUpdated = true;
     }
 
     // Hydrate custom rows
@@ -654,6 +651,32 @@ function safeSaveProjectLinks(configs: ProjectLinkConfig[]): boolean {
   }
   pushStateToServer();
   return success;
+}
+
+// Override all project link configs directly with server/GAS backend data (Global Master Data)
+export function overrideProjectLinkConfigs(newConfigs: ProjectLinkConfig[]): boolean {
+  try {
+    const deduped = deduplicateProjectConfigs(newConfigs);
+    inMemoryProjectConfigs = deduped;
+    localStorage.removeItem(STORAGE_KEY_DELETED_PROJECTS);
+    try {
+      localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+    } catch (e) {
+      console.warn('Quota exceeded when saving project links during override. Attempting storage cleanup...', e);
+      try {
+        localStorage.removeItem(STORAGE_KEY_META);
+        localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+      } catch (err) {
+        console.error('Critical failure during overrideProjectLinkConfigs:', err);
+      }
+    }
+    pushStateToServer();
+    window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: deduped }));
+    return true;
+  } catch (err) {
+    console.error('Error in overrideProjectLinkConfigs:', err);
+    return false;
+  }
 }
 
 // Helper to generate composite unique key for project + site + optional year
