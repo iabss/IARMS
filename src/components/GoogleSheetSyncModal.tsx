@@ -52,6 +52,8 @@ interface GoogleSheetSyncModalProps {
   onToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   onSyncComplete?: (rowsCount: number) => void;
   onNavigateToAFS?: () => void;
+  initialAfsProjects?: ProjectLinkConfig[];
+  onAfsProjectsChange?: (projects: ProjectLinkConfig[]) => void;
 }
 
 export default function GoogleSheetSyncModal({
@@ -60,12 +62,22 @@ export default function GoogleSheetSyncModal({
   onClose,
   onToast,
   onSyncComplete,
-  onNavigateToAFS
+  onNavigateToAFS,
+  initialAfsProjects,
+  onAfsProjectsChange
 }: GoogleSheetSyncModalProps) {
   const [activeTab, setActiveTab] = useState<'projects' | 'url' | 'paste' | 'file'>('projects');
   
-  // Per-project link configs
-  const [projectConfigs, setProjectConfigs] = useState<ProjectLinkConfig[]>([]);
+  // State AFS Projects (FORCE OVERRIDE SERVER DATA)
+  const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(initialAfsProjects || []);
+  const projectConfigs = afsProjects;
+  const setProjectConfigs = (updater: ProjectLinkConfig[] | ((prev: ProjectLinkConfig[]) => ProjectLinkConfig[])) => {
+    setAfsProjects(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (onAfsProjectsChange) onAfsProjectsChange(next);
+      return next;
+    });
+  };
   const [syncingProjects, setSyncingProjects] = useState<Record<string, boolean>>({});
   const [isLoadingBackend, setIsLoadingBackend] = useState(false);
 
@@ -134,15 +146,23 @@ export default function GoogleSheetSyncModal({
             // Langsung TIMPA (OVERRIDE) state dan localStorage tanpa merge
             overrideProjectLinkConfigs(mappedConfigs);
             setProjectConfigs(mappedConfigs);
+            try {
+              localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
+            } catch (e) {}
+            if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
           } else {
-            // Jika backend kosong/offline, gunakan config yang ada
-            setProjectConfigs(getProjectLinkConfigs());
+            // Jika backend kosong/offline, gunakan config yang tersimpan di localStorage
+            const existing = getProjectLinkConfigs();
+            setProjectConfigs(existing);
+            if (onAfsProjectsChange) onAfsProjectsChange(existing);
           }
         })
         .catch((err) => {
           console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
           if (isMounted) {
-            setProjectConfigs(getProjectLinkConfigs());
+            const existing = getProjectLinkConfigs();
+            setProjectConfigs(existing);
+            if (onAfsProjectsChange) onAfsProjectsChange(existing);
           }
         })
         .finally(() => {
@@ -201,6 +221,10 @@ export default function GoogleSheetSyncModal({
         // Langsung TIMPA (OVERRIDE) state dan localStorage dengan data dari Apps Script
         overrideProjectLinkConfigs(mappedConfigs);
         setProjectConfigs(mappedConfigs);
+        try {
+          localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
+        } catch (e) {}
+        if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
         onToast(`Berhasil memuat ${backendProjects.length} project dari Google Apps Script!`, 'success');
       } else {
         onToast('Daftar project di Google Apps Script sudah up-to-date', 'info');
@@ -903,8 +927,23 @@ export default function GoogleSheetSyncModal({
 
               {/* Project Cards List */}
               <div className="space-y-3">
-                {projectConfigs.map((proj, idx) => {
-                  const isCurrentSyncing = syncingProjects[proj.projectName] || false;
+                {isLoadingBackend ? (
+                  <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-center">
+                    <div className="w-10 h-10 border-3 border-sky-200 border-t-sky-600 rounded-full animate-spin mb-3" />
+                    <p className="text-sm font-bold text-slate-800">Menyinkronkan Data AFS Project...</p>
+                    <p className="text-xs text-slate-500 mt-1">Mengambil data terbaru dari server Google Apps Script (doGet)...</p>
+                  </div>
+                ) : projectConfigs.length === 0 ? (
+                  <div className="p-8 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2">
+                    <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
+                    <p className="text-sm font-bold text-slate-700">Belum Ada AFS Project di Server</p>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Daftar project belum tersedia dari Google Apps Script. Tambahkan project baru melalui form di atas atau periksa koneksi backend Anda.
+                    </p>
+                  </div>
+                ) : (
+                  projectConfigs.map((proj, idx) => {
+                    const isCurrentSyncing = syncingProjects[proj.projectName] || false;
 
                   return (
                     <div 
@@ -1033,7 +1072,8 @@ export default function GoogleSheetSyncModal({
                       )}
                     </div>
                   );
-                })}
+                })
+              )}
               </div>
 
             </div>

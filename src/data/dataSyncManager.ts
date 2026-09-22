@@ -661,11 +661,13 @@ export function overrideProjectLinkConfigs(newConfigs: ProjectLinkConfig[]): boo
     localStorage.removeItem(STORAGE_KEY_DELETED_PROJECTS);
     try {
       localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+      localStorage.setItem('afsProjects', JSON.stringify(deduped));
     } catch (e) {
       console.warn('Quota exceeded when saving project links during override. Attempting storage cleanup...', e);
       try {
         localStorage.removeItem(STORAGE_KEY_META);
         localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+        localStorage.setItem('afsProjects', JSON.stringify(deduped));
       } catch (err) {
         console.error('Critical failure during overrideProjectLinkConfigs:', err);
       }
@@ -718,42 +720,19 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     }
   }
 
-  // 3. Fall back to standard defaults ONLY if no configs exist anywhere AND user never saved or deleted project links
-  if (configs.length === 0 && !hasSavedLinksInStorage && deletedKeys.size === 0) {
-    configs = [
-      {
-        projectName: 'PR-PAYMENT',
-        siteName: 'HEAD OFFICE',
-        sheetUrl: 'https://docs.google.com/spreadsheets/d/1EbW-jLKB93mRXgcPfLh8LGuzj-AiJA9uwdTj-Tjl3dE/edit?pli=1&gid=1675231303#gid=1675231303',
-        lastSyncedAt: new Date().toISOString(),
-        rowCount: 93,
-        status: 'synced'
-      },
-      {
-        projectName: 'AUDIT OPERASIONAL',
-        siteName: 'OPERATIONAL SITE',
-        sheetUrl: '',
-        lastSyncedAt: null,
-        rowCount: 0,
-        status: 'pending'
-      },
-      {
-        projectName: 'CLOSING PROJECT',
-        siteName: 'PROJECT SITE',
-        sheetUrl: '',
-        lastSyncedAt: null,
-        rowCount: 0,
-        status: 'pending'
-      },
-      {
-        projectName: 'INVESTIGASI',
-        siteName: 'HEAD OFFICE',
-        sheetUrl: '',
-        lastSyncedAt: null,
-        rowCount: 0,
-        status: 'pending'
+  // Also check afsProjects in localStorage
+  if (configs.length === 0) {
+    const rawAfs = localStorage.getItem('afsProjects');
+    if (rawAfs) {
+      try {
+        const parsed = JSON.parse(rawAfs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          configs = parsed;
+        }
+      } catch (err) {
+        console.error('Error reading afsProjects from localStorage:', err);
       }
-    ];
+    }
   }
 
   // Filter out any deleted configs
@@ -776,34 +755,8 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     id: c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)
   }));
 
-  // 4. Auto-discover projects ONLY if user has NOT configured custom project links
-  const currentMerged = getMergedSheetRows();
-  if (!hasSavedLinksInStorage) {
-    const existingKeys = new Set(configs.map(c => c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)));
-
-    currentMerged.forEach(r => {
-      const projName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
-      const siteName = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
-      const yearVal = r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '';
-      const compositeKey = getProjectCompositeKey(projName, siteName, yearVal);
-
-      if (projName && !existingKeys.has(compositeKey) && !deletedKeys.has(projName) && !deletedKeys.has(compositeKey)) {
-        existingKeys.add(compositeKey);
-        configs.push({
-          id: compositeKey,
-          projectName: projName,
-          siteName: siteName,
-          year: yearVal || undefined,
-          sheetUrl: '',
-          lastSyncedAt: new Date().toISOString(),
-          rowCount: 0,
-          status: 'synced'
-        });
-      }
-    });
-  }
-
   // Reconcile rowCount & status dynamically
+  const currentMerged = getMergedSheetRows();
   const reconciled = configs.map(c => {
     const targetProj = c.projectName.trim().toUpperCase();
     const targetSite = (c.siteName || '').trim().toUpperCase();

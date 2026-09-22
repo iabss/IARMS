@@ -9,17 +9,15 @@ export async function fetchAuditData(): Promise<any> {
       if (localJson && localJson.data) {
         return localJson.data;
       }
-      // Server returned null/offline gracefully
-      return null;
     }
   } catch {
-    // If local proxy is unavailable (e.g. static preview), proceed to direct fetch
+    // If local proxy is unavailable, proceed to direct fetch
   }
 
   // 2. Direct fetch with timeout & graceful fallback
   try {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
 
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       signal: controller?.signal
@@ -27,22 +25,30 @@ export async function fetchAuditData(): Promise<any> {
 
     if (timeoutId) clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      console.warn(`[GAS] Status ${response.status}: Google Apps Script tidak merespon valid.`);
-      return null;
+    if (response.ok) {
+      const text = await response.text();
+      if (text && !text.trim().startsWith('<')) {
+        return JSON.parse(text);
+      }
     }
-
-    const text = await response.text();
-    if (!text || text.trim().startsWith('<')) {
-      // Returned HTML error page or empty response
-      return null;
-    }
-
-    return JSON.parse(text);
   } catch (error: any) {
-    console.warn("Koneksi ke Google Apps Script backend sedang offline, menggunakan data lokal:", error?.message || error);
-    return null;
+    console.warn("Koneksi langsung ke Google Apps Script backend timeout/offline:", error?.message || error);
   }
+
+  // 3. Fallback to persisted server state if available
+  try {
+    const appStateRes = await fetch('/api/app-state');
+    if (appStateRes.ok) {
+      const appStateJson = await appStateRes.json();
+      if (appStateJson?.state?.projectConfigs && appStateJson.state.projectConfigs.length > 0) {
+        return { projects: appStateJson.state.projectConfigs };
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 export async function syncAuditData(payload: Record<string, any>): Promise<any> {
@@ -442,12 +448,13 @@ export function parseGasProjectsResponse(json: any): any[] {
 
   if (!json) return [];
 
-  // Direct array of projects if backend provides it
-  if (Array.isArray(json.projects)) {
-    return json.projects;
-  }
-
-  const rawList = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+  const rawList = Array.isArray(json.projects)
+    ? json.projects
+    : (Array.isArray(json.data) 
+        ? json.data 
+        : (Array.isArray(json.state?.projectConfigs) 
+            ? json.state.projectConfigs 
+            : (Array.isArray(json) ? json : [])));
 
   for (let i = 0; i < rawList.length; i++) {
     const item = rawList[i];
@@ -455,18 +462,18 @@ export function parseGasProjectsResponse(json: any): any[] {
 
     // Case 1: item is an object
     if (typeof item === 'object' && !Array.isArray(item)) {
-      const act = item.action || 'sync_sheet_url';
+      const act = item.action || (item.sheetUrl === 'DELETED' ? 'delete_project' : 'sync_sheet_url');
       const proj = (item.project || item.defaultProject || item.projectName || '').trim().toUpperCase();
       const site = (item.site || item.siteName || 'HEAD OFFICE').trim().toUpperCase();
       const year = item.year ? String(item.year).trim() : '';
       const key = `${proj}|${site}${year ? `|${year}` : ''}`;
 
-      if (act === 'delete_project') {
+      if (act === 'delete_project' || item.sheetUrl === 'DELETED') {
         deletedSet.add(key);
         deletedSet.add(proj);
         projectMap.delete(key);
       } else {
-        if (!deletedSet.has(key)) {
+        if (!deletedSet.has(key) && proj) {
           projectMap.set(key, {
             id: key,
             projectName: proj,
@@ -475,10 +482,10 @@ export function parseGasProjectsResponse(json: any): any[] {
             siteName: site,
             site: site,
             year: year || undefined,
-            sheetUrl: item.sheetUrl || '',
-            lastSyncedAt: item.timestamp || new Date().toISOString(),
-            status: item.sheetUrl ? 'synced' : 'pending',
-            rowCount: item.rowCount || item.count || 0
+            sheetUrl: item.sheetUrl && item.sheetUrl !== 'DELETED' ? item.sheetUrl : '',
+            lastSyncedAt: item.timestamp || item.lastSyncedAt || new Date().toISOString(),
+            status: item.sheetUrl && item.sheetUrl.trim() && item.sheetUrl !== 'DELETED' ? 'synced' : 'pending',
+            rowCount: Number(item.rowCount || item.count || 0)
           });
         }
       }
