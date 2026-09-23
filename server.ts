@@ -8,7 +8,7 @@ import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const STATE_FILE_PATH = path.join(process.cwd(), 'server_app_state.json');
 
 interface ServerAppState {
