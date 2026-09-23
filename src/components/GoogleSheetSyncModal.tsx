@@ -51,6 +51,7 @@ import {
   getMergedSheetRows,
   ProjectLinkConfig
 } from '../data/dataSyncManager';
+import { DEFAULT_DEV_AFS_PROJECTS } from '../data/defaultAfsProjects';
 
 interface GoogleSheetSyncModalProps {
   isOpen?: boolean;
@@ -80,7 +81,9 @@ export default function GoogleSheetSyncModal({
   // State AFS Projects (FORCE OVERRIDE SERVER DATA with Stale-While-Revalidate)
   const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(() => {
     if (initialAfsProjects && initialAfsProjects.length > 0) return initialAfsProjects;
-    return getProjectLinkConfigs();
+    const local = getProjectLinkConfigs();
+    if (local.length > 0) return local;
+    return DEFAULT_DEV_AFS_PROJECTS;
   });
 
   // Sync state if initialAfsProjects changes silently from parent background sync

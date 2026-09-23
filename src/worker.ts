@@ -91,49 +91,69 @@ export default {
         }
       }
 
-      // GET /api/afs-projects (Cloudflare Workers & KV Support)
+      // GET /api/afs-projects: Membaca array project AFS dari KV (IARMS_KV.get('afs_projects'))
       if (url.pathname === '/api/afs-projects' && request.method === 'GET') {
-        let state: any = null;
+        let projects: any[] = [];
+        let isFromKv = false;
+
         if (kv) {
           try {
-            const raw = await kv.get('app_state');
-            if (raw) state = JSON.parse(raw);
-          } catch {}
+            // 1. Prioritaskan pembacaan langsung dari KV key 'afs_projects'
+            const rawAfs = await kv.get('afs_projects');
+            if (rawAfs) {
+              const parsed = JSON.parse(rawAfs);
+              if (Array.isArray(parsed)) {
+                projects = parsed;
+                isFromKv = true;
+              }
+            }
+          } catch (e) {
+            console.warn('Gagal membaca afs_projects dari Cloudflare KV:', e);
+          }
+
+          // 2. Fallback membaca projectConfigs dari 'app_state' di KV jika key 'afs_projects' belum ada
+          if (projects.length === 0) {
+            try {
+              const rawState = await kv.get('app_state');
+              if (rawState) {
+                const parsedState = JSON.parse(rawState);
+                if (Array.isArray(parsedState?.projectConfigs) && parsedState.projectConfigs.length > 0) {
+                  projects = parsedState.projectConfigs;
+                  isFromKv = true;
+                }
+              }
+            } catch {}
+          }
         }
-        if (!state) state = inMemoryState;
 
-        const configs = Array.isArray(state?.projectConfigs) ? state.projectConfigs : [];
-        const deletedKeys = Array.isArray(state?.deletedKeys) ? new Set(state.deletedKeys.map((k: string) => k.trim().toUpperCase())) : new Set<string>();
-
-        const filtered = configs.filter((c: any) => {
-          const pName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
-          const pSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
-          const pYear = c.year ? String(c.year).trim() : '';
-          const pKey = (c.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`).toUpperCase();
-          if (deletedKeys.has(pKey) || deletedKeys.has(pName)) return false;
-          return true;
-        });
+        // 3. Fallback ke in-memory state jika berjalan di environment simulasi tanpa KV
+        if (projects.length === 0 && inMemoryState?.projectConfigs) {
+          projects = inMemoryState.projectConfigs;
+        }
 
         return new Response(
           JSON.stringify({
             success: true,
-            afs_projects: filtered,
-            projects: filtered,
-            total: filtered.length,
-            lastUpdated: state?.lastUpdated
+            afs_projects: projects,
+            projects: projects,
+            total: projects.length,
+            isEmpty: projects.length === 0,
+            storage: isFromKv ? 'Cloudflare KV (IARMS_KV)' : 'In-Memory State'
           }),
           { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
         );
       }
 
-      // POST /api/afs-projects (Save directly to Cloudflare KV / Server Master Database)
+      // POST /api/afs-projects: Menyimpan array project AFS baru ke KV (IARMS_KV.put('afs_projects', ...))
       if (url.pathname === '/api/afs-projects' && request.method === 'POST') {
         try {
           const body: any = await request.json();
           let currentState: any = inMemoryState || {};
           if (kv) {
-            const raw = await kv.get('app_state');
-            if (raw) currentState = JSON.parse(raw);
+            try {
+              const raw = await kv.get('app_state');
+              if (raw) currentState = JSON.parse(raw);
+            } catch {}
           }
 
           const rawProjects = Array.isArray(body)
@@ -142,6 +162,8 @@ export default {
 
           let configs = Array.isArray(currentState.projectConfigs) ? [...currentState.projectConfigs] : [];
           let deletedKeys = Array.isArray(currentState.deletedKeys) ? [...currentState.deletedKeys] : [];
+
+          const sanitizedList: any[] = [];
 
           for (const item of rawProjects) {
             if (!item) continue;
@@ -162,10 +184,12 @@ export default {
               site: targetSite,
               year: targetYear || undefined,
               sheetUrl: item.sheetUrl || '',
-              status: item.status || (item.sheetUrl && item.sheetUrl.trim() ? 'synced' : 'pending'),
+              status: item.sheetUrl && item.sheetUrl.trim() ? (item.status || 'synced') : (item.status || 'pending'),
               rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
               lastSyncedAt: item.lastSyncedAt || new Date().toISOString()
             };
+
+            sanitizedList.push(newConfigItem);
 
             const existingIndex = configs.findIndex((c: any) => {
               if (item.id && c.id && item.id === c.id) return true;
@@ -188,26 +212,31 @@ export default {
             }
           }
 
+          // Gunakan configs yang telah di-merge atau sanitizedList jika merupakan batch override
+          const finalProjects = configs.length > 0 ? configs : sanitizedList;
+
           const updatedState = {
             ...currentState,
-            projectConfigs: configs,
+            projectConfigs: finalProjects,
             deletedKeys,
             lastUpdated: new Date().toISOString()
           };
 
+          // Simpan secara permanen ke Cloudflare KV Namespace (IARMS_KV)
           if (kv) {
+            await kv.put('afs_projects', JSON.stringify(finalProjects));
             await kv.put('app_state', JSON.stringify(updatedState));
-            await kv.put('afs_projects', JSON.stringify(configs));
           }
           inMemoryState = updatedState;
 
           return new Response(
             JSON.stringify({
               success: true,
-              afs_projects: configs,
-              projects: configs,
-              total: configs.length,
-              state: updatedState
+              message: 'Daftar project AFS berhasil disimpan ke Cloudflare KV Storage (IARMS_KV)',
+              afs_projects: finalProjects,
+              projects: finalProjects,
+              total: finalProjects.length,
+              savedToKv: !!kv
             }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );

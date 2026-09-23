@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import GoogleSheetSyncModal from './GoogleSheetSyncModal';
-import { fetchProjects, fetchProjectsFromBackend } from '../services/api';
+import { 
+  fetchAfsProjectsFromServer,
+  fetchProjectsFromBackend,
+  saveAfsProjectsToServer
+} from '../services/api';
+import { DEFAULT_DEV_AFS_PROJECTS } from '../data/defaultAfsProjects';
 import { 
   hydrateServerState,
   getProjectLinkConfigs, 
@@ -18,87 +23,100 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
   // 1. INSTANT DISPLAY (UI Shell / Template di-render instan):
   // Mengambil cache sekunder localStorage agar antarmuka terbuka seketika tanpa jeda
   const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(() => {
-    return getProjectLinkConfigs();
+    const local = getProjectLinkConfigs();
+    if (local.length > 0) return local;
+    return DEFAULT_DEV_AFS_PROJECTS;
   });
 
   // 2. BACKGROUND FETCHING & SKELETON TRIGGER:
   // Selama background fetch aktif, skeleton loading ditampilkan HANYA di area kontainer tabel project
   const [isLoadingBackend, setIsLoadingBackend] = useState<boolean>(() => {
-    // Jika localStorage kosong (seperti saat pertama login di Incognito / HP baru), set loading true
     const local = getProjectLinkConfigs();
     return local.length === 0;
   });
 
   /**
-   * 2. FETCH DAFTAR PROJECT SAAT INITIAL LOAD / MOUNT:
-   * Membaca daftar project langsung dari API Server (GET /api/afs-projects).
-   * Jika localStorage kosong (seperti saat pertama login di Incognito/HP baru),
-   * secara otomatis panggil API Server tersebut untuk memuat daftar project AFS yang sudah didaftarkan sebelumnya.
+   * 2. INTEGRASI FRONTEND REACT (Cloudflare KV & Server-First):
+   * - Saat komponen AFS dimuat (mount), panggil GET /api/afs-projects.
+   * - Jika KV masih kosong, gunakan 11 project AFS yang ada di dev sebagai default data,
+   *   lalu kirimkan (POST) ke KV agar tersimpan secara permanen untuk semua user.
    */
   const loadProjectsFromServer = useCallback(async () => {
     setIsLoadingBackend(true);
     try {
-      // Panggil API Server GET /api/afs-projects (dengan fallback ke backend master)
-      const data = await fetchProjects();
+      // 1. Panggil GET /api/afs-projects (Membaca dari Cloudflare KV: IARMS_KV.get('afs_projects'))
+      let data = await fetchAfsProjectsFromServer();
+      let wasSeeded = false;
 
-      if (Array.isArray(data) && data.length > 0) {
-        // Map data agar sesuai dengan interface ProjectLinkConfig
-        const mapped: ProjectLinkConfig[] = data.map((item: any) => {
-          const pName = (item.projectName || item.project || item.defaultProject || '').trim().toUpperCase();
-          const pSite = (item.siteName || item.site || 'HEAD OFFICE').trim().toUpperCase();
-          const pYear = item.year ? String(item.year).trim() : '';
-          const pKey = item.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`;
+      // 2. Jika KV masih kosong, gunakan 11 project AFS yang ada di dev sebagai default data
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.log('Cloudflare KV kosong. Menggunakan 11 Project AFS dev dan menyimpan permanen ke KV...');
+        data = DEFAULT_DEV_AFS_PROJECTS;
+        wasSeeded = true;
 
-          return {
-            id: pKey,
-            projectName: pName,
-            defaultProject: pName,
-            project: pName,
-            siteName: pSite,
-            site: pSite,
-            year: pYear || undefined,
-            sheetUrl: item.sheetUrl || '',
-            status: item.sheetUrl && item.sheetUrl.trim() ? 'synced' : (item.status || 'pending'),
-            rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
-            lastSyncedAt: item.lastSyncedAt || null
-          };
-        });
+        // Kirimkan (POST) ke KV agar tersimpan secara permanen untuk semua user
+        try {
+          await fetch('/api/afs-projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ afs_projects: DEFAULT_DEV_AFS_PROJECTS })
+          });
+          // Dual sync ke backend master
+          saveAfsProjectsToServer(DEFAULT_DEV_AFS_PROJECTS).catch(() => {});
+        } catch (postErr) {
+          console.warn('Gagal menyimpan 11 project default ke Cloudflare KV:', postErr);
+        }
+      }
 
-        // 3. SINKRONISASI STATE TABEL:
-        // Langsung perbarui state React (setAfsProjects(data)) agar tabel langsung terisi otomatis
-        setAfsProjects(mapped);
+      // Map data agar sesuai dengan interface ProjectLinkConfig
+      const mapped: ProjectLinkConfig[] = data.map((item: any) => {
+        const pName = (item.projectName || item.project || item.defaultProject || '').trim().toUpperCase();
+        const pSite = (item.siteName || item.site || 'HEAD OFFICE').trim().toUpperCase();
+        const pYear = item.year ? String(item.year).trim() : '';
+        const pKey = item.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`;
 
-        // Update localStorage dan memory state
-        overrideProjectLinkConfigs(mapped);
+        return {
+          id: pKey,
+          projectName: pName,
+          defaultProject: pName,
+          project: pName,
+          siteName: pSite,
+          site: pSite,
+          year: pYear || undefined,
+          sheetUrl: item.sheetUrl || '',
+          status: item.sheetUrl && item.sheetUrl.trim() ? (item.status || 'synced') : (item.status || 'pending'),
+          rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
+          lastSyncedAt: item.lastSyncedAt || null
+        };
+      });
 
-        // Juga panggil hydrate lengkap jika ada temuan customRows dari backend master
-        fetchProjectsFromBackend().then(backendResult => {
-          if (backendResult?.customRows && backendResult.customRows.length > 0) {
-            hydrateServerState({
-              projects: mapped,
-              customRows: backendResult.customRows,
-              deletedKeys: backendResult.deletedKeys
-            });
-          }
-        }).catch(() => {});
-      } else {
-        // Jika /api/afs-projects belum terisi, coba dari master backend
-        const backendResult = await fetchProjectsFromBackend();
-        if (backendResult && backendResult.projects && backendResult.projects.length > 0) {
-          const hydrated = hydrateServerState({
-            projects: backendResult.projects,
+      // 3. SINKRONISASI STATE TABEL:
+      // Langsung perbarui state React (setAfsProjects(data)) agar tabel terisi otomatis
+      setAfsProjects(mapped);
+
+      // Simpan ke memory state & localStorage
+      overrideProjectLinkConfigs(mapped);
+
+      if (wasSeeded) {
+        onToast('Daftar 11 Project AFS dev berhasil disimpan ke Cloudflare KV Storage!', 'success');
+      }
+
+      // Periksa temuan customRows dari backend master untuk data temuan
+      fetchProjectsFromBackend().then(backendResult => {
+        if (backendResult?.customRows && backendResult.customRows.length > 0) {
+          hydrateServerState({
+            projects: mapped,
             customRows: backendResult.customRows,
             deletedKeys: backendResult.deletedKeys
           });
-          setAfsProjects(hydrated.projects);
         }
-      }
+      }).catch(() => {});
     } catch (err) {
-      console.warn('Gagal memuat daftar project dari API Server (/api/afs-projects):', err);
+      console.warn('Gagal memuat daftar project dari Cloudflare KV (/api/afs-projects):', err);
     } finally {
       setIsLoadingBackend(false);
     }
-  }, []);
+  }, [onToast]);
 
   // Jalankan saat initial mount
   useEffect(() => {

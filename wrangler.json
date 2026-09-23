@@ -11,6 +11,12 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "kv_namespaces": [
+    {
+      "binding": "IARMS_KV",
+      "id": "iarms_kv_namespace"
+    }
+  ],
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,

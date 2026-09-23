@@ -1,3 +1,5 @@
+import { DEFAULT_DEV_AFS_PROJECTS } from '../data/defaultAfsProjects';
+
 export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
 
 export async function fetchAuditData(): Promise<any> {
@@ -800,7 +802,7 @@ export async function fetchAfsProjectsFromServer(): Promise<any[]> {
     if (res.ok) {
       const json = await res.json();
       const list = json.afs_projects || json.projects || (Array.isArray(json) ? json : null);
-      if (Array.isArray(list) && list.length > 0) {
+      if (Array.isArray(list)) {
         return list;
       }
     }
@@ -811,29 +813,62 @@ export async function fetchAfsProjectsFromServer(): Promise<any[]> {
 }
 
 /**
- * Primary fetchProjects function:
- * 1. Checks GET /api/afs-projects directly
- * 2. Falls back to fetchProjectsFromBackend() (/api/app-state + GAS)
+ * Fetch project configurations from Cloudflare KV / Server.
+ * If KV / Server database is empty, automatically seeds with the 11 default
+ * AFS projects from dev via POST /api/afs-projects so they are permanently stored
+ * for all users across devices.
  */
-export async function fetchProjects(): Promise<any[]> {
-  // 1. Direct Server Master call (GET /api/afs-projects)
+export async function fetchAndSeedAfsProjects(): Promise<{ projects: any[]; wasSeeded: boolean }> {
+  // 1. Direct Server / Cloudflare KV call (GET /api/afs-projects)
   try {
-    const serverProjects = await fetchAfsProjectsFromServer();
-    if (Array.isArray(serverProjects) && serverProjects.length > 0) {
-      return serverProjects;
+    const res = await fetch('/api/afs-projects');
+    if (res.ok) {
+      const json = await res.json();
+      const list = json.afs_projects || json.projects || [];
+      if (Array.isArray(list) && list.length > 0) {
+        return { projects: list, wasSeeded: false };
+      }
     }
   } catch (e) {
-    console.warn('Direct fetch from /api/afs-projects failed, attempting fallback...', e);
+    console.warn('Gagal memanggil GET /api/afs-projects:', e);
   }
 
-  // 2. Comprehensive fallback (fetchProjectsFromBackend)
+  // 2. Check GAS backend fallback before seeding
   try {
     const backendResult = await fetchProjectsFromBackend();
-    return backendResult.projects || [];
-  } catch (e) {
-    console.warn('Comprehensive backend fetch failed:', e);
-    return [];
+    if (backendResult?.projects && backendResult.projects.length > 0) {
+      // Simpan project yang ditemukan ke Cloudflare KV
+      await saveAfsProjectsToServer(backendResult.projects).catch(() => {});
+      return { projects: backendResult.projects, wasSeeded: false };
+    }
+  } catch (e) {}
+
+  // 3. Database / Cloudflare KV masih kosong! Gunakan 11 Project AFS dev sebagai default data
+  console.log('Cloudflare KV / Database kosong. Melakukan inisialisasi dengan 11 Project AFS dev...');
+  try {
+    // Kirimkan (POST) ke KV agar tersimpan secara permanen untuk semua user
+    await fetch('/api/afs-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ afs_projects: DEFAULT_DEV_AFS_PROJECTS })
+    });
+    saveAfsProjectsToServer(DEFAULT_DEV_AFS_PROJECTS).catch(() => {});
+  } catch (err) {
+    console.warn('Gagal melakukan seed 11 project ke Cloudflare KV:', err);
   }
+
+  return { projects: DEFAULT_DEV_AFS_PROJECTS, wasSeeded: true };
+}
+
+/**
+ * Primary fetchProjects function:
+ * 1. Checks GET /api/afs-projects directly
+ * 2. If empty, automatically seeds with the 11 dev projects into KV
+ * 3. Falls back to fetchProjectsFromBackend() (/api/app-state + GAS)
+ */
+export async function fetchProjects(): Promise<any[]> {
+  const result = await fetchAndSeedAfsProjects();
+  return result.projects;
 }
 
 /**

@@ -505,6 +505,7 @@ app.get('/api/afs-projects', (req, res) => {
       afs_projects: filtered,
       projects: filtered,
       total: filtered.length,
+      isEmpty: filtered.length === 0,
       lastUpdated: current.lastUpdated
     });
   } catch (err: any) {
