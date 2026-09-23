@@ -483,6 +483,106 @@ app.post('/api/app-state', (req, res) => {
   }
 });
 
+// API Get AFS Projects List (Server Master Database)
+app.get('/api/afs-projects', (req, res) => {
+  try {
+    const current = loadServerState();
+    const configs = Array.isArray(current.projectConfigs) ? current.projectConfigs : [];
+    const deletedKeys = Array.isArray(current.deletedKeys) ? new Set(current.deletedKeys.map((k: string) => k.trim().toUpperCase())) : new Set<string>();
+
+    const filtered = configs.filter((c: any) => {
+      const pName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+      const pSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+      const pYear = c.year ? String(c.year).trim() : '';
+      const pKey = (c.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`).toUpperCase();
+
+      if (deletedKeys.has(pKey) || deletedKeys.has(pName)) return false;
+      return true;
+    });
+
+    return res.json({
+      success: true,
+      afs_projects: filtered,
+      projects: filtered,
+      total: filtered.length,
+      lastUpdated: current.lastUpdated
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, afs_projects: [], projects: [] });
+  }
+});
+
+// API Save / Update AFS Projects List to Server Master Database
+app.post('/api/afs-projects', (req, res) => {
+  try {
+    const current = loadServerState();
+    const body = req.body;
+    const rawProjects = Array.isArray(body)
+      ? body
+      : (Array.isArray(body.afs_projects) ? body.afs_projects : (Array.isArray(body.projects) ? body.projects : [body]));
+
+    let configs = Array.isArray(current.projectConfigs) ? [...current.projectConfigs] : [];
+    let deletedKeys = Array.isArray(current.deletedKeys) ? [...current.deletedKeys] : [];
+
+    for (const item of rawProjects) {
+      if (!item) continue;
+      const targetName = (item.projectName || item.project || item.defaultProject || '').trim().toUpperCase();
+      if (!targetName) continue;
+      const targetSite = (item.siteName || item.site || 'HEAD OFFICE').trim().toUpperCase();
+      const targetYear = item.year ? String(item.year).trim() : '';
+      const targetKey = item.id || `${targetName}|${targetSite}${targetYear ? `|${targetYear}` : ''}`;
+
+      // Remove from deletedKeys
+      deletedKeys = deletedKeys.filter(k => k !== targetKey && k !== targetName);
+
+      const newConfigItem = {
+        id: targetKey,
+        projectName: targetName,
+        defaultProject: targetName,
+        project: targetName,
+        siteName: targetSite,
+        site: targetSite,
+        year: targetYear || undefined,
+        sheetUrl: item.sheetUrl || '',
+        status: item.status || (item.sheetUrl && item.sheetUrl.trim() ? 'synced' : 'pending'),
+        rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
+        lastSyncedAt: item.lastSyncedAt || new Date().toISOString()
+      };
+
+      const existingIndex = configs.findIndex(c => {
+        if (item.id && c.id && item.id === c.id) return true;
+        const cName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+        const cSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+        const cYear = c.year ? String(c.year).trim() : '';
+        const cKey = c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ''}`;
+        return cKey === targetKey;
+      });
+
+      if (existingIndex >= 0) {
+        configs[existingIndex] = {
+          ...configs[existingIndex],
+          ...newConfigItem,
+          rowCount: item.rowCount !== undefined ? Number(item.rowCount) : configs[existingIndex].rowCount,
+          lastSyncedAt: item.lastSyncedAt || configs[existingIndex].lastSyncedAt || new Date().toISOString()
+        };
+      } else {
+        configs.push(newConfigItem);
+      }
+    }
+
+    const updated = saveServerState({ projectConfigs: configs, deletedKeys });
+    return res.json({
+      success: true,
+      afs_projects: updated.projectConfigs,
+      projects: updated.projectConfigs,
+      total: updated.projectConfigs?.length || 0,
+      state: updated
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // API Centralized Save / Update Project Link Configuration
 app.post('/api/save-project', (req, res) => {
   try {

@@ -176,6 +176,12 @@ export async function saveProjectToBackend(item: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    // Also post to /api/afs-projects
+    await fetch('/api/afs-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ afs_projects: [payload] })
+    });
   } catch (err) {
     console.warn("Gagal simpan project ke /api/save-project:", err);
   }
@@ -188,6 +194,58 @@ export async function saveProjectToBackend(item: {
   }
 
   return { status: "success", success: true, project: payload };
+}
+
+/**
+ * Save full list of AFS projects directly to Centralized Server Master Database (Cloudflare KV / Express)
+ * and Google Apps Script Backend
+ */
+export async function saveAfsProjectsToServer(projects: any[]): Promise<any> {
+  if (!Array.isArray(projects)) return { status: "error", success: false };
+
+  const sanitized = projects.map(item => {
+    const pName = (item.projectName || item.defaultProject || item.project || "").trim().toUpperCase();
+    const pSite = (item.siteName || item.site || "HEAD OFFICE").trim().toUpperCase();
+    const pYear = item.year ? String(item.year).trim() : "";
+    const pKey = item.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ""}`;
+
+    return {
+      id: pKey,
+      projectName: pName,
+      defaultProject: pName,
+      project: pName,
+      siteName: pSite,
+      site: pSite,
+      year: pYear || undefined,
+      sheetUrl: item.sheetUrl || "",
+      status: item.status || (item.sheetUrl && item.sheetUrl.trim() ? "synced" : "pending"),
+      rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
+      lastSyncedAt: item.lastSyncedAt || new Date().toISOString()
+    };
+  });
+
+  // 1. Send to /api/afs-projects (Server / Cloudflare KV)
+  try {
+    await fetch('/api/afs-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ afs_projects: sanitized })
+    });
+  } catch (err) {
+    console.warn("Gagal kirim afs_projects ke /api/afs-projects:", err);
+  }
+
+  // 2. Send to Google Apps Script backend
+  try {
+    await syncAuditData({
+      action: "sync_projects_list",
+      projects: sanitized
+    });
+  } catch (err) {
+    console.warn("Gagal sync daftar project ke Google Apps Script:", err);
+  }
+
+  return { status: "success", success: true, count: sanitized.length };
 }
 
 /**
@@ -728,6 +786,52 @@ export async function fetchProjectsFromGasBackend(): Promise<any[]> {
     return result.projects;
   } catch (error: any) {
     console.warn("Gagal memuat project dari backend GAS:", error?.message || error);
+    return [];
+  }
+}
+
+/**
+ * Fetch AFS Projects directly from API Server (GET /api/afs-projects)
+ * Reads project links directly from the server master database (Cloudflare KV / Express)
+ */
+export async function fetchAfsProjectsFromServer(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/afs-projects');
+    if (res.ok) {
+      const json = await res.json();
+      const list = json.afs_projects || json.projects || (Array.isArray(json) ? json : null);
+      if (Array.isArray(list) && list.length > 0) {
+        return list;
+      }
+    }
+  } catch (err: any) {
+    console.warn('Gagal membaca /api/afs-projects:', err?.message || err);
+  }
+  return [];
+}
+
+/**
+ * Primary fetchProjects function:
+ * 1. Checks GET /api/afs-projects directly
+ * 2. Falls back to fetchProjectsFromBackend() (/api/app-state + GAS)
+ */
+export async function fetchProjects(): Promise<any[]> {
+  // 1. Direct Server Master call (GET /api/afs-projects)
+  try {
+    const serverProjects = await fetchAfsProjectsFromServer();
+    if (Array.isArray(serverProjects) && serverProjects.length > 0) {
+      return serverProjects;
+    }
+  } catch (e) {
+    console.warn('Direct fetch from /api/afs-projects failed, attempting fallback...', e);
+  }
+
+  // 2. Comprehensive fallback (fetchProjectsFromBackend)
+  try {
+    const backendResult = await fetchProjectsFromBackend();
+    return backendResult.projects || [];
+  } catch (e) {
+    console.warn('Comprehensive backend fetch failed:', e);
     return [];
   }
 }

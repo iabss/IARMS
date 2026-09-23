@@ -91,6 +91,134 @@ export default {
         }
       }
 
+      // GET /api/afs-projects (Cloudflare Workers & KV Support)
+      if (url.pathname === '/api/afs-projects' && request.method === 'GET') {
+        let state: any = null;
+        if (kv) {
+          try {
+            const raw = await kv.get('app_state');
+            if (raw) state = JSON.parse(raw);
+          } catch {}
+        }
+        if (!state) state = inMemoryState;
+
+        const configs = Array.isArray(state?.projectConfigs) ? state.projectConfigs : [];
+        const deletedKeys = Array.isArray(state?.deletedKeys) ? new Set(state.deletedKeys.map((k: string) => k.trim().toUpperCase())) : new Set<string>();
+
+        const filtered = configs.filter((c: any) => {
+          const pName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+          const pSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+          const pYear = c.year ? String(c.year).trim() : '';
+          const pKey = (c.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`).toUpperCase();
+          if (deletedKeys.has(pKey) || deletedKeys.has(pName)) return false;
+          return true;
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            afs_projects: filtered,
+            projects: filtered,
+            total: filtered.length,
+            lastUpdated: state?.lastUpdated
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+        );
+      }
+
+      // POST /api/afs-projects (Save directly to Cloudflare KV / Server Master Database)
+      if (url.pathname === '/api/afs-projects' && request.method === 'POST') {
+        try {
+          const body: any = await request.json();
+          let currentState: any = inMemoryState || {};
+          if (kv) {
+            const raw = await kv.get('app_state');
+            if (raw) currentState = JSON.parse(raw);
+          }
+
+          const rawProjects = Array.isArray(body)
+            ? body
+            : (Array.isArray(body.afs_projects) ? body.afs_projects : (Array.isArray(body.projects) ? body.projects : [body]));
+
+          let configs = Array.isArray(currentState.projectConfigs) ? [...currentState.projectConfigs] : [];
+          let deletedKeys = Array.isArray(currentState.deletedKeys) ? [...currentState.deletedKeys] : [];
+
+          for (const item of rawProjects) {
+            if (!item) continue;
+            const targetName = (item.projectName || item.project || item.defaultProject || '').trim().toUpperCase();
+            if (!targetName) continue;
+            const targetSite = (item.siteName || item.site || 'HEAD OFFICE').trim().toUpperCase();
+            const targetYear = item.year ? String(item.year).trim() : '';
+            const targetKey = item.id || `${targetName}|${targetSite}${targetYear ? `|${targetYear}` : ''}`;
+
+            deletedKeys = deletedKeys.filter(k => k !== targetKey && k !== targetName);
+
+            const newConfigItem = {
+              id: targetKey,
+              projectName: targetName,
+              defaultProject: targetName,
+              project: targetName,
+              siteName: targetSite,
+              site: targetSite,
+              year: targetYear || undefined,
+              sheetUrl: item.sheetUrl || '',
+              status: item.status || (item.sheetUrl && item.sheetUrl.trim() ? 'synced' : 'pending'),
+              rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
+              lastSyncedAt: item.lastSyncedAt || new Date().toISOString()
+            };
+
+            const existingIndex = configs.findIndex((c: any) => {
+              if (item.id && c.id && item.id === c.id) return true;
+              const cName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+              const cSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+              const cYear = c.year ? String(c.year).trim() : '';
+              const cKey = c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ''}`;
+              return cKey === targetKey;
+            });
+
+            if (existingIndex >= 0) {
+              configs[existingIndex] = {
+                ...configs[existingIndex],
+                ...newConfigItem,
+                rowCount: item.rowCount !== undefined ? Number(item.rowCount) : configs[existingIndex].rowCount,
+                lastSyncedAt: item.lastSyncedAt || configs[existingIndex].lastSyncedAt || new Date().toISOString()
+              };
+            } else {
+              configs.push(newConfigItem);
+            }
+          }
+
+          const updatedState = {
+            ...currentState,
+            projectConfigs: configs,
+            deletedKeys,
+            lastUpdated: new Date().toISOString()
+          };
+
+          if (kv) {
+            await kv.put('app_state', JSON.stringify(updatedState));
+            await kv.put('afs_projects', JSON.stringify(configs));
+          }
+          inMemoryState = updatedState;
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              afs_projects: configs,
+              projects: configs,
+              total: configs.length,
+              state: updatedState
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+          );
+        } catch (err: any) {
+          return new Response(
+            JSON.stringify({ success: false, error: err.message }),
+            { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+          );
+        }
+      }
+
       // POST /api/save-project
       if (url.pathname === '/api/save-project' && request.method === 'POST') {
         try {

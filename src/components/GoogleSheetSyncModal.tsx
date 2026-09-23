@@ -25,9 +25,11 @@ import {
   GOOGLE_SCRIPT_URL,
   syncAuditData, 
   fetchCsvFromGoogleSheet, 
+  fetchProjects,
   fetchProjectsFromBackend,
   fetchProjectsFromGasBackend,
   saveProjectToBackend,
+  saveAfsProjectsToServer,
   deleteProjectFromBackend,
   syncSheetUrlToBackend
 } from '../services/api';
@@ -137,9 +139,39 @@ export default function GoogleSheetSyncModal({
       if (!initialAfsProjects || initialAfsProjects.length === 0) {
         setIsLoadingBackend(true);
 
-        fetchProjectsFromBackend()
-          .then((backendResult) => {
+        fetchProjects()
+          .then(async (projects) => {
             if (!isMounted) return;
+            if (Array.isArray(projects) && projects.length > 0) {
+              const mapped: ProjectLinkConfig[] = projects.map((bp: any) => {
+                const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+                const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
+                const bpYear = bp.year ? String(bp.year).trim() : '';
+                const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
+
+                return {
+                  id: bpKey,
+                  projectName: bpProj,
+                  siteName: bpSite,
+                  year: bpYear || undefined,
+                  sheetUrl: bp.sheetUrl || '',
+                  rowCount: bp.rowCount || 0,
+                  status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : (bp.status || 'pending'),
+                  lastSyncedAt: bp.lastSyncedAt || null,
+                  defaultProject: bpProj,
+                  project: bpProj,
+                  site: bpSite
+                };
+              });
+
+              overrideProjectLinkConfigs(mapped);
+              setProjectConfigs(mapped);
+              setAfsProjects(mapped);
+              if (onAfsProjectsChange) onAfsProjectsChange(mapped);
+            }
+
+            // Also check full server state for customRows
+            const backendResult = await fetchProjectsFromBackend();
             if (backendResult && (
               (backendResult.projects && backendResult.projects.length > 0) ||
               (backendResult.customRows && backendResult.customRows.length > 0)
@@ -150,6 +182,7 @@ export default function GoogleSheetSyncModal({
                 deletedKeys: backendResult.deletedKeys
               });
               setProjectConfigs(hydrated.projects);
+              setAfsProjects(hydrated.projects);
               setAvailableDataCount(hydrated.rowCount);
               setDataSyncMeta(getSyncMetadata());
               if (onAfsProjectsChange) onAfsProjectsChange(hydrated.projects);
@@ -196,9 +229,9 @@ export default function GoogleSheetSyncModal({
   const handleRefreshFromBackend = async () => {
     setIsLoadingBackend(true);
     try {
-      const backendProjects = await fetchProjectsFromGasBackend();
+      const backendProjects = await fetchProjects();
       if (backendProjects && backendProjects.length > 0) {
-        const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
+        const mappedConfigs: ProjectLinkConfig[] = backendProjects.map((bp: any) => {
           const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
           const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
           const bpYear = bp.year ? String(bp.year).trim() : '';
@@ -211,7 +244,7 @@ export default function GoogleSheetSyncModal({
             year: bpYear || undefined,
             sheetUrl: bp.sheetUrl || '',
             rowCount: bp.rowCount || 0,
-            status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
+            status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : (bp.status || 'pending'),
             lastSyncedAt: bp.lastSyncedAt || null,
             defaultProject: bpProj,
             project: bpProj,
@@ -219,16 +252,18 @@ export default function GoogleSheetSyncModal({
           };
         });
 
-        // Langsung TIMPA (OVERRIDE) state dan localStorage dengan data dari Apps Script
+        // Langsung TIMPA (OVERRIDE) state dan localStorage dengan data dari Server Master & Apps Script
         overrideProjectLinkConfigs(mappedConfigs);
         setProjectConfigs(mappedConfigs);
+        setAfsProjects(mappedConfigs);
         try {
           localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
+          localStorage.setItem('afs_projects', JSON.stringify(mappedConfigs));
         } catch (e) {}
         if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
-        onToast(`Berhasil memuat ${backendProjects.length} project dari Google Apps Script!`, 'success');
+        onToast(`Berhasil memuat ${backendProjects.length} project dari Server Master Database!`, 'success');
       } else {
-        onToast('Daftar project di Google Apps Script sudah up-to-date', 'info');
+        onToast('Daftar project di Server sudah up-to-date', 'info');
       }
     } catch (e: any) {
       onToast(`Gagal memuat project dari backend: ${e.message}`, 'error');
@@ -407,6 +442,8 @@ export default function GoogleSheetSyncModal({
         };
         saveProjectLinkConfig(pendingConfig);
         saveProjectToBackend(pendingConfig);
+        const currentList = getProjectLinkConfigs();
+        saveAfsProjectsToServer(currentList);
         refreshProjectConfigs();
         onToast(`Link ${projName} (${siteToSync}) berhasil disinkronkan ke backend!`, 'success');
       }
@@ -422,6 +459,8 @@ export default function GoogleSheetSyncModal({
         status: isPrivate ? 'private' : 'error',
         errorMessage: err.message || 'Gagal sinkronisasi'
       });
+      const currentList = getProjectLinkConfigs();
+      saveAfsProjectsToServer(currentList);
       refreshProjectConfigs();
       onToast(isPrivate ? `Google Sheet ${projName} privat/terkunci` : `Gagal: ${err.message}`, 'error');
     } finally {
@@ -446,9 +485,9 @@ export default function GoogleSheetSyncModal({
 
     // Auto-refresh dari backend GAS setelah semua project disinkronkan
     try {
-      const refreshedProjects = await fetchProjectsFromGasBackend();
+      const refreshedProjects = await fetchProjects();
       if (refreshedProjects && refreshedProjects.length > 0) {
-        const mappedConfigs: ProjectLinkConfig[] = refreshedProjects.map(bp => {
+        const mappedConfigs: ProjectLinkConfig[] = refreshedProjects.map((bp: any) => {
           const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
           const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
           const bpYear = bp.year ? String(bp.year).trim() : '';
@@ -470,6 +509,7 @@ export default function GoogleSheetSyncModal({
         });
         overrideProjectLinkConfigs(mappedConfigs);
         setProjectConfigs(mappedConfigs);
+        saveAfsProjectsToServer(mappedConfigs);
       }
     } catch (err) {
       console.warn('Auto-refresh backend setelah sync gagal:', err);
@@ -488,6 +528,8 @@ export default function GoogleSheetSyncModal({
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
+    const currentList = getProjectLinkConfigs();
+    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
@@ -501,6 +543,8 @@ export default function GoogleSheetSyncModal({
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
+    const currentList = getProjectLinkConfigs();
+    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
@@ -513,6 +557,8 @@ export default function GoogleSheetSyncModal({
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
+    const currentList = getProjectLinkConfigs();
+    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
@@ -543,6 +589,8 @@ export default function GoogleSheetSyncModal({
 
     saveProjectLinkConfig(newConfig);
     saveProjectToBackend(newConfig);
+    const currentList = getProjectLinkConfigs();
+    saveAfsProjectsToServer(currentList);
 
     setNewProjectName('');
     setNewProjectSite('HEAD OFFICE');
@@ -582,6 +630,8 @@ export default function GoogleSheetSyncModal({
       deleteProjectLinkConfigById(item.id);
     }
     deleteProjectFromBackend(item);
+    const currentList = getProjectLinkConfigs();
+    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
 
     onToast(`Project ${projectToDelete} (${siteToDelete}${yearToDelete ? ' ' + yearToDelete : ''}) dihapus`, 'info');

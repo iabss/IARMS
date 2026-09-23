@@ -539,6 +539,7 @@ export async function pushStateToServer() {
     const trendExclusions = Array.from(getTrendExcludedProjects());
     const snapshots = getAchievementSnapshots();
 
+    // 1. Post to /api/app-state
     await fetch('/api/app-state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -550,6 +551,22 @@ export async function pushStateToServer() {
         snapshots
       })
     });
+
+    // 2. Post directly to /api/afs-projects (Server Master & Cloudflare KV)
+    await fetch('/api/afs-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        afs_projects: projectConfigs,
+        projects: projectConfigs
+      })
+    });
+
+    // 3. Background sync to Google Apps Script
+    syncAuditData({
+      action: "sync_projects_list",
+      projects: projectConfigs
+    }).catch(() => {});
   } catch (err) {
     // Non-blocking background push
   }
@@ -598,6 +615,7 @@ export function hydrateServerState(serverState: {
       inMemoryProjectConfigs = deduped;
       localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
       localStorage.setItem('afsProjects', JSON.stringify(deduped));
+      localStorage.setItem('afs_projects', JSON.stringify(deduped));
     }
 
     // Hydrate and override custom rows with authoritative server master data (1031+ rows)
@@ -674,6 +692,8 @@ function safeSaveProjectLinks(configs: ProjectLinkConfig[]): boolean {
   let success = false;
   try {
     localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+    localStorage.setItem('afsProjects', JSON.stringify(deduped));
+    localStorage.setItem('afs_projects', JSON.stringify(deduped));
     success = true;
   } catch (e) {
     console.warn('Quota exceeded when saving project links. Attempting storage cleanup...', e);
@@ -681,6 +701,8 @@ function safeSaveProjectLinks(configs: ProjectLinkConfig[]): boolean {
       // If quota is reached, remove old metadata/temp rows to guarantee room for link configs
       localStorage.removeItem(STORAGE_KEY_META);
       localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+      localStorage.setItem('afsProjects', JSON.stringify(deduped));
+      localStorage.setItem('afs_projects', JSON.stringify(deduped));
       success = true;
     } catch (err) {
       console.error('Critical failure saving project links:', err);
@@ -700,12 +722,14 @@ export function overrideProjectLinkConfigs(newConfigs: ProjectLinkConfig[]): boo
     try {
       localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
       localStorage.setItem('afsProjects', JSON.stringify(deduped));
+      localStorage.setItem('afs_projects', JSON.stringify(deduped));
     } catch (e) {
       console.warn('Quota exceeded when saving project links during override. Attempting storage cleanup...', e);
       try {
         localStorage.removeItem(STORAGE_KEY_META);
         localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
         localStorage.setItem('afsProjects', JSON.stringify(deduped));
+        localStorage.setItem('afs_projects', JSON.stringify(deduped));
       } catch (err) {
         console.error('Critical failure during overrideProjectLinkConfigs:', err);
       }
@@ -758,9 +782,9 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
     }
   }
 
-  // Also check afsProjects in localStorage
+  // Also check afs_projects and afsProjects in localStorage
   if (configs.length === 0) {
-    const rawAfs = localStorage.getItem('afsProjects');
+    const rawAfs = localStorage.getItem('afs_projects') || localStorage.getItem('afsProjects');
     if (rawAfs) {
       try {
         const parsed = JSON.parse(rawAfs);
@@ -768,7 +792,7 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
           configs = parsed;
         }
       } catch (err) {
-        console.error('Error reading afsProjects from localStorage:', err);
+        console.error('Error reading afs_projects from localStorage:', err);
       }
     }
   }
