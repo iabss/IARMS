@@ -75,10 +75,10 @@
    EXECUTIVE REPORT & AUDIT DOCUMENT PRINT MEDIA STYLES
    ========================================================================== */
 @media print {
-  /* Setup A4 layout with balanced margins */
+  /* Setup A4 layout with adequate top margin so repeated headers don't overlap */
   @page {
     size: auto;
-    margin: 8mm 8mm;
+    margin: 15mm 10mm 15mm 10mm;
   }
 
   /* Force exact background colors, borders, and badge styles */
@@ -86,6 +86,22 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+
+  /* Repeat table headers on every printed page */
+  thead,
+  .print-table-header {
+    display: table-header-group !important;
+  }
+
+  tfoot,
+  .print-table-footer {
+    display: table-footer-group !important;
+  }
+
+  tbody,
+  .print-table-body {
+    display: table-row-group !important;
   }
 
   /* 1. Hide scrollbars completely during print */
@@ -214,10 +230,9 @@
     overflow-x: visible !important;
   }
 
-  /* 2. AUTO PAGE BREAK: Table styling for Landscape print */
+  /* 2. AUTO PAGE BREAK: Table styling for Print */
   #printable-priority-report table {
     width: 100% !important;
-    table-layout: fixed !important;
     border-collapse: collapse !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
@@ -227,27 +242,55 @@
     overflow-y: visible !important;
   }
 
-  #printable-priority-report thead {
+  #printable-priority-report table.print-report-table {
+    table-layout: auto !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #printable-priority-report thead,
+  #printable-priority-report table.print-report-table thead {
     display: table-header-group !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  #printable-priority-report tbody {
+  #printable-priority-report tbody,
+  #printable-priority-report table.print-report-table tbody {
     display: table-row-group !important;
     height: auto !important;
     overflow: visible !important;
     overflow-y: visible !important;
   }
 
-  #printable-priority-report tr {
+  #printable-priority-report tfoot,
+  #printable-priority-report table.print-report-table tfoot {
+    display: table-footer-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-priority-report tr,
+  #printable-priority-report table.print-report-table tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     break-after: auto !important;
     page-break-after: auto !important;
   }
 
-  #printable-priority-report th {
+  /* Specific styles for print-report-table container cells */
+  #printable-priority-report table.print-report-table th,
+  #printable-priority-report table.print-report-table td {
+    background-color: transparent !important;
+    color: inherit !important;
+    border: none !important;
+    padding: 0 !important;
+    vertical-align: top !important;
+  }
+
+  /* Default table styles for tabular data */
+  #printable-priority-report table:not(.print-report-table) th {
     background-color: #0f172a !important;
     color: #ffffff !important;
     padding: 5px 6px !important;
@@ -255,7 +298,7 @@
     border: 1px solid #334155 !important;
   }
 
-  #printable-priority-report td {
+  #printable-priority-report table:not(.print-report-table) td {
     padding: 5px 6px !important;
     font-size: 7.5pt !important;
     line-height: 1.25 !important;

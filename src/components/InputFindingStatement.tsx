@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import GoogleSheetSyncModal from './GoogleSheetSyncModal';
-import { fetchProjectsFromGasBackend } from '../services/api';
+import { fetchProjectsFromBackend } from '../services/api';
 import { 
-  overrideProjectLinkConfigs, 
+  hydrateServerState,
   getProjectLinkConfigs, 
-  getProjectCompositeKey, 
   ProjectLinkConfig 
 } from '../data/dataSyncManager';
 
@@ -15,61 +14,47 @@ interface InputFindingStatementProps {
 }
 
 export default function InputFindingStatement({ onToast, onNavigateToAFS }: InputFindingStatementProps) {
-  // 1. INSTANT DISPLAY (TANPA LOADING FULLSCREEN):
-  // Langsung ambil data afsProjects yang ada di localStorage/memory agar UI terbuka instan
+  // 1. INSTANT DISPLAY (UI Shell/Template di-render instan):
+  // Mengambil cache sekunder localStorage agar antarmuka terbuka seketika tanpa jeda
   const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(() => {
     return getProjectLinkConfigs();
   });
 
-  // 2. SILENT BACKGROUND FETCH:
-  // Indikator kecil "Memeriksa pembaharuan..." berjalan di background tanpa memblokir UI
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(true);
+  // 2. BACKGROUND FETCHING & SKELETON TRIGGER:
+  // Selama background fetch aktif, skeleton loading ditampilkan HANYA di area kontainer tabel project
+  const [isLoadingBackend, setIsLoadingBackend] = useState<boolean>(true);
 
-  // Background sync doGet ke Google Apps Script
+  // 3. AUTO-FETCH DAFTAR PROJECT & DATA TEMUAN DARI SERVER MASTER (Server-First):
   useEffect(() => {
     let isMounted = true;
-    setIsCheckingUpdate(true);
+    setIsLoadingBackend(true);
 
-    fetchProjectsFromGasBackend()
-      .then((backendProjects) => {
+    fetchProjectsFromBackend()
+      .then((backendResult) => {
         if (!isMounted) return;
-        if (backendProjects && backendProjects.length > 0) {
-          const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
-            const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
-            const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
-            const bpYear = bp.year ? String(bp.year).trim() : '';
-            const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
 
-            return {
-              id: bpKey,
-              projectName: bpProj,
-              siteName: bpSite,
-              year: bpYear || undefined,
-              sheetUrl: bp.sheetUrl || '',
-              rowCount: bp.rowCount || 0,
-              status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
-              lastSyncedAt: bp.lastSyncedAt || null,
-              defaultProject: bpProj,
-              project: bpProj,
-              site: bpSite
-            };
+        // Jika server mengembalikan data project atau temuan audit
+        if (backendResult && (
+          (backendResult.projects && backendResult.projects.length > 0) ||
+          (backendResult.customRows && backendResult.customRows.length > 0)
+        )) {
+          // 4. OVERRIDE DENGAN DATA SERVER TERPUSAT:
+          // Timpa cache localStorage dan internal state dengan data master server
+          const hydrated = hydrateServerState({
+            projects: backendResult.projects,
+            customRows: backendResult.customRows,
+            deletedKeys: backendResult.deletedKeys
           });
 
-          // 3. SILENT OVERRIDE UPDATE:
-          // Langsung perbarui state afsProjects dan localStorage tanpa mereset/merusak UI
-          overrideProjectLinkConfigs(mappedConfigs);
-          setAfsProjects(mappedConfigs);
-          try {
-            localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
-          } catch (e) {}
+          setAfsProjects(hydrated.projects);
         }
       })
       .catch((err) => {
-        console.warn('Silent background check ke Google Apps Script gagal:', err);
+        console.warn('Gagal melakukan Server-First auto-fetch project AFS:', err);
       })
       .finally(() => {
         if (isMounted) {
-          setIsCheckingUpdate(false);
+          setIsLoadingBackend(false);
         }
       });
 
@@ -80,7 +65,7 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
 
   return (
     <div className="w-full space-y-6">
-      {/* INSTANT DISPLAY: Langsung render GoogleSheetSyncModal tanpa layar loading fullscreen */}
+      {/* INSTANT DISPLAY: Seluruh Shell/Header/Tab/Tombol tampil instan */}
       <GoogleSheetSyncModal
         isOpen={true}
         isEmbedded={true}
@@ -88,7 +73,7 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
         onNavigateToAFS={onNavigateToAFS}
         initialAfsProjects={afsProjects}
         onAfsProjectsChange={setAfsProjects}
-        isCheckingUpdate={isCheckingUpdate}
+        isCheckingUpdate={isLoadingBackend}
       />
     </div>
   );

@@ -483,6 +483,120 @@ app.post('/api/app-state', (req, res) => {
   }
 });
 
+// API Centralized Save / Update Project Link Configuration
+app.post('/api/save-project', (req, res) => {
+  try {
+    const config = req.body;
+    if (!config || (!config.projectName && !config.project && !config.defaultProject)) {
+      return res.status(400).json({ success: false, error: 'Nama project audit diperlukan' });
+    }
+
+    const current = loadServerState();
+    let configs = current.projectConfigs ? [...current.projectConfigs] : [];
+    const targetName = (config.projectName || config.project || config.defaultProject || '').trim().toUpperCase();
+    const targetSite = (config.siteName || config.site || 'HEAD OFFICE').trim().toUpperCase();
+    const targetYear = config.year ? String(config.year).trim() : '';
+    const targetKey = config.id || `${targetName}|${targetSite}${targetYear ? `|${targetYear}` : ''}`;
+
+    // Remove from deletedKeys if previously deleted
+    let deletedKeys = current.deletedKeys ? [...current.deletedKeys] : [];
+    deletedKeys = deletedKeys.filter(k => k !== targetKey && k !== targetName);
+
+    const existingIndex = configs.findIndex(c => {
+      if (config.id && c.id && config.id === c.id) return true;
+      const cName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+      const cSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+      const cYear = c.year ? String(c.year).trim() : '';
+      const cKey = c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ''}`;
+      return cKey === targetKey;
+    });
+
+    const newConfigItem = {
+      id: targetKey,
+      projectName: targetName,
+      defaultProject: targetName,
+      project: targetName,
+      siteName: targetSite,
+      site: targetSite,
+      year: targetYear || undefined,
+      sheetUrl: config.sheetUrl || '',
+      status: config.status || (config.sheetUrl && config.sheetUrl.trim() ? 'synced' : 'pending'),
+      rowCount: config.rowCount !== undefined ? Number(config.rowCount) : 0,
+      lastSyncedAt: config.lastSyncedAt || new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      configs[existingIndex] = {
+        ...configs[existingIndex],
+        ...newConfigItem,
+        rowCount: config.rowCount !== undefined ? Number(config.rowCount) : configs[existingIndex].rowCount,
+        lastSyncedAt: config.lastSyncedAt || configs[existingIndex].lastSyncedAt || new Date().toISOString()
+      };
+    } else {
+      configs.push(newConfigItem);
+    }
+
+    const updated = saveServerState({ projectConfigs: configs, deletedKeys });
+    return res.json({ success: true, projectConfigs: updated.projectConfigs, state: updated });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API Centralized Delete Project Link Configuration
+app.post('/api/delete-project', (req, res) => {
+  try {
+    const { id, project, site, year } = req.body;
+    const targetName = (project || '').trim().toUpperCase();
+    const targetSite = (site || '').trim().toUpperCase();
+    const targetYear = year ? String(year).trim() : '';
+    const targetKey = id || `${targetName}|${targetSite}${targetYear ? `|${targetYear}` : ''}`;
+
+    const current = loadServerState();
+    let configs = current.projectConfigs ? [...current.projectConfigs] : [];
+    let customRows = current.customRows ? [...current.customRows] : [];
+    let deletedKeys = current.deletedKeys ? [...current.deletedKeys] : [];
+
+    if (!deletedKeys.includes(targetKey)) deletedKeys.push(targetKey);
+    if (targetName && !deletedKeys.includes(targetName) && (!targetSite || targetSite === 'HEAD OFFICE')) {
+      deletedKeys.push(targetName);
+    }
+
+    configs = configs.filter(c => {
+      if (id && c.id && c.id === id) return false;
+      const cName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+      const cSite = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
+      const cYear = c.year ? String(c.year).trim() : '';
+      const cKey = c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ''}`;
+      if (cKey === targetKey) return false;
+      if (targetName && cName === targetName) {
+        if (!targetSite || cSite === targetSite) {
+          if (!targetYear || cYear === targetYear) return false;
+        }
+      }
+      return true;
+    });
+
+    // Also remove matching rows from customRows
+    customRows = customRows.filter(r => {
+      const rProj = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+      const rSite = (r['SITE'] || '').trim().toUpperCase();
+      const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
+      if (targetName && rProj === targetName) {
+        if (!targetSite || rSite === targetSite) {
+          if (!targetYear || rYear === targetYear) return false;
+        }
+      }
+      return true;
+    });
+
+    const updated = saveServerState({ projectConfigs: configs, customRows, deletedKeys });
+    return res.json({ success: true, projectConfigs: updated.projectConfigs, state: updated });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // API Server-Side Sync All Configured Sheets in Background
 app.post('/api/sync-all-server', async (req, res) => {
   try {

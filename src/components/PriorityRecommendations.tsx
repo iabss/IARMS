@@ -79,6 +79,75 @@ const getFormattedExposure = (item: PriorityRecommendationItem): string => {
   return 'Rp 0';
 };
 
+export interface WarningReportHeaderProps {
+  selectedSite: string;
+  selectedDept: string;
+  selectedYear: string;
+  lastAnalyzedTime: string;
+}
+
+export function WarningReportHeader({
+  selectedSite,
+  selectedDept,
+  selectedYear,
+  lastAnalyzedTime
+}: WarningReportHeaderProps) {
+  return (
+    <div className="w-full border-b-2 border-slate-900 pb-3 pt-0.5 bg-white print-avoid-break">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="space-y-1 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono font-black text-[10px] tracking-wider">
+              IARMS
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+              Internal Audit &amp; Risk Management Systems
+            </span>
+          </div>
+
+          {/* Judul Utama Besar */}
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 uppercase leading-tight pt-1">
+            WARNING REPORT TINDAK LANJUT TEMUAN AUDIT
+          </h1>
+
+          {/* Sub-header Merah */}
+          <p className="text-xs sm:text-sm font-bold text-rose-700 flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Fokus: Temuan Kritis (Major Open Findings) &amp; Eskalasi Temuan Open</span>
+          </p>
+
+          <div className="flex items-center gap-2 text-[10.5px] text-slate-500 font-medium pt-0.5">
+            <span>Lingkup Audit:</span>
+            <span className="font-semibold text-slate-700">
+              {selectedSite === 'ALL' ? 'Semua Site' : `Site ${selectedSite}`}
+            </span>
+            <span>•</span>
+            <span className="font-semibold text-slate-700">
+              {selectedDept === 'ALL' ? 'Semua Departemen' : `Dept ${selectedDept}`}
+            </span>
+            <span>•</span>
+            <span className="font-semibold text-slate-700">
+              {selectedYear === 'ALL' ? 'Semua Tahun' : `Tahun ${selectedYear}`}
+            </span>
+          </div>
+        </div>
+
+        {/* Badge Tanggal Cetak / Cut-Off Berwarna Merah Gelap di Pojok Kanan Atas */}
+        <div className="shrink-0 flex flex-col items-start sm:items-end gap-1">
+          <div className="px-3.5 py-1.5 rounded-xl bg-red-950 text-red-100 border border-red-800/90 shadow-xs flex items-center gap-2 font-mono font-bold text-xs sm:text-[13px] tracking-wide">
+            <Calendar className="w-3.5 h-3.5 text-rose-400" />
+            <span>{formatDateBadge()}</span>
+          </div>
+          <div className="text-[10px] font-mono text-slate-500 text-left sm:text-right">
+            <p>Cut-Off: {lastAnalyzedTime} WIB</p>
+            <p className="text-rose-800 font-bold uppercase tracking-wider">CONFIDENTIAL / ESCALATION</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PriorityRecommendations({ onToast, onNavigateToAFS }: PriorityRecommendationsProps) {
   // 1. Live dataset state (automatically re-evaluates on mount, edit, sync)
   const [rawRows, setRawRows] = useState<AFSFindingRecord[]>(() => getMergedSheetRows());
@@ -1646,243 +1715,220 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
               {/* Printable Document Preview Area */}
               <div 
                 id="printable-priority-report" 
-                className="space-y-4 p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 font-sans text-slate-900 text-xs print:p-0 print:m-0 print:border-none print:shadow-none print:overflow-visible print:overflow-y-visible print:overflow-x-visible print:h-auto print:max-h-none no-scrollbar"
+                className="p-5 sm:p-6 bg-white rounded-2xl border border-slate-200 font-sans text-slate-900 text-xs print:p-0 print:m-0 print:border-none print:shadow-none print:overflow-visible print:overflow-y-visible print:overflow-x-visible print:h-auto print:max-h-none no-scrollbar"
               >
-                {/* 1. STRUKTUR HEADER LAPORAN */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b-2 border-slate-900 pb-4 gap-3 print-avoid-break">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono font-black text-[10px] tracking-wider">
-                        IARMS
-                      </span>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                        Internal Audit &amp; Risk Management Systems
-                      </span>
-                    </div>
+                <table className="w-full border-collapse border-none m-0 p-0 print-report-table text-left">
+                  {/* Table Header: repeats automatically on every page in print / PDF */}
+                  <thead className="print-table-header">
+                    <tr>
+                      <th className="p-0 pb-3 border-none bg-transparent font-normal text-left align-top">
+                        <WarningReportHeader
+                          selectedSite={selectedSite}
+                          selectedDept={selectedDept}
+                          selectedYear={selectedYear}
+                          lastAnalyzedTime={lastAnalyzedTime}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
 
-                    {/* Judul Utama Besar */}
-                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 uppercase leading-tight pt-1">
-                      WARNING REPORT TINDAK LANJUT TEMUAN AUDIT
-                    </h1>
-
-                    {/* Sub-header Merah */}
-                    <p className="text-xs sm:text-sm font-bold text-rose-700 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>Fokus: Temuan Kritis (Major Open Findings) &amp; Eskalasi Temuan Open</span>
-                    </p>
-
-                    <div className="flex items-center gap-2 text-[10.5px] text-slate-500 font-medium pt-0.5">
-                      <span>Lingkup Audit:</span>
-                      <span className="font-semibold text-slate-700">
-                        {selectedSite === 'ALL' ? 'Semua Site' : `Site ${selectedSite}`}
-                      </span>
-                      <span>•</span>
-                      <span className="font-semibold text-slate-700">
-                        {selectedDept === 'ALL' ? 'Semua Departemen' : `Dept ${selectedDept}`}
-                      </span>
-                      <span>•</span>
-                      <span className="font-semibold text-slate-700">
-                        {selectedYear === 'ALL' ? 'Semua Tahun' : `Tahun ${selectedYear}`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Badge Tanggal Cetak / Cut-Off Berwarna Merah Gelap di Pojok Kanan Atas */}
-                  <div className="shrink-0 flex flex-col items-start sm:items-end gap-1">
-                    <div className="px-3.5 py-1.5 rounded-xl bg-red-950 text-red-100 border border-red-800/90 shadow-xs flex items-center gap-2 font-mono font-bold text-xs sm:text-[13px] tracking-wide">
-                      <Calendar className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{formatDateBadge()}</span>
-                    </div>
-                    <div className="text-[10px] font-mono text-slate-500 text-left sm:text-right">
-                      <p>Cut-Off: {lastAnalyzedTime} WIB</p>
-                      <p className="text-rose-800 font-bold uppercase tracking-wider">CONFIDENTIAL / ESCALATION</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Executive Summary Box */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1 print:bg-slate-100 print:border-slate-300 print-avoid-break">
-                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide block">
-                    Ringkasan Eksekutif:
-                  </span>
-                  <p className="text-slate-700 leading-relaxed text-[11px]">
-                    Dokumen ini merangkum <strong>10 temuan audit prioritas tertinggi</strong> yang masih berstatus aktif (<strong className="text-rose-700">OPEN</strong> atau <strong className="text-amber-700">IN PROGRESS</strong>) berdasarkan kalkulasi AI Risk Scoring Engine. Temuan-temuan ini dinilai memiliki potensi kerugian finansial, risiko gangguan operasional, serta urgensi tindak lanjut tertinggi dengan total estimasi eksposur teridentifikasi: <strong className="text-rose-700 font-mono font-bold text-xs">{summary?.totalEstimatedExposure || 'Rp 0'}</strong>.
-                  </p>
-                </div>
-
-                {/* 2. STRUKTUR KARTU TEMUAN (PER ITEM) - WARNING REPORT CARD LAYOUT */}
-                <div 
-                  className="print-card-container space-y-4 pt-1 print:h-auto print:overflow-visible"
-                  style={{ height: 'auto', overflow: 'visible' }}
-                >
-                  {items.map(item => {
-                    const isProg = item.recommendations.some(r => r.isProgress);
-                    const isOverdue = item.nearestDueDateInfo.isOverdue || (item.record.REMARKS || '').toUpperCase().includes('OVERDUE');
-                    const overdueDays = Math.abs(item.nearestDueDateInfo.daysRemaining);
-                    const exposureText = getFormattedExposure(item);
-                    const findingDescription = item.record['DETAIL TEMUAN'] || item.record['PROBLEM/FINDING'] || item.findingTitle;
-
-                    return (
-                      <div 
-                        key={item.id}
-                        className="print-warning-card print-avoid-break bg-white rounded-2xl border border-slate-300 shadow-xs overflow-hidden flex flex-col sm:flex-row transition-all hover:border-slate-400 print:border-slate-400 print:shadow-none"
-                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                      >
-                        {/* Sisi Kiri (Rank Number): Blok abu-abu berisikan nomor urut besar (misal: 1, 2, ..., 10) */}
-                        <div className="w-full sm:w-16 md:w-20 bg-slate-100 border-b sm:border-b-0 sm:border-r border-slate-300 flex flex-row sm:flex-col items-center justify-between sm:justify-center p-3 sm:p-2 shrink-0 select-none print:bg-slate-100 print:border-slate-300">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest sm:mb-1">
-                            RANK
+                  {/* Table Body: Executive Summary, Cards, and Sign-off */}
+                  <tbody className="print-table-body">
+                    {/* Executive Summary Box Row */}
+                    <tr className="print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                      <td className="p-0 pb-3.5 border-none bg-transparent align-top">
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1 print:bg-slate-100 print:border-slate-300 print-avoid-break">
+                          <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide block">
+                            Ringkasan Eksekutif:
                           </span>
-                          <span className="font-black text-2xl sm:text-4xl text-slate-800 font-mono tracking-tight">
-                            {item.rank}
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-400 sm:mt-1 hidden sm:block uppercase">
-                            TOP 10
-                          </span>
+                          <p className="text-slate-700 leading-relaxed text-[11px]">
+                            Dokumen ini merangkum <strong>10 temuan audit prioritas tertinggi</strong> yang masih berstatus aktif (<strong className="text-rose-700">OPEN</strong> atau <strong className="text-amber-700">IN PROGRESS</strong>) berdasarkan kalkulasi AI Risk Scoring Engine. Temuan-temuan ini dinilai memiliki potensi kerugian finansial, risiko gangguan operasional, serta urgensi tindak lanjut tertinggi dengan total estimasi eksposur teridentifikasi: <strong className="text-rose-700 font-mono font-bold text-xs">{summary?.totalEstimatedExposure || 'Rp 0'}</strong>.
+                          </p>
                         </div>
+                      </td>
+                    </tr>
 
-                        {/* Sisi Kanan / Konten Utama Kartu */}
-                        <div className="flex-1 p-4 sm:p-5 space-y-3">
-                          {/* Area Judul & Nilai Risiko (Header Kartu) */}
-                          <div 
-                            className="print-avoid-break print-card-subblock flex flex-col md:flex-row md:items-start justify-between gap-2.5 border-b border-slate-200 pb-3"
-                            style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                          >
-                            {/* Kiri: Judul Temuan Utama (Font Bold/Tebal) */}
-                            <div className="space-y-1.5 flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono font-bold text-[10px] tracking-wide">
-                                  {item.record['PROJECT AUDIT'] || 'Audit Project'}
+                    {/* Warning Report Cards: each in its own row for strict break-inside avoid */}
+                    {items.map(item => {
+                      const isProg = item.recommendations.some(r => r.isProgress);
+                      const isOverdue = item.nearestDueDateInfo.isOverdue || (item.record.REMARKS || '').toUpperCase().includes('OVERDUE');
+                      const overdueDays = Math.abs(item.nearestDueDateInfo.daysRemaining);
+                      const exposureText = getFormattedExposure(item);
+                      const findingDescription = item.record['DETAIL TEMUAN'] || item.record['PROBLEM/FINDING'] || item.findingTitle;
+
+                      return (
+                        <tr 
+                          key={item.id}
+                          className="print-avoid-break"
+                          style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                        >
+                          <td className="p-0 pb-3.5 border-none bg-transparent align-top">
+                            <div 
+                              className="print-warning-card print-avoid-break bg-white rounded-2xl border border-slate-300 shadow-xs overflow-hidden flex flex-col sm:flex-row transition-all hover:border-slate-400 print:border-slate-400 print:shadow-none"
+                              style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                            >
+                              {/* Sisi Kiri (Rank Number): Blok abu-abu berisikan nomor urut besar (misal: 1, 2, ..., 10) */}
+                              <div className="w-full sm:w-16 md:w-20 bg-slate-100 border-b sm:border-b-0 sm:border-r border-slate-300 flex flex-row sm:flex-col items-center justify-between sm:justify-center p-3 sm:p-2 shrink-0 select-none print:bg-slate-100 print:border-slate-300">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest sm:mb-1">
+                                  RANK
                                 </span>
-                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[10px] border border-slate-200">
-                                  Site: {item.record.SITE || 'Head Office'}
+                                <span className="font-black text-2xl sm:text-4xl text-slate-800 font-mono tracking-tight">
+                                  {item.rank}
                                 </span>
-                                {item.findingNo && (
-                                  <span className="text-[10.5px] font-mono text-slate-500 font-semibold">
-                                    Temuan #{item.findingNo}
-                                  </span>
-                                )}
+                                <span className="text-[9px] font-bold text-slate-400 sm:mt-1 hidden sm:block uppercase">
+                                  TOP 10
+                                </span>
                               </div>
 
-                              <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                                {item.findingTitle || item.record['PROBLEM/FINDING']}
-                              </h3>
+                              {/* Sisi Kanan / Konten Utama Kartu */}
+                              <div className="flex-1 p-4 sm:p-5 space-y-3">
+                                {/* Area Judul & Nilai Risiko (Header Kartu) */}
+                                <div 
+                                  className="print-avoid-break print-card-subblock flex flex-col md:flex-row md:items-start justify-between gap-2.5 border-b border-slate-200 pb-3"
+                                  style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                >
+                                  {/* Kiri: Judul Temuan Utama (Font Bold/Tebal) */}
+                                  <div className="space-y-1.5 flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-mono font-bold text-[10px] tracking-wide">
+                                        {item.record['PROJECT AUDIT'] || 'Audit Project'}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[10px] border border-slate-200">
+                                        Site: {item.record.SITE || 'Head Office'}
+                                      </span>
+                                      {item.findingNo && (
+                                        <span className="text-[10.5px] font-mono text-slate-500 font-semibold">
+                                          Temuan #{item.findingNo}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                                      {item.findingTitle || item.record['PROBLEM/FINDING']}
+                                    </h3>
+                                  </div>
+
+                                  {/* Kanan: Potential Loss / Eksposur Risiko, Kategori Risiko, dan Badge Overdue */}
+                                  <div className="flex flex-wrap items-center md:flex-col md:items-end gap-1.5 shrink-0">
+                                    {/* Potential Loss / Eksposur Risiko (Teks Merah Tebal, misal: Potential Loss: Rp 1,70 Miliar) */}
+                                    <div className="text-xs sm:text-[13px] font-bold text-rose-700 font-mono tracking-tight flex items-center gap-1.5">
+                                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                      <span>Potential Loss: {exposureText}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      {/* Kategori Risiko (Teks Orange) */}
+                                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                        {item.record.KATEGORI ? `Kategori: ${item.record.KATEGORI}` : `Level: ${item.riskLevel}`}
+                                      </span>
+
+                                      {/* Badge Overdue (Misal: Overdue: 146 Hari) */}
+                                      {isOverdue ? (
+                                        <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10.5px] tracking-wide inline-flex items-center gap-1 shadow-2xs">
+                                          <Clock className="w-3 h-3" />
+                                          Overdue: {overdueDays < 999 && overdueDays > 0 ? `${overdueDays} Hari` : (item.nearestDueDateInfo.formattedDate || 'Terlewat')}
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10.5px] tracking-wide inline-flex items-center gap-1 shadow-2xs">
+                                          <Clock className="w-3 h-3" />
+                                          Due: {item.nearestDueDateInfo.formattedDate}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Area Narasi Temuan: Teks deskripsi ringkas temuan audit dengan prefiks **Temuan:** */}
+                                <div 
+                                  className="print-avoid-break print-card-subblock print-card-finding text-slate-800 text-xs sm:text-[12.5px] leading-relaxed bg-slate-50/70 p-3 rounded-xl border border-slate-200"
+                                  style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                >
+                                  <p>
+                                    <strong className="text-slate-900 font-bold">Temuan: </strong>
+                                    {findingDescription}
+                                  </p>
+                                  {item.financialImpact.description && (
+                                    <p className="text-[11px] text-rose-800 font-medium mt-1.5 flex items-start gap-1">
+                                      <span className="font-bold text-rose-900 shrink-0">• Dampak Risiko:</span>
+                                      <span>{item.financialImpact.description}</span>
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Area Rekomendasi (Callout Hijau) */}
+                                <div 
+                                  className="print-avoid-break print-card-subblock print-card-recommendation bg-emerald-50/90 border-l-4 border-l-emerald-600 border border-emerald-200 rounded-r-xl p-3 sm:p-3.5 space-y-2"
+                                  style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                                >
+                                  <div className="flex items-center gap-1.5 text-emerald-950 font-bold text-xs uppercase tracking-wide">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Rekomendasi Wajib:</span>
+                                  </div>
+
+                                  <div className="text-slate-900 text-xs sm:text-[12px] leading-relaxed pl-1">
+                                    {item.recommendations && item.recommendations.length > 1 ? (
+                                      <ol className="space-y-1.5 list-decimal list-inside font-normal text-slate-800">
+                                        {item.recommendations.map((rec, rIdx) => (
+                                          <li key={rIdx} className="leading-snug">
+                                            <span className="font-medium text-slate-900">{rec.recommendationText}</span>
+                                          </li>
+                                        ))}
+                                      </ol>
+                                    ) : (
+                                      <p className="font-medium text-slate-800 leading-snug">
+                                        {item.recommendations?.[0]?.recommendationText || item.keyMitigationAction || item.allRecommendationsText || 'Tindak lanjut rekomendasi perbaikan sesuai rencana aksi manajemen.'}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {/* Sisi kanan bawah kotak hijau menampilkan badge PIC */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-emerald-200/80 text-[10.5px]">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-emerald-800 font-medium">Status Temuan:</span>
+                                      <span className={`px-2 py-0.5 rounded font-bold text-[9.5px] uppercase border ${
+                                        isProg
+                                          ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                          : 'bg-rose-100 text-rose-900 border-rose-300'
+                                      }`}>
+                                        {isProg ? 'IN PROGRESS' : 'OPEN'}
+                                      </span>
+                                    </div>
+
+                                    <div className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-950 font-bold text-[11px] shadow-2xs tracking-wide">
+                                      PIC: {item.combinedPic || item.record.PIC || item.record.DEPARTMENT || 'PIC Terkait'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
 
-                            {/* Kanan: Potential Loss / Eksposur Risiko, Kategori Risiko, dan Badge Overdue */}
-                            <div className="flex flex-wrap items-center md:flex-col md:items-end gap-1.5 shrink-0">
-                              {/* Potential Loss / Eksposur Risiko (Teks Merah Tebal, misal: Potential Loss: Rp 1,70 Miliar) */}
-                              <div className="text-xs sm:text-[13px] font-bold text-rose-700 font-mono tracking-tight flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                <span>Potential Loss: {exposureText}</span>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                {/* Kategori Risiko (Teks Orange) */}
-                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                  {item.record.KATEGORI ? `Kategori: ${item.record.KATEGORI}` : `Level: ${item.riskLevel}`}
-                                </span>
-
-                                {/* Badge Overdue (Misal: Overdue: 146 Hari) */}
-                                {isOverdue ? (
-                                  <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10.5px] tracking-wide inline-flex items-center gap-1 shadow-2xs">
-                                    <Clock className="w-3 h-3" />
-                                    Overdue: {overdueDays < 999 && overdueDays > 0 ? `${overdueDays} Hari` : (item.nearestDueDateInfo.formattedDate || 'Terlewat')}
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10.5px] tracking-wide inline-flex items-center gap-1 shadow-2xs">
-                                    <Clock className="w-3 h-3" />
-                                    Due: {item.nearestDueDateInfo.formattedDate}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Area Narasi Temuan: Teks deskripsi ringkas temuan audit dengan prefiks **Temuan:** */}
-                          <div 
-                            className="print-avoid-break print-card-subblock print-card-finding text-slate-800 text-xs sm:text-[12.5px] leading-relaxed bg-slate-50/70 p-3 rounded-xl border border-slate-200"
-                            style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                          >
-                            <p>
-                              <strong className="text-slate-900 font-bold">Temuan: </strong>
-                              {findingDescription}
+                    {/* Signoff Blocks Row */}
+                    <tr className="print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                      <td className="p-0 pt-4 border-none bg-transparent align-top">
+                        <div className="grid grid-cols-2 gap-12 pt-6 text-center text-xs print:pt-6 print-avoid-break">
+                          <div>
+                            <p className="text-slate-600 font-medium">Dipersiapkan Oleh:</p>
+                            <div className="h-12" />
+                            <p className="font-bold text-slate-900 border-t border-slate-400 inline-block px-8 pt-1">
+                              Tim Internal Audit IARMS
                             </p>
-                            {item.financialImpact.description && (
-                              <p className="text-[11px] text-rose-800 font-medium mt-1.5 flex items-start gap-1">
-                                <span className="font-bold text-rose-900 shrink-0">• Dampak Risiko:</span>
-                                <span>{item.financialImpact.description}</span>
-                              </p>
-                            )}
                           </div>
-
-                          {/* Area Rekomendasi (Callout Hijau) */}
-                          <div 
-                            className="print-avoid-break print-card-subblock print-card-recommendation bg-emerald-50/90 border-l-4 border-l-emerald-600 border border-emerald-200 rounded-r-xl p-3 sm:p-3.5 space-y-2"
-                            style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                          >
-                            <div className="flex items-center gap-1.5 text-emerald-950 font-bold text-xs uppercase tracking-wide">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <span>Rekomendasi Wajib:</span>
-                            </div>
-
-                            <div className="text-slate-900 text-xs sm:text-[12px] leading-relaxed pl-1">
-                              {item.recommendations && item.recommendations.length > 1 ? (
-                                <ol className="space-y-1.5 list-decimal list-inside font-normal text-slate-800">
-                                  {item.recommendations.map((rec, rIdx) => (
-                                    <li key={rIdx} className="leading-snug">
-                                      <span className="font-medium text-slate-900">{rec.recommendationText}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              ) : (
-                                <p className="font-medium text-slate-800 leading-snug">
-                                  {item.recommendations?.[0]?.recommendationText || item.keyMitigationAction || item.allRecommendationsText || 'Tindak lanjut rekomendasi perbaikan sesuai rencana aksi manajemen.'}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Sisi kanan bawah kotak hijau menampilkan badge PIC */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-emerald-200/80 text-[10.5px]">
-                              <div className="flex items-center gap-2">
-                                <span className="text-emerald-800 font-medium">Status Temuan:</span>
-                                <span className={`px-2 py-0.5 rounded font-bold text-[9.5px] uppercase border ${
-                                  isProg
-                                    ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                    : 'bg-rose-100 text-rose-900 border-rose-300'
-                                }`}>
-                                  {isProg ? 'IN PROGRESS' : 'OPEN'}
-                                </span>
-                              </div>
-
-                              <div className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-950 font-bold text-[11px] shadow-2xs tracking-wide">
-                                PIC: {item.combinedPic || item.record.PIC || item.record.DEPARTMENT || 'PIC Terkait'}
-                              </div>
-                            </div>
+                          <div>
+                            <p className="text-slate-600 font-medium">Mengetahui:</p>
+                            <div className="h-12" />
+                            <p className="font-bold text-slate-900 border-t border-slate-400 inline-block px-8 pt-1">
+                              Chief Audit Executive (CAE) / Komite Audit
+                            </p>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Signoff Blocks */}
-                <div className="grid grid-cols-2 gap-12 pt-6 text-center text-xs print:pt-6 print-avoid-break">
-                  <div>
-                    <p className="text-slate-600 font-medium">Dipersiapkan Oleh:</p>
-                    <div className="h-12" />
-                    <p className="font-bold text-slate-900 border-t border-slate-400 inline-block px-8 pt-1">
-                      Tim Internal Audit IARMS
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-slate-600 font-medium">Mengetahui:</p>
-                    <div className="h-12" />
-                    <p className="font-bold text-slate-900 border-t border-slate-400 inline-block px-8 pt-1">
-                      Chief Audit Executive (CAE) / Komite Audit
-                    </p>
-                  </div>
-                </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </motion.div>
           </div>

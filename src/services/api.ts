@@ -85,9 +85,10 @@ export async function syncAuditData(payload: Record<string, any>): Promise<any> 
 }
 
 /**
- * Send delete project request to Google Apps Script backend
+ * Send delete project request to centralized server backend and Google Apps Script
  */
 export async function deleteProjectFromBackend(item: {
+  id?: string;
   defaultProject?: string;
   project?: string;
   projectName?: string;
@@ -95,14 +96,98 @@ export async function deleteProjectFromBackend(item: {
   siteName?: string;
   year?: string | number;
 }): Promise<any> {
+  const pName = (item.projectName || item.defaultProject || item.project || "").trim().toUpperCase();
+  const pSite = (item.siteName || item.site || "HEAD OFFICE").trim().toUpperCase();
+  const pYear = item.year ? String(item.year).trim() : "";
+  const pKey = item.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ""}`;
+
   const payload = {
-    action: "delete_project",
-    project: item.defaultProject || item.project || item.projectName || "",
-    site: item.site || item.siteName || "HEAD OFFICE",
-    year: item.year ? String(item.year).trim() : ""
+    id: pKey,
+    project: pName,
+    site: pSite,
+    year: pYear
   };
 
-  return await syncAuditData(payload);
+  // 1. Centralized server delete (Node Express / Cloudflare Workers / KV)
+  try {
+    await fetch('/api/delete-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Gagal hapus project dari server backend /api/delete-project:", err);
+  }
+
+  // 2. Google Apps Script delete
+  try {
+    await syncAuditData({
+      action: "delete_project",
+      project: pName,
+      site: pSite,
+      year: pYear
+    });
+  } catch (err) {
+    console.warn("Gagal kirim delete_project ke Google Apps Script:", err);
+  }
+
+  return { status: "success", success: true, deletedKey: pKey };
+}
+
+/**
+ * Save / Update project link configuration to centralized server backend and Google Apps Script
+ */
+export async function saveProjectToBackend(item: {
+  id?: string;
+  projectName?: string;
+  defaultProject?: string;
+  project?: string;
+  siteName?: string;
+  site?: string;
+  year?: string | number;
+  sheetUrl?: string;
+  status?: string;
+  rowCount?: number;
+  lastSyncedAt?: string;
+}): Promise<any> {
+  const pName = (item.projectName || item.defaultProject || item.project || "").trim().toUpperCase();
+  const pSite = (item.siteName || item.site || "HEAD OFFICE").trim().toUpperCase();
+  const pYear = item.year ? String(item.year).trim() : "";
+  const pKey = item.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ""}`;
+
+  const payload = {
+    id: pKey,
+    projectName: pName,
+    defaultProject: pName,
+    project: pName,
+    siteName: pSite,
+    site: pSite,
+    year: pYear || undefined,
+    sheetUrl: item.sheetUrl || "",
+    status: item.status || (item.sheetUrl && item.sheetUrl.trim() ? "synced" : "pending"),
+    rowCount: item.rowCount !== undefined ? Number(item.rowCount) : 0,
+    lastSyncedAt: item.lastSyncedAt || new Date().toISOString()
+  };
+
+  // 1. Centralized server persist (Node Express / Cloudflare Workers / KV)
+  try {
+    await fetch('/api/save-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Gagal simpan project ke /api/save-project:", err);
+  }
+
+  // 2. Google Apps Script sync
+  try {
+    await syncSheetUrlToBackend(payload);
+  } catch (err) {
+    console.warn("Gagal kirim sync_sheet_url ke Google Apps Script:", err);
+  }
+
+  return { status: "success", success: true, project: payload };
 }
 
 /**
@@ -546,14 +631,101 @@ export function parseGasProjectsResponse(json: any): any[] {
   return Array.from(projectMap.values());
 }
 
+export interface BackendProjectsResult {
+  projects: any[];
+  customRows?: any[];
+  deletedKeys?: string[];
+  totalRows?: number;
+  source: 'server' | 'gas';
+}
+
 /**
- * Fetch project configurations from Google Apps Script backend
+ * Fetch project configurations and finding rows with Server-First priority
+ * 1. Primary: Fetches from centralized server state (/api/app-state)
+ * 2. Secondary: Checks Google Apps Script for any new / updated sheets
+ * 3. Merges data cleanly, prioritizing the server master state
+ */
+export async function fetchProjectsFromBackend(): Promise<BackendProjectsResult> {
+  let serverProjects: any[] = [];
+  let serverCustomRows: any[] = [];
+  let serverDeletedKeys: string[] = [];
+
+  // 1. Fetch from centralized server state (/api/app-state)
+  try {
+    const res = await fetch('/api/app-state');
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.state) {
+        if (Array.isArray(json.state.projectConfigs) && json.state.projectConfigs.length > 0) {
+          serverProjects = json.state.projectConfigs;
+        }
+        if (Array.isArray(json.state.customRows) && json.state.customRows.length > 0) {
+          serverCustomRows = json.state.customRows;
+        }
+        if (Array.isArray(json.state.deletedKeys)) {
+          serverDeletedKeys = json.state.deletedKeys;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal membaca /api/app-state:', e);
+  }
+
+  // 2. Fetch from Google Apps Script backend
+  let gasProjects: any[] = [];
+  try {
+    const gasData = await fetchAuditData();
+    if (gasData) {
+      gasProjects = parseGasProjectsResponse(gasData);
+    }
+  } catch (e) {
+    console.warn('Gagal membaca data dari Google Apps Script:', e);
+  }
+
+  // 3. Merge server state and GAS data
+  const projectMap = new Map<string, any>();
+  const deletedSet = new Set(serverDeletedKeys.map(k => k.trim().toUpperCase()));
+
+  // Add server projects first
+  for (const sp of serverProjects) {
+    const pName = (sp.projectName || sp.defaultProject || sp.project || '').trim().toUpperCase();
+    const pSite = (sp.siteName || sp.site || 'HEAD OFFICE').trim().toUpperCase();
+    const pYear = sp.year ? String(sp.year).trim() : '';
+    const key = sp.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`;
+    if (!deletedSet.has(key) && !deletedSet.has(pName)) {
+      projectMap.set(key, { ...sp, id: key });
+    }
+  }
+
+  // Add any valid GAS projects not yet in server
+  for (const gp of gasProjects) {
+    const pName = (gp.projectName || gp.defaultProject || gp.project || '').trim().toUpperCase();
+    const pSite = (gp.siteName || gp.site || 'HEAD OFFICE').trim().toUpperCase();
+    const pYear = gp.year ? String(gp.year).trim() : '';
+    const key = gp.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`;
+    if (!deletedSet.has(key) && !deletedSet.has(pName) && !projectMap.has(key)) {
+      projectMap.set(key, { ...gp, id: key });
+    }
+  }
+
+  const finalProjects = Array.from(projectMap.values());
+
+  return {
+    projects: finalProjects,
+    customRows: serverCustomRows,
+    deletedKeys: serverDeletedKeys,
+    totalRows: serverCustomRows.length,
+    source: serverProjects.length > 0 ? 'server' : 'gas'
+  };
+}
+
+/**
+ * Fetch project configurations from Google Apps Script backend (Legacy Alias)
  */
 export async function fetchProjectsFromGasBackend(): Promise<any[]> {
   try {
-    const data = await fetchAuditData();
-    if (!data) return [];
-    return parseGasProjectsResponse(data);
+    const result = await fetchProjectsFromBackend();
+    return result.projects;
   } catch (error: any) {
     console.warn("Gagal memuat project dari backend GAS:", error?.message || error);
     return [];

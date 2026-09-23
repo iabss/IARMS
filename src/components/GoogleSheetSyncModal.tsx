@@ -25,7 +25,9 @@ import {
   GOOGLE_SCRIPT_URL,
   syncAuditData, 
   fetchCsvFromGoogleSheet, 
+  fetchProjectsFromBackend,
   fetchProjectsFromGasBackend,
+  saveProjectToBackend,
   deleteProjectFromBackend,
   syncSheetUrlToBackend
 } from '../services/api';
@@ -42,6 +44,9 @@ import {
   getDeletedProjectKeys,
   getProjectCompositeKey,
   overrideProjectLinkConfigs,
+  hydrateServerState,
+  pushStateToServer,
+  getMergedSheetRows,
   ProjectLinkConfig
 } from '../data/dataSyncManager';
 
@@ -119,57 +124,39 @@ export default function GoogleSheetSyncModal({
     message?: string;
   } | null>(null);
 
-  const meta = getSyncMetadata();
+  const [dataSyncMeta, setDataSyncMeta] = useState<any>(() => getSyncMetadata());
+  const [availableDataCount, setAvailableDataCount] = useState<number>(() => getMergedSheetRows().length);
 
-  // Load initial data on mount (useEffect):
-  // Saat halaman dimuat, Wajib panggil fungsi doGet ke Google Apps Script terlebih dahulu.
-  // Jika data dari Apps Script berhasil diterima, langsung TIMPA (OVERRIDE) state afsProjects
-  // dan localStorage browser dengan data dari server tersebut. Jangan menggabungkan (merge) dengan data lokal lama.
+  // Auto-fetch data project dan temuan jika list kosong (Server-First Priority)
   useEffect(() => {
     if (isOpen) {
       setSyncResult(null);
       let isMounted = true;
-      // Jika parent sudah mengelola initialAfsProjects, biarkan parent yang melakukan background fetch
-      if (!initialAfsProjects) {
+
+      // Auto-fetch ke backend terpusat jika projectConfigs kosong
+      if (!initialAfsProjects || initialAfsProjects.length === 0) {
         setIsLoadingBackend(true);
 
-        // Panggil doGet ke Google Apps Script di background
-        fetchProjectsFromGasBackend()
-          .then((backendProjects) => {
+        fetchProjectsFromBackend()
+          .then((backendResult) => {
             if (!isMounted) return;
-            if (backendProjects && backendProjects.length > 0) {
-              const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
-                const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
-                const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
-                const bpYear = bp.year ? String(bp.year).trim() : '';
-                const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
-
-                return {
-                  id: bpKey,
-                  projectName: bpProj,
-                  siteName: bpSite,
-                  year: bpYear || undefined,
-                  sheetUrl: bp.sheetUrl || '',
-                  rowCount: bp.rowCount || 0,
-                  status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
-                  lastSyncedAt: bp.lastSyncedAt || null,
-                  defaultProject: bpProj,
-                  project: bpProj,
-                  site: bpSite
-                };
+            if (backendResult && (
+              (backendResult.projects && backendResult.projects.length > 0) ||
+              (backendResult.customRows && backendResult.customRows.length > 0)
+            )) {
+              const hydrated = hydrateServerState({
+                projects: backendResult.projects,
+                customRows: backendResult.customRows,
+                deletedKeys: backendResult.deletedKeys
               });
-
-              // Langsung TIMPA (OVERRIDE) state dan localStorage tanpa merge
-              overrideProjectLinkConfigs(mappedConfigs);
-              setProjectConfigs(mappedConfigs);
-              try {
-                localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
-              } catch (e) {}
-              if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
+              setProjectConfigs(hydrated.projects);
+              setAvailableDataCount(hydrated.rowCount);
+              setDataSyncMeta(getSyncMetadata());
+              if (onAfsProjectsChange) onAfsProjectsChange(hydrated.projects);
             }
           })
           .catch((err) => {
-            console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
+            console.warn('Gagal memuat daftar project awal dari server backend:', err);
           })
           .finally(() => {
             if (isMounted) setIsLoadingBackend(false);
@@ -178,15 +165,22 @@ export default function GoogleSheetSyncModal({
 
       const handleLinksUpdated = () => {
         setProjectConfigs(getProjectLinkConfigs());
+        setAvailableDataCount(getMergedSheetRows().length);
+        setDataSyncMeta(getSyncMetadata());
+      };
+
+      const handleDataSynced = () => {
+        setAvailableDataCount(getMergedSheetRows().length);
+        setDataSyncMeta(getSyncMetadata());
       };
 
       window.addEventListener('afs_project_links_updated', handleLinksUpdated);
-      window.addEventListener('afs_data_synced', handleLinksUpdated);
+      window.addEventListener('afs_data_synced', handleDataSynced);
 
       return () => {
         isMounted = false;
         window.removeEventListener('afs_project_links_updated', handleLinksUpdated);
-        window.removeEventListener('afs_data_synced', handleLinksUpdated);
+        window.removeEventListener('afs_data_synced', handleDataSynced);
       };
     }
   }, [isOpen]);
@@ -368,7 +362,7 @@ export default function GoogleSheetSyncModal({
           yearToSync
         );
 
-        saveProjectLinkConfig({
+        const updatedConfig: ProjectLinkConfig = {
           id: item.id,
           projectName: projName,
           siteName: siteToSync,
@@ -380,7 +374,11 @@ export default function GoogleSheetSyncModal({
           defaultProject: projName,
           project: projName,
           site: siteToSync
-        });
+        };
+
+        saveProjectLinkConfig(updatedConfig);
+        saveProjectToBackend(updatedConfig);
+        pushStateToServer();
 
         refreshProjectConfigs();
 
@@ -394,7 +392,7 @@ export default function GoogleSheetSyncModal({
         onToast(`Sukses: ${parsedRows.length} temuan ${projName} (${siteToSync}${yearToSync ? ' - ' + yearToSync : ''}) berhasil diperbarui!`, 'success');
         if (onSyncComplete) onSyncComplete(parsedRows.length);
       } else {
-        saveProjectLinkConfig({
+        const pendingConfig: ProjectLinkConfig = {
           id: item.id,
           projectName: projName,
           siteName: siteToSync,
@@ -406,9 +404,11 @@ export default function GoogleSheetSyncModal({
           defaultProject: projName,
           project: projName,
           site: siteToSync
-        });
+        };
+        saveProjectLinkConfig(pendingConfig);
+        saveProjectToBackend(pendingConfig);
         refreshProjectConfigs();
-        onToast(`Link ${projName} (${siteToSync}) berhasil disinkronkan ke backend Google Apps Script!`, 'success');
+        onToast(`Link ${projName} (${siteToSync}) berhasil disinkronkan ke backend!`, 'success');
       }
     } catch (err: any) {
       console.error(`Error syncing project ${projName}:`, err);
@@ -481,32 +481,38 @@ export default function GoogleSheetSyncModal({
 
   // Save changes to a project URL input field
   const handleUpdateProjectUrl = (proj: ProjectLinkConfig, newUrl: string) => {
-    saveProjectLinkConfig({
+    const updated: ProjectLinkConfig = {
       ...proj,
       sheetUrl: newUrl,
-      status: 'pending'
-    });
+      status: newUrl && newUrl.trim() ? 'synced' : 'pending'
+    };
+    saveProjectLinkConfig(updated);
+    saveProjectToBackend(updated);
     refreshProjectConfigs();
   };
 
   // Save changes to a project Site input field
   const handleUpdateProjectSite = (proj: ProjectLinkConfig, newSite: string) => {
-    saveProjectLinkConfig({
+    const updated: ProjectLinkConfig = {
       ...proj,
       siteName: newSite.toUpperCase(),
       site: newSite.toUpperCase(),
       status: 'pending'
-    });
+    };
+    saveProjectLinkConfig(updated);
+    saveProjectToBackend(updated);
     refreshProjectConfigs();
   };
 
   // Save changes to a project Year input field
   const handleUpdateProjectYear = (proj: ProjectLinkConfig, newYear: string) => {
-    saveProjectLinkConfig({
+    const updated: ProjectLinkConfig = {
       ...proj,
       year: newYear.trim(),
       status: 'pending'
-    });
+    };
+    saveProjectLinkConfig(updated);
+    saveProjectToBackend(updated);
     refreshProjectConfigs();
   };
 
@@ -532,10 +538,11 @@ export default function GoogleSheetSyncModal({
       site: formattedSite,
       year: formattedYear,
       sheetUrl: newProjectUrl.trim(),
-      status: 'pending'
+      status: newProjectUrl.trim() ? 'synced' : 'pending'
     };
 
     saveProjectLinkConfig(newConfig);
+    saveProjectToBackend(newConfig);
 
     setNewProjectName('');
     setNewProjectSite('HEAD OFFICE');
@@ -552,14 +559,7 @@ export default function GoogleSheetSyncModal({
   };
 
   // Fungsi Hapus (Delete Icon):
-  // Saat tombol hapus diklik, kirim request POST ke backend dengan payload JSON:
-  // {
-  //   "action": "delete_project",
-  //   "project": item.defaultProject || item.project,
-  //   "site": item.site,
-  //   "year": item.year
-  // }
-  // Gunakan header 'Content-Type': 'text/plain;charset=utf-8' dan perbarui local state agar item langsung hilang dari UI.
+  // Saat tombol hapus diklik, hapus dari database server terpusat & GAS, dan update UI seketika
   const handleDeleteProject = async (item: ProjectLinkConfig) => {
     const projectToDelete = item.defaultProject || item.project || item.projectName;
     const siteToDelete = item.site || item.siteName || 'HEAD OFFICE';
@@ -576,34 +576,15 @@ export default function GoogleSheetSyncModal({
       return true;
     }));
 
-    // Update persistent local storage and dispatch events
+    // Update persistent storage
     deleteProjectLinkConfig(projectToDelete, siteToDelete, yearToDelete);
     if (item.id) {
       deleteProjectLinkConfigById(item.id);
     }
+    deleteProjectFromBackend(item);
     refreshProjectConfigs();
 
     onToast(`Project ${projectToDelete} (${siteToDelete}${yearToDelete ? ' ' + yearToDelete : ''}) dihapus`, 'info');
-
-    // Kirim request POST ke backend dengan payload JSON
-    try {
-      const payload = {
-        action: "delete_project",
-        project: item.defaultProject || item.project || item.projectName,
-        site: item.site || item.siteName || "HEAD OFFICE",
-        year: item.year ? String(item.year).trim() : ""
-      };
-
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload)
-      });
-    } catch (err) {
-      console.warn("Gagal mengirim request delete_project ke Google Apps Script backend:", err);
-    }
   };
 
   // Handle URL Sync (Single Tab)
@@ -652,6 +633,8 @@ export default function GoogleSheetSyncModal({
           },
           targetSite
         );
+
+        pushStateToServer();
 
         // Sync to GAS
         syncAuditData({
@@ -949,17 +932,55 @@ export default function GoogleSheetSyncModal({
               <div className="space-y-3">
                 {projectConfigs.length === 0 ? (
                   showCheckingBadge ? (
-                    <div className="flex flex-col items-center justify-center py-14 px-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-center">
-                      <div className="w-8 h-8 border-3 border-sky-200 border-t-sky-600 rounded-full animate-spin mb-3" />
-                      <p className="text-xs font-bold text-slate-800">Memeriksa pembaharuan...</p>
-                      <p className="text-[11px] text-slate-500 mt-1">Mengambil data project terbaru dari Google Apps Script...</p>
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((sIdx) => (
+                        <div
+                          key={`project-skeleton-${sIdx}`}
+                          className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3 animate-pulse"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-36 bg-slate-200 rounded-lg"></div>
+                              <div className="h-5 w-20 bg-slate-100 rounded-md"></div>
+                              <div className="h-5 w-16 bg-slate-100 rounded-md"></div>
+                              <div className="h-5 w-28 bg-emerald-50 rounded-full border border-emerald-100"></div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="h-7 w-7 bg-slate-100 rounded-lg"></div>
+                              <div className="h-7 w-7 bg-slate-100 rounded-lg"></div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-1">
+                            <div className="md:col-span-3">
+                              <div className="h-3 w-16 bg-slate-100 rounded mb-1.5"></div>
+                              <div className="h-9 w-full bg-slate-100 rounded-xl"></div>
+                            </div>
+                            <div className="md:col-span-2">
+                              <div className="h-3 w-12 bg-slate-100 rounded mb-1.5"></div>
+                              <div className="h-9 w-full bg-slate-100 rounded-xl"></div>
+                            </div>
+                            <div className="md:col-span-4">
+                              <div className="h-3 w-28 bg-slate-100 rounded mb-1.5"></div>
+                              <div className="h-9 w-full bg-slate-100 rounded-xl"></div>
+                            </div>
+                            <div className="md:col-span-3 flex items-end">
+                              <div className="h-9 w-full bg-sky-100/70 rounded-xl"></div>
+                            </div>
+                          </div>
+                          <div className="h-2.5 w-48 bg-slate-100 rounded"></div>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-center gap-2 py-3 px-4 bg-sky-50/70 border border-sky-100 rounded-2xl text-xs font-semibold text-sky-800 animate-pulse">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                        <span>Menghubungkan ke server database terpusat dan memuat daftar project AFS...</span>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-8 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2">
                       <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
                       <p className="text-sm font-bold text-slate-700">Belum Ada AFS Project di Server</p>
                       <p className="text-xs text-slate-500 max-w-md mx-auto">
-                        Daftar project belum tersedia dari Google Apps Script. Tambahkan project baru melalui form di atas atau periksa koneksi backend Anda.
+                        Daftar project belum tersedia dari database server terpusat. Tambahkan project baru melalui form di atas atau periksa koneksi backend Anda.
                       </p>
                     </div>
                   )
@@ -1300,12 +1321,14 @@ export default function GoogleSheetSyncModal({
           <div className="bg-slate-100 p-3.5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
             <div>
               <span className="font-bold text-slate-800">Status Data: </span>
-              {meta.lastSyncTimestamp ? (
+              {availableDataCount > 0 ? (
                 <span>
-                  Disinkronkan pada {new Date(meta.lastSyncTimestamp).toLocaleString('id-ID')} ({meta.totalSyncedRows} Total Data Audit)
+                  {dataSyncMeta?.lastSyncTimestamp ? (
+                    <>Disinkronkan pada {new Date(dataSyncMeta.lastSyncTimestamp).toLocaleString('id-ID')} ({availableDataCount} Total Data Audit)</>
+                  ) : (
+                    <><strong className="text-slate-900 font-bold">{availableDataCount} Data Tersedia</strong> (Server Master Database)</>
+                  )}
                 </span>
-              ) : meta.totalSyncedRows > 0 ? (
-                <span>{meta.totalSyncedRows} Data Tersedia</span>
               ) : (
                 <span className="text-amber-700 font-bold">Data Kosong / Belum Disinkronkan</span>
               )}
@@ -1315,11 +1338,13 @@ export default function GoogleSheetSyncModal({
               onClick={() => {
                 clearAllData();
                 refreshProjectConfigs();
+                setAvailableDataCount(0);
+                setDataSyncMeta(getSyncMetadata());
                 onToast('Data telah dibersihkan. Silakan sinkronkan atau tempel link baru.', 'info');
                 setSyncResult(null);
                 if (onSyncComplete) onSyncComplete(0);
               }}
-              className="text-[11px] font-bold text-rose-600 hover:text-rose-800 underline hover:no-underline flex items-center gap-1"
+              className="text-[11px] font-bold text-rose-600 hover:text-rose-800 underline hover:no-underline flex items-center gap-1 cursor-pointer"
             >
               Bersihkan Seluruh Data
             </button>

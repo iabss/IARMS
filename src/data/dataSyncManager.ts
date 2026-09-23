@@ -15,7 +15,7 @@ const STORAGE_KEY_TREND_EXCLUDED_PROJECTS = 'afs_trend_excluded_projects_v1';
 export interface SyncMetadata {
   lastSyncTimestamp: string | null;
   syncedProject: string;
-  sourceType: 'url' | 'paste' | 'file' | 'initial' | 'manual';
+  sourceType: 'url' | 'paste' | 'file' | 'initial' | 'manual' | 'server';
   totalSyncedRows: number;
   sheetUrl?: string;
 }
@@ -555,7 +555,104 @@ export async function pushStateToServer() {
   }
 }
 
-// Hydrate state from server backend on initial mount
+/**
+ * Hydrate state directly from authoritative server master data (Server-First Priority)
+ * Overrides client cache with server data and triggers app-wide reactive events
+ */
+export function hydrateServerState(serverState: {
+  projectConfigs?: ProjectLinkConfig[] | any[];
+  projects?: ProjectLinkConfig[] | any[];
+  customRows?: AFSFindingRecord[] | any[];
+  deletedKeys?: string[];
+  trendExclusions?: string[];
+  snapshots?: AchievementSnapshot[];
+}): { projects: ProjectLinkConfig[]; rowCount: number } {
+  try {
+    const rawConfigs = serverState.projectConfigs || serverState.projects || [];
+    let mappedConfigs: ProjectLinkConfig[] = [];
+
+    if (Array.isArray(rawConfigs) && rawConfigs.length > 0) {
+      mappedConfigs = rawConfigs.map(bp => {
+        const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+        const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
+        const bpYear = bp.year ? String(bp.year).trim() : '';
+        const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
+
+        return {
+          id: bpKey,
+          projectName: bpProj,
+          siteName: bpSite,
+          year: bpYear || undefined,
+          sheetUrl: bp.sheetUrl || '',
+          rowCount: bp.rowCount !== undefined ? Number(bp.rowCount) : 0,
+          status: bp.status || (bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending'),
+          lastSyncedAt: bp.lastSyncedAt || new Date().toISOString(),
+          defaultProject: bpProj,
+          project: bpProj,
+          site: bpSite
+        };
+      });
+
+      // Override project links cache
+      const deduped = deduplicateProjectConfigs(mappedConfigs);
+      inMemoryProjectConfigs = deduped;
+      localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
+      localStorage.setItem('afsProjects', JSON.stringify(deduped));
+    }
+
+    // Hydrate and override custom rows with authoritative server master data (1031+ rows)
+    const rows = serverState.customRows;
+    if (Array.isArray(rows) && rows.length > 0) {
+      localStorage.removeItem(STORAGE_KEY_CLEARED);
+      localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
+
+      const syncMeta: SyncMetadata = {
+        lastSyncTimestamp: new Date().toISOString(),
+        syncedProject: 'SERVER_MASTER',
+        sourceType: 'server',
+        totalSyncedRows: rows.length,
+        sheetUrl: mappedConfigs[0]?.sheetUrl || ''
+      };
+      localStorage.setItem(STORAGE_KEY_META, JSON.stringify(syncMeta));
+    }
+
+    // Hydrate deleted keys
+    if (Array.isArray(serverState.deletedKeys) && serverState.deletedKeys.length > 0) {
+      localStorage.setItem(STORAGE_KEY_DELETED_PROJECTS, JSON.stringify(serverState.deletedKeys));
+    }
+
+    // Hydrate trend exclusions
+    if (Array.isArray(serverState.trendExclusions) && serverState.trendExclusions.length > 0) {
+      localStorage.setItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS, JSON.stringify(serverState.trendExclusions));
+    }
+
+    // Hydrate snapshots
+    if (Array.isArray(serverState.snapshots) && serverState.snapshots.length > 0) {
+      localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(serverState.snapshots));
+    }
+
+    // Dispatches reactive updates across entire app
+    const merged = getMergedSheetRows();
+    const finalConfigs = inMemoryProjectConfigs || getProjectLinkConfigs();
+
+    window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: finalConfigs }));
+    window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged } }));
+    window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(getTrendExcludedProjects()) }));
+
+    return {
+      projects: finalConfigs,
+      rowCount: merged.length
+    };
+  } catch (err) {
+    console.error('Error hydrating server state:', err);
+    return {
+      projects: getProjectLinkConfigs(),
+      rowCount: getMergedSheetRows().length
+    };
+  }
+}
+
+// Hydrate state from server backend on initial mount (Server-First Priority)
 export async function syncWithServer(): Promise<boolean> {
   try {
     const res = await fetch('/api/app-state');
@@ -563,66 +660,7 @@ export async function syncWithServer(): Promise<boolean> {
     const json = await res.json();
     if (!json.success || !json.state) return false;
 
-    const { projectConfigs, customRows, deletedKeys, trendExclusions, snapshots } = json.state;
-    let hasUpdated = false;
-
-    // Hydrate projectConfigs if present - override with server global master data
-    if (Array.isArray(projectConfigs) && projectConfigs.length > 0) {
-      localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(projectConfigs));
-      inMemoryProjectConfigs = projectConfigs;
-      hasUpdated = true;
-    }
-
-    // Hydrate custom rows
-    if (Array.isArray(customRows) && customRows.length > 0) {
-      const localRows = localStorage.getItem(STORAGE_KEY_ROWS);
-      if (!localRows) {
-        localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(customRows));
-        hasUpdated = true;
-      }
-    }
-
-    // Hydrate deleted keys
-    if (Array.isArray(deletedKeys) && deletedKeys.length > 0) {
-      const localDel = localStorage.getItem(STORAGE_KEY_DELETED_PROJECTS);
-      if (!localDel) {
-        localStorage.setItem(STORAGE_KEY_DELETED_PROJECTS, JSON.stringify(deletedKeys));
-        hasUpdated = true;
-      }
-    }
-
-    // Hydrate trend exclusions
-    if (Array.isArray(trendExclusions) && trendExclusions.length > 0) {
-      const localTrend = localStorage.getItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS);
-      if (!localTrend) {
-        localStorage.setItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS, JSON.stringify(trendExclusions));
-        hasUpdated = true;
-      }
-    }
-
-    // Hydrate snapshots
-    if (Array.isArray(snapshots) && snapshots.length > 0) {
-      const localSnap = localStorage.getItem(STORAGE_KEY_SNAPSHOTS);
-      if (!localSnap) {
-        localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(snapshots));
-        hasUpdated = true;
-      }
-    }
-
-    if (hasUpdated) {
-      const merged = getMergedSheetRows();
-      window.dispatchEvent(new CustomEvent('afs_data_synced', { detail: { merged } }));
-      window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: getProjectLinkConfigs() }));
-      window.dispatchEvent(new CustomEvent('afs_trend_exclusions_updated', { detail: Array.from(getTrendExcludedProjects()) }));
-    } else {
-      // If local has custom data but server was empty, push local state to server
-      const localConfigs = localStorage.getItem(STORAGE_KEY_PROJECT_LINKS);
-      const localRows = localStorage.getItem(STORAGE_KEY_ROWS);
-      if (localConfigs || localRows) {
-        pushStateToServer();
-      }
-    }
-
+    hydrateServerState(json.state);
     return true;
   } catch (e) {
     return false;
