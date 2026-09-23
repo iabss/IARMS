@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   RefreshCw, 
   Link, 
@@ -87,20 +87,37 @@ export default function GoogleSheetSyncModal({
   });
 
   // Sync state if initialAfsProjects changes silently from parent background sync
+  const isFirstMountRef = useRef(true);
   useEffect(() => {
-    if (initialAfsProjects) {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    if (initialAfsProjects && initialAfsProjects.length > 0) {
       setAfsProjects(initialAfsProjects);
     }
   }, [initialAfsProjects]);
 
   const projectConfigs = afsProjects;
-  const setProjectConfigs = (updater: ProjectLinkConfig[] | ((prev: ProjectLinkConfig[]) => ProjectLinkConfig[])) => {
+  const setProjectConfigs = useCallback((updater: ProjectLinkConfig[] | ((prev: ProjectLinkConfig[]) => ProjectLinkConfig[])) => {
     setAfsProjects(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (onAfsProjectsChange) onAfsProjectsChange(next);
-      return next;
+      return typeof updater === 'function' ? updater(prev) : updater;
     });
-  };
+  }, []);
+
+  // Safely notify parent when afsProjects state changes without triggering "setState during render"
+  const onAfsProjectsChangeRef = useRef(onAfsProjectsChange);
+  useEffect(() => {
+    onAfsProjectsChangeRef.current = onAfsProjectsChange;
+  }, [onAfsProjectsChange]);
+
+  const lastNotifiedProjectsRef = useRef<ProjectLinkConfig[] | null>(null);
+  useEffect(() => {
+    if (onAfsProjectsChangeRef.current && afsProjects !== lastNotifiedProjectsRef.current) {
+      lastNotifiedProjectsRef.current = afsProjects;
+      onAfsProjectsChangeRef.current(afsProjects);
+    }
+  }, [afsProjects]);
   const [syncingProjects, setSyncingProjects] = useState<Record<string, boolean>>({});
   const [isLoadingBackend, setIsLoadingBackend] = useState(false);
   const showCheckingBadge = isCheckingUpdate || isLoadingBackend;
@@ -169,8 +186,6 @@ export default function GoogleSheetSyncModal({
 
               overrideProjectLinkConfigs(mapped);
               setProjectConfigs(mapped);
-              setAfsProjects(mapped);
-              if (onAfsProjectsChange) onAfsProjectsChange(mapped);
             }
 
             // Also check full server state for customRows
@@ -185,10 +200,8 @@ export default function GoogleSheetSyncModal({
                 deletedKeys: backendResult.deletedKeys
               });
               setProjectConfigs(hydrated.projects);
-              setAfsProjects(hydrated.projects);
               setAvailableDataCount(hydrated.rowCount);
               setDataSyncMeta(getSyncMetadata());
-              if (onAfsProjectsChange) onAfsProjectsChange(hydrated.projects);
             }
           })
           .catch((err) => {
@@ -258,12 +271,10 @@ export default function GoogleSheetSyncModal({
         // Langsung TIMPA (OVERRIDE) state dan localStorage dengan data dari Server Master & Apps Script
         overrideProjectLinkConfigs(mappedConfigs);
         setProjectConfigs(mappedConfigs);
-        setAfsProjects(mappedConfigs);
         try {
           localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
           localStorage.setItem('afs_projects', JSON.stringify(mappedConfigs));
         } catch (e) {}
-        if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
         onToast(`Berhasil memuat ${backendProjects.length} project dari Server Master Database!`, 'success');
       } else {
         onToast('Daftar project di Server sudah up-to-date', 'info');

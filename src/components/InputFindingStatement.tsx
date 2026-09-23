@@ -121,20 +121,6 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
   // Jalankan saat initial mount
   useEffect(() => {
     loadProjectsFromServer();
-
-    // Dengarkan event sinkronisasi internal
-    const handleLinksUpdated = (e: any) => {
-      if (e.detail && Array.isArray(e.detail)) {
-        setAfsProjects(e.detail);
-      } else {
-        setAfsProjects(getProjectLinkConfigs());
-      }
-    };
-
-    window.addEventListener('afs_project_links_updated', handleLinksUpdated);
-    return () => {
-      window.removeEventListener('afs_project_links_updated', handleLinksUpdated);
-    };
   }, [loadProjectsFromServer]);
 
   return (
@@ -146,7 +132,6 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
         onToast={onToast}
         onNavigateToAFS={onNavigateToAFS}
         initialAfsProjects={afsProjects}
-        onAfsProjectsChange={setAfsProjects}
         isCheckingUpdate={isLoadingBackend}
       />
     </div>

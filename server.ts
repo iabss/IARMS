@@ -770,20 +770,35 @@ app.get('/api/gas-audit-data', async (req, res) => {
       if (!trimmed.startsWith('<') && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
         try {
           const parsed = JSON.parse(trimmed);
-          return res.json({ success: true, data: parsed });
+          if (!res.headersSent) {
+            return res.json({ success: true, data: parsed });
+          }
         } catch {
           // parse error
         }
       }
     }
     // Return graceful fallback with 200 status
-    return res.json({ success: true, data: null, message: 'GAS returning non-JSON or offline' });
+    if (!res.headersSent) {
+      return res.json({ success: true, data: null, message: 'GAS returning non-JSON or offline' });
+    }
   } catch (err: any) {
-    return res.json({ success: true, data: null, message: 'GAS unavailable' });
+    if (!res.headersSent) {
+      return res.json({ success: true, data: null, message: 'GAS unavailable' });
+    }
   }
 });
 
 app.post('/api/gas-proxy', async (req, res) => {
+  let responded = false;
+  const safeJson = (data: any, status = 200) => {
+    if (responded || res.headersSent) return;
+    responded = true;
+    try {
+      res.status(status).json(data);
+    } catch {}
+  };
+
   try {
     const payload = req.body || {};
     const postData = JSON.stringify(payload);
@@ -803,27 +818,29 @@ app.post('/api/gas-proxy', async (req, res) => {
         const text = data.trim();
         if (text && !text.startsWith('<')) {
           try {
-            return res.json(JSON.parse(text));
+            return safeJson(JSON.parse(text));
           } catch {}
         }
-        return res.json({ status: 'success', success: true });
+        return safeJson({ status: 'success', success: true });
       });
     });
 
     gasReq.on('error', (err) => {
       console.warn('[GAS Proxy] Warning requesting GAS:', err.message);
-      return res.json({ status: 'offline', success: true });
+      safeJson({ status: 'offline', success: true });
     });
 
     gasReq.setTimeout(8000, () => {
-      gasReq.destroy();
-      return res.json({ status: 'timeout', success: true });
+      safeJson({ status: 'timeout', success: true });
+      try {
+        gasReq.destroy();
+      } catch {}
     });
 
     gasReq.write(postData);
     gasReq.end();
   } catch (err: any) {
-    return res.json({ status: 'offline', success: true });
+    safeJson({ status: 'offline', success: true });
   }
 });
 
