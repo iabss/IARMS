@@ -338,15 +338,227 @@ function formatDateRangeIndonesian(startIso: string, endIso: string) {
 
 // Format single ISO date e.g. "27 JUL 2026"
 function formatDateSingleIndonesian(isoStr: string) {
-  if (!isoStr) return '27 JUL 2026';
-  const monthNames = ['JUL', 'AGUS', 'SEP', 'OKT', 'NOV', 'DES', 'JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN'];
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '27 JUL 2026';
+  if (!isoStr) return '-';
   const monthFull = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGUS', 'SEP', 'OKT', 'NOV', 'DES'];
+  
+  if (/^\d{4}-\d{2}-\d{2}/.test(isoStr)) {
+    const parts = isoStr.split('T')[0].split('-');
+    const year = parseInt(parts[0], 10);
+    const mIdx = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const dayStr = String(day).padStart(2, '0');
+    const monthStr = monthFull[mIdx] || '';
+    return `${dayStr} ${monthStr} ${year}`;
+  }
+
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return isoStr;
   const day = String(d.getDate()).padStart(2, '0');
   const month = monthFull[d.getMonth()];
   const year = d.getFullYear();
   return `${day} ${month} ${year}`;
+}
+
+/**
+ * Helper to match project in snapshot records with flexible naming
+ */
+export function findProjectStatInSnapshot(
+  snapshot: AchievementSnapshot,
+  projectName: string,
+  rawProjectName?: string
+): { projectName: string; closeRate: number; siteRate: number; hoRate: number; total?: number; closed?: number } | undefined {
+  if (!snapshot || !snapshot.projectStats || snapshot.projectStats.length === 0) return undefined;
+
+  const cleanName = formatProjectDisplay(projectName).cleanName.toUpperCase().trim();
+  const rawClean = rawProjectName ? formatProjectDisplay(rawProjectName).cleanName.toUpperCase().trim() : '';
+  const searchUpper = projectName.toUpperCase().trim();
+
+  // 1. Exact match on clean or raw name
+  const exact = snapshot.projectStats.find(p => {
+    const pUpper = p.projectName.toUpperCase().trim();
+    const pClean = formatProjectDisplay(p.projectName).cleanName.toUpperCase().trim();
+    return pUpper === cleanName || pClean === cleanName || pUpper === searchUpper || (rawClean && (pUpper === rawClean || pClean === rawClean));
+  });
+  if (exact) return exact;
+
+  // 2. Keyword/inclusion match
+  return snapshot.projectStats.find(p => {
+    const pUpper = p.projectName.toUpperCase().trim();
+    const pClean = formatProjectDisplay(p.projectName).cleanName.toUpperCase().trim();
+    return searchUpper.includes(pUpper) || pUpper.includes(cleanName) || (rawClean && pUpper.includes(rawClean));
+  });
+}
+
+/**
+ * Extract close date from record text fields
+ */
+function extractCloseDateFromRecord(r: AFSFindingRecord): Date | null {
+  const texts = [r.REMARKS, r.NOTE, r["DOKUMENTASI CLOSING"], r["REVIEWED CLOSING FROM IA"]].filter(Boolean) as string[];
+  for (const t of texts) {
+    const isoMatch = t.match(/\b(202\d-[01]\d-[0-3]\d)\b/);
+    if (isoMatch) {
+      const d = new Date(isoMatch[1]);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const dmyMatch = t.match(/\b([0-3]?\d)[/-]([01]?\d)[/-](202\d)\b/);
+    if (dmyMatch) {
+      const d = new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+  return null;
+}
+
+/**
+ * Calculate project rates (overall closeRate, siteRate, hoRate) for a specific date
+ * reactively using snapshot logs or dynamic database record calculation.
+ */
+export function calculateProjectRatesForDate(
+  projectName: string,
+  rawProjectName: string,
+  records: AFSFindingRecord[],
+  targetDate: string,
+  snapshots: AchievementSnapshot[],
+  isEndPeriod: boolean,
+  currentLiveRates: { closeRate: number; siteRate: number; hoRate: number }
+): { closeRate: number; siteRate: number; hoRate: number; effectiveDate?: string; source: string } {
+  if (!targetDate) {
+    return { ...currentLiveRates, source: 'live' };
+  }
+
+  const sortedSnaps = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  // 1. Exact snapshot match on targetDate
+  const exactSnap = sortedSnaps.find(s => s.date === targetDate);
+  if (exactSnap) {
+    const stat = findProjectStatInSnapshot(exactSnap, projectName, rawProjectName);
+    if (stat) {
+      return {
+        closeRate: stat.closeRate,
+        siteRate: stat.siteRate,
+        hoRate: stat.hoRate,
+        effectiveDate: exactSnap.date,
+        source: 'exact_snapshot'
+      };
+    }
+  }
+
+  // 2. Lookup nearest snapshot
+  if (isEndPeriod) {
+    const latestSnapDate = sortedSnaps.length > 0 ? sortedSnaps[sortedSnaps.length - 1].date : '';
+    if (targetDate >= todayIso || (latestSnapDate && targetDate >= latestSnapDate)) {
+      return {
+        ...currentLiveRates,
+        effectiveDate: targetDate,
+        source: 'live_current'
+      };
+    }
+    // End period in the past: find latest snapshot on or before targetDate
+    const priorSnaps = sortedSnaps.filter(s => s.date <= targetDate);
+    if (priorSnaps.length > 0) {
+      const best = priorSnaps[priorSnaps.length - 1];
+      const stat = findProjectStatInSnapshot(best, projectName, rawProjectName);
+      if (stat) {
+        return {
+          closeRate: stat.closeRate,
+          siteRate: stat.siteRate,
+          hoRate: stat.hoRate,
+          effectiveDate: best.date,
+          source: 'nearest_snapshot'
+        };
+      }
+    }
+  } else {
+    // Start period (baseline): find closest snapshot on or before targetDate
+    const priorSnaps = sortedSnaps.filter(s => s.date <= targetDate);
+    if (priorSnaps.length > 0) {
+      const best = priorSnaps[priorSnaps.length - 1];
+      const stat = findProjectStatInSnapshot(best, projectName, rawProjectName);
+      if (stat) {
+        return {
+          closeRate: stat.closeRate,
+          siteRate: stat.siteRate,
+          hoRate: stat.hoRate,
+          effectiveDate: best.date,
+          source: 'nearest_prior_snapshot'
+        };
+      }
+    } else if (sortedSnaps.length > 0) {
+      // If targetDate is earlier than all snapshots, use earliest snapshot
+      const earliest = sortedSnaps[0];
+      const stat = findProjectStatInSnapshot(earliest, projectName, rawProjectName);
+      if (stat) {
+        return {
+          closeRate: stat.closeRate,
+          siteRate: stat.siteRate,
+          hoRate: stat.hoRate,
+          effectiveDate: earliest.date,
+          source: 'earliest_snapshot'
+        };
+      }
+    }
+  }
+
+  // 3. Dynamic Calculation from database records if no snapshot found
+  if (records && records.length > 0) {
+    const targetTime = new Date(targetDate).getTime();
+    
+    let closedCount = 0;
+    let siteClosed = 0;
+    let siteTotal = 0;
+    let hoClosed = 0;
+    let hoTotal = 0;
+
+    records.forEach(r => {
+      const picSite = (r['PIC SITE'] || '').trim();
+      const picHo = (r['PIC HO'] || '').trim();
+      const site = (r.SITE || '').trim().toUpperCase();
+      const hasPicSite = Boolean(picSite && picSite !== '-' && picSite !== 'N/A');
+      const hasPicHo = Boolean(picHo && picHo !== '-' && picHo !== 'N/A');
+      const isHoSite = site === 'HO' || site === 'HEAD OFFICE' || site === 'JKT';
+      const isSiteRec = hasPicSite || (!hasPicHo && !isHoSite);
+      const isHoRec = hasPicHo || (!hasPicSite && isHoSite);
+
+      if (isSiteRec) siteTotal++;
+      if (isHoRec) hoTotal++;
+
+      const isClosedNow = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+      if (isClosedNow) {
+        const closeDate = extractCloseDateFromRecord(r);
+        const wasClosedAtTarget = closeDate ? closeDate.getTime() <= targetTime : true;
+        
+        if (wasClosedAtTarget) {
+          closedCount++;
+          if (isSiteRec) siteClosed++;
+          if (isHoRec) hoClosed++;
+        }
+      }
+    });
+
+    const total = records.length;
+    const calcCloseRate = total > 0 ? parseFloat(((closedCount / total) * 100).toFixed(2)) : 0;
+    const calcSiteRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : calcCloseRate;
+    const calcHoRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : calcCloseRate;
+
+    return {
+      closeRate: calcCloseRate,
+      siteRate: calcSiteRate,
+      hoRate: calcHoRate,
+      effectiveDate: targetDate,
+      source: 'dynamic_records'
+    };
+  }
+
+  // 4. Fallback: authoritative standard baseline map
+  const fallback = getBaselineForProject(projectName || rawProjectName);
+  return {
+    closeRate: fallback.closeRate,
+    siteRate: fallback.siteRate,
+    hoRate: fallback.hoRate,
+    effectiveDate: targetDate,
+    source: 'authoritative_fallback'
+  };
 }
 
 // SVG Semi-Circle Donut Gauge Component
@@ -799,13 +1011,18 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     return formatDateRangeIndonesian(startDate, endDate);
   }, [useDateFilter, startDate, endDate]);
 
-  const startDateDisplayStr = useMemo(() => {
+  const formattedStartDate = useMemo(() => {
+    if (!useDateFilter) return 'Awal Periode';
     return formatDateSingleIndonesian(startDate);
-  }, [startDate]);
+  }, [useDateFilter, startDate]);
 
-  const endDateDisplayStr = useMemo(() => {
+  const formattedEndDate = useMemo(() => {
+    if (!useDateFilter) return 'Saat Ini';
     return formatDateSingleIndonesian(endDate);
-  }, [endDate]);
+  }, [useDateFilter, endDate]);
+
+  const startDateDisplayStr = formattedStartDate;
+  const endDateDisplayStr = formattedEndDate;
 
   // Filtered dataset (Calculates full cumulative project scope so rates like CDI reflect true 88.19% achievement)
   const filteredRows = useMemo(() => {
@@ -1122,7 +1339,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     const result = projEntries.map((data, idx) => {
       const total = data.records.length;
       const closed = data.records.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
-      let currentRate = total > 0 ? parseFloat(((closed / total) * 100).toFixed(2)) : 0;
+      let liveCurrentRate = total > 0 ? parseFloat(((closed / total) * 100).toFixed(2)) : 0;
 
       // Uniform formula for Site records across ALL projects
       const siteRecords = data.records.filter(r => {
@@ -1137,7 +1354,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       });
       const siteTotal = siteRecords.length;
       const siteClosed = siteRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
-      let siteCurrentRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : 0;
+      let liveSiteCurrentRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : 0;
 
       // Uniform formula for HO records across ALL projects
       const hoRecords = data.records.filter(r => {
@@ -1152,39 +1369,69 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       });
       const hoTotal = hoRecords.length;
       const hoClosed = hoRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
-      let hoCurrentRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : 0;
+      let liveHoCurrentRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : 0;
 
-      if (siteTotal === 0 && total > 0) siteCurrentRate = currentRate;
-      if (hoTotal === 0 && total > 0) hoCurrentRate = currentRate;
+      if (siteTotal === 0 && total > 0) liveSiteCurrentRate = liveCurrentRate;
+      if (hoTotal === 0 && total > 0) liveHoCurrentRate = liveCurrentRate;
 
       // Authoritative baseline for this project
       const stdBaseline = getBaselineForProject(data.name || data.rawProjectName);
 
       // If CDI or specific standard project has no movement in current period, match exact spreadsheet value
-      if (data.name.toUpperCase().includes('CDI') && siteCurrentRate > 93.0) {
-        siteCurrentRate = stdBaseline.siteRate; // 92.98%
+      if (data.name.toUpperCase().includes('CDI') && liveSiteCurrentRate > 93.0) {
+        liveSiteCurrentRate = stdBaseline.siteRate; // 92.98%
       }
 
-      let prevRate = stdBaseline.closeRate;
-      let sitePrevRate = stdBaseline.siteRate;
-      let hoPrevRate = stdBaseline.hoRate;
+      const currentLiveRates = {
+        closeRate: liveCurrentRate,
+        siteRate: liveSiteCurrentRate,
+        hoRate: liveHoCurrentRate
+      };
+
+      // REACTIVE DYNAMIC CALCULATION:
+      // Compute historical baseline rates at startDate (TOTAL SEBELUMNYA)
+      // and rates at endDate (TOTAL SAAT INI) reactively from snapshots or finding records
+      const prevComputed = calculateProjectRatesForDate(
+        data.name,
+        data.rawProjectName,
+        data.records,
+        useDateFilter ? startDate : '',
+        snapshots,
+        false,
+        currentLiveRates
+      );
+
+      const currentComputed = calculateProjectRatesForDate(
+        data.name,
+        data.rawProjectName,
+        data.records,
+        useDateFilter ? endDate : '',
+        snapshots,
+        true,
+        currentLiveRates
+      );
+
+      let prevRate = prevComputed.closeRate;
+      let sitePrevRate = prevComputed.siteRate;
+      let hoPrevRate = prevComputed.hoRate;
+
+      let currentRate = currentComputed.closeRate;
+      let siteCurrentRate = currentComputed.siteRate;
+      let hoCurrentRate = currentComputed.hoRate;
+
+      // Default baseline values when project has 0 synced records
+      if (total === 0 && prevComputed.source === 'authoritative_fallback') {
+        currentRate = stdBaseline.closeRate;
+        prevRate = stdBaseline.closeRate;
+        siteCurrentRate = stdBaseline.siteRate;
+        sitePrevRate = stdBaseline.siteRate;
+        hoCurrentRate = stdBaseline.hoRate;
+        hoPrevRate = stdBaseline.hoRate;
+      }
 
       let deltaRate = parseFloat((currentRate - prevRate).toFixed(2));
       let siteDelta = parseFloat((siteCurrentRate - sitePrevRate).toFixed(2));
       let hoDelta = parseFloat((hoCurrentRate - hoPrevRate).toFixed(2));
-
-      // Default baseline values when project has 0 synced records
-      if (total === 0) {
-        currentRate = stdBaseline.closeRate;
-        prevRate = stdBaseline.closeRate;
-        deltaRate = 0;
-        siteCurrentRate = stdBaseline.siteRate;
-        sitePrevRate = stdBaseline.siteRate;
-        siteDelta = 0;
-        hoCurrentRate = stdBaseline.hoRate;
-        hoPrevRate = stdBaseline.hoRate;
-        hoDelta = 0;
-      }
 
       let iconComponent = defaultSectors[idx % defaultSectors.length]?.icon || Building2;
       if (data.name.toUpperCase().includes('CDI')) iconComponent = Building2;
@@ -1219,7 +1466,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     });
 
     return result;
-  }, [filteredRows, snapshotMovement, trendExcludedList]);
+  }, [filteredRows, snapshots, startDate, endDate, useDateFilter, snapshotMovement, trendExcludedList]);
 
   // Global Unweighted Average across ALL projects (100% Filter-Independent)
   const globalProjectTrendMatrix = useMemo(() => {
@@ -1736,7 +1983,16 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (val && endDate && val > endDate) {
+                          setEndDate(val);
+                        }
+                        if (onToast && val) {
+                          onToast(`Periode dihitung ulang: ${formatDateSingleIndonesian(val)} s/d ${formatDateSingleIndonesian(endDate)}`, 'info');
+                        }
+                      }}
                       className="font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer text-xs"
                     />
                   </div>
@@ -1746,7 +2002,16 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     <input
                       type="date"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEndDate(val);
+                        if (val && startDate && val < startDate) {
+                          setStartDate(val);
+                        }
+                        if (onToast && val) {
+                          onToast(`Periode dihitung ulang: ${formatDateSingleIndonesian(startDate)} s/d ${formatDateSingleIndonesian(val)}`, 'info');
+                        }
+                      }}
                       className="font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer text-xs"
                     />
                   </div>
@@ -1885,27 +2150,29 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
         {/* Detailed Projects Table */}
         <div className={`rounded-xl border border-slate-200 shadow-2xs w-full ${isExportingJpg ? 'overflow-hidden' : 'overflow-x-auto'}`}>
           <table className="w-full table-fixed text-xs text-left border-collapse">
-            <thead className="bg-slate-50 text-slate-700 font-extrabold text-[10px] uppercase tracking-wider border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-700 font-semibold text-[10px] uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th className={`${isExportingJpg ? 'py-3 px-2.5 w-[23%]' : 'py-3.5 px-3 sm:px-4 w-[21%]'} border-r border-slate-200`}>SEKTOR / PROJECT</th>
-                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200`}>
+                <th className={`${isExportingJpg ? 'py-3 px-2.5 w-[23%]' : 'py-3.5 px-3 sm:px-4 w-[21%]'} border-r border-slate-200 font-semibold`}>SEKTOR / PROJECT</th>
+                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200 font-semibold`}>
                   PERUBAHAN ACH CLOSING TOTAL
                 </th>
-                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200`}>
+                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200 font-semibold`}>
                   PROGRESS SITE (PERUBAHAN)
                 </th>
-                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200`}>
+                <th className={`${isExportingJpg ? 'py-3 px-1.5 w-[18%]' : 'py-3.5 px-2.5 w-[18%]'} text-center border-r border-slate-200 font-semibold`}>
                   PROGRESS HO (PERUBAHAN)
                 </th>
                 <th className={`${isExportingJpg ? 'py-3 px-1 w-[11%]' : 'py-3.5 px-2 w-[10.5%]'} text-center border-r border-slate-200`}>
-                  TOTAL SEBELUMNYA<br/><span className="text-[8.5px] font-semibold text-slate-500">({startDateDisplayStr})</span>
+                  <span className="block font-semibold">TOTAL SEBELUMNYA</span>
+                  <span className="text-[8.5px] sm:text-[9px] font-medium text-slate-500 whitespace-nowrap">({formattedStartDate})</span>
                 </th>
                 <th className={`${isExportingJpg ? 'py-3 px-0.5 w-[2%]' : 'py-3.5 px-0.5 w-[2.5%]'} text-center border-r border-slate-200`}></th>
                 <th className={`${isExportingJpg ? 'py-3 px-1 w-[10%]' : 'py-3.5 px-2 w-[10.5%]'} text-center ${!isExportingJpg ? 'border-r border-slate-200' : ''}`}>
-                  TOTAL SAAT INI<br/><span className="text-[8.5px] font-semibold text-slate-500">({endDateDisplayStr})</span>
+                  <span className="block font-semibold">TOTAL SAAT INI</span>
+                  <span className="text-[8.5px] sm:text-[9px] font-medium text-slate-500 whitespace-nowrap">({formattedEndDate})</span>
                 </th>
                 {!isExportingJpg && (
-                  <th className="py-3.5 px-1.5 text-center w-8" data-export-ignore="true">
+                  <th className="py-3.5 px-1.5 text-center w-8 font-semibold" data-export-ignore="true">
                     AKSI
                   </th>
                 )}
@@ -1922,17 +2189,17 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     {/* Sektor / Project */}
                     <td className={`${isExportingJpg ? 'py-3 px-2.5' : 'py-3.5 sm:py-4 px-2.5 sm:px-3.5'} border-r border-slate-200 overflow-hidden`}>
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className={`${isExportingJpg ? 'w-5 h-5 text-[10px]' : 'w-5 h-5 text-[10px]'} rounded-full bg-blue-600 text-white font-black flex items-center justify-center shrink-0 shadow-2xs`}>
+                        <div className={`${isExportingJpg ? 'w-5 h-5 text-[10px]' : 'w-5 h-5 text-[10px]'} rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 shadow-2xs`}>
                           {item.id}
                         </div>
                         <div className={`${isExportingJpg ? 'p-1' : 'p-1.5'} bg-slate-100 rounded-lg text-slate-700 border border-slate-200 shrink-0`}>
                           <IconComp className={`${isExportingJpg ? 'w-3.5 h-3.5' : 'w-3.5 h-3.5'}`} />
                         </div>
                         <div className="min-w-0 flex-1 overflow-hidden">
-                          <h4 className={`font-black ${isExportingJpg ? 'text-xs truncate' : 'text-xs sm:text-[12.5px]'} text-slate-900 leading-tight`} title={item.name}>
+                          <h4 className={`font-semibold ${isExportingJpg ? 'text-xs truncate' : 'text-xs sm:text-[12.5px]'} text-slate-900 leading-tight`} title={item.name}>
                             {formatProjectDisplay(item.name, item.type).cleanName}
                           </h4>
-                          <span className={`${isExportingJpg ? 'text-[9px] truncate' : 'text-[9.5px]'} font-bold text-sky-700 block mt-0.5`}>
+                          <span className={`${isExportingJpg ? 'text-[9px] truncate' : 'text-[9.5px]'} font-medium text-sky-700 block mt-0.5`}>
                             {formatProjectDisplay(item.name, item.type).subType}
                           </span>
                         </div>
@@ -1942,12 +2209,12 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     {/* Perubahan ACH Closing Total */}
                     <td className={`${isExportingJpg ? 'py-3 px-1' : 'py-4 sm:py-5 px-2.5'} text-center border-r border-slate-200 overflow-hidden`}>
                       <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
-                        <span className={`font-black ${isExportingJpg ? 'text-[11px]' : 'text-xs sm:text-[13px]'} flex items-center gap-1 ${
+                        <span className={`font-semibold ${isExportingJpg ? 'text-[11px]' : 'text-xs sm:text-[13px]'} flex items-center gap-1 ${
                           isPos ? 'text-emerald-600' : isZero ? 'text-slate-700' : 'text-rose-600'
                         }`}>
                           {isPos ? '▲' : isZero ? '━' : '▼'} {isPos ? `+${item.deltaRate.toFixed(2).replace('.', ',')}%` : `${item.deltaRate.toFixed(2).replace('.', ',')}%`}
                         </span>
-                        <span className={`${isExportingJpg ? 'text-[8.5px]' : 'text-[9.5px] sm:text-[10px]'} font-bold text-slate-500 whitespace-nowrap`}>
+                        <span className={`${isExportingJpg ? 'text-[8.5px]' : 'text-[9.5px] sm:text-[10px]'} font-medium text-slate-500 whitespace-nowrap`}>
                           ({item.prevRate.toFixed(2).replace('.', ',')}% → {item.currentRate.toFixed(2).replace('.', ',')}%)
                         </span>
                       </div>
@@ -1956,13 +2223,13 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     {/* Progress Site */}
                     <td className={`${isExportingJpg ? 'py-3 px-1.5' : 'py-4 sm:py-5 px-3'} border-r border-slate-200 overflow-hidden`}>
                       <div className="space-y-0.5 min-w-0">
-                        <div className={`flex items-center justify-between ${isExportingJpg ? 'text-[9px]' : 'text-[10px] sm:text-[10.5px]'} font-extrabold`}>
+                        <div className={`flex items-center justify-between ${isExportingJpg ? 'text-[9px]' : 'text-[10px] sm:text-[10.5px]'} font-semibold`}>
                           <span className="text-emerald-700 uppercase tracking-wide">SITE</span>
-                          <span className={item.siteDelta > 0 ? 'text-emerald-600 font-black' : item.siteDelta < 0 ? 'text-rose-600 font-black' : 'text-slate-700'}>
+                          <span className={item.siteDelta > 0 ? 'text-emerald-600 font-semibold' : item.siteDelta < 0 ? 'text-rose-600 font-semibold' : 'text-slate-700'}>
                             {item.siteDelta > 0 ? `+${item.siteDelta.toFixed(2).replace('.', ',')}%` : `${item.siteDelta.toFixed(2).replace('.', ',')}%`}
                           </span>
                         </div>
-                        <span className={`${isExportingJpg ? 'text-[8px]' : 'text-[9.5px] sm:text-[10px]'} font-bold text-slate-500 block text-center whitespace-nowrap`}>
+                        <span className={`${isExportingJpg ? 'text-[8px]' : 'text-[9.5px] sm:text-[10px]'} font-medium text-slate-500 block text-center whitespace-nowrap`}>
                           {item.sitePrevRate.toFixed(2).replace('.', ',')}% → {item.siteCurrentRate.toFixed(2).replace('.', ',')}%
                         </span>
                         <div className={`w-full bg-slate-100 ${isExportingJpg ? 'h-1.5' : 'h-2'} rounded-full overflow-hidden`}>
@@ -1977,13 +2244,13 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     {/* Progress HO */}
                     <td className={`${isExportingJpg ? 'py-3 px-1.5' : 'py-4 sm:py-5 px-3'} border-r border-slate-200 overflow-hidden`}>
                       <div className="space-y-0.5 min-w-0">
-                        <div className={`flex items-center justify-between ${isExportingJpg ? 'text-[9px]' : 'text-[10px] sm:text-[10.5px]'} font-extrabold`}>
+                        <div className={`flex items-center justify-between ${isExportingJpg ? 'text-[9px]' : 'text-[10px] sm:text-[10.5px]'} font-semibold`}>
                           <span className="text-blue-700 uppercase tracking-wide">HO</span>
-                          <span className={item.hoDelta > 0 ? 'text-emerald-600 font-black' : item.hoDelta < 0 ? 'text-rose-600 font-black' : 'text-slate-700'}>
+                          <span className={item.hoDelta > 0 ? 'text-emerald-600 font-semibold' : item.hoDelta < 0 ? 'text-rose-600 font-semibold' : 'text-slate-700'}>
                             {item.hoDelta > 0 ? `+${item.hoDelta.toFixed(2).replace('.', ',')}%` : `${item.hoDelta.toFixed(2).replace('.', ',')}%`}
                           </span>
                         </div>
-                        <span className={`${isExportingJpg ? 'text-[8px]' : 'text-[9.5px] sm:text-[10px]'} font-bold text-slate-500 block text-center whitespace-nowrap`}>
+                        <span className={`${isExportingJpg ? 'text-[8px]' : 'text-[9.5px] sm:text-[10px]'} font-medium text-slate-500 block text-center whitespace-nowrap`}>
                           {item.hoPrevRate.toFixed(2).replace('.', ',')}% → {item.hoCurrentRate.toFixed(2).replace('.', ',')}%
                         </span>
                         <div className={`w-full bg-slate-100 ${isExportingJpg ? 'h-1.5' : 'h-2'} rounded-full overflow-hidden`}>
@@ -1996,17 +2263,17 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                     </td>
 
                     {/* Total Sebelumnya */}
-                    <td className={`${isExportingJpg ? 'py-3 px-1 text-[11px]' : 'py-4 sm:py-5 px-2 text-xs sm:text-[13px]'} text-center font-black text-slate-800 border-r border-slate-200 whitespace-nowrap`}>
+                    <td className={`${isExportingJpg ? 'py-3 px-1 text-[11px]' : 'py-4 sm:py-5 px-2 text-xs sm:text-[13px]'} text-center font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap`}>
                       {item.prevRate.toFixed(2).replace('.', ',')}%
                     </td>
 
                     {/* Arrow */}
-                    <td className={`${isExportingJpg ? 'py-3 px-0.5 text-[10px]' : 'py-4 sm:py-5 px-0.5 text-xs'} text-center font-black text-slate-400 border-r border-slate-200`}>
+                    <td className={`${isExportingJpg ? 'py-3 px-0.5 text-[10px]' : 'py-4 sm:py-5 px-0.5 text-xs'} text-center font-medium text-slate-400 border-r border-slate-200`}>
                       →
                     </td>
 
                     {/* Total Saat Ini */}
-                    <td className={`${isExportingJpg ? 'py-3 px-1 text-[11px]' : 'py-4 sm:py-5 px-2 text-xs sm:text-[13px]'} text-center font-black text-slate-900 ${!isExportingJpg ? 'border-r border-slate-200' : ''} whitespace-nowrap`}>
+                    <td className={`${isExportingJpg ? 'py-3 px-1 text-[11px]' : 'py-4 sm:py-5 px-2 text-xs sm:text-[13px]'} text-center font-semibold text-slate-900 ${!isExportingJpg ? 'border-r border-slate-200' : ''} whitespace-nowrap`}>
                       {item.currentRate.toFixed(2).replace('.', ',')}%
                     </td>
 
@@ -2053,11 +2320,11 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
           <div className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span>
-              <strong>Catatan:</strong> Data perubahan dihitung dari awal minggu ({startDateDisplayStr}) ke periode saat ini ({endDateDisplayStr}).
+              <strong>Catatan:</strong> Data perubahan dihitung dari ({formattedStartDate}) ke ({formattedEndDate}).
             </span>
           </div>
           <span className="text-[9.5px] sm:text-[10px] text-blue-700 font-bold bg-blue-100/80 px-2 py-0.5 rounded-md self-start sm:self-auto border border-blue-200">
-            Siklus Mingguan Dinamis (Senin – Minggu)
+            {useDateFilter ? 'Rentang Tanggal Aktif' : 'Semua Periode Data'}
           </span>
         </div>
       </div>
@@ -2181,16 +2448,16 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider">
-                    <th className="py-3 px-4 rounded-tl-2xl">SEKTOR / PROJECT</th>
-                    <th className="py-3 px-4 text-center border-l border-slate-800">RATE AWAL PERIODE</th>
-                    <th className="py-3 px-4 text-center border-l border-slate-800">→</th>
-                    <th className="py-3 px-4 text-center border-l border-slate-800">RATE AKHIR PERIODE</th>
-                    <th className="py-3 px-4 text-center border-l border-slate-800">DELTA KENAIKAN</th>
-                    <th className="py-3 px-4 text-center rounded-tr-2xl border-l border-slate-800">STATUS PERGERAKAN</th>
+                  <tr className="bg-slate-900 text-white text-[11px] font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-4 rounded-tl-2xl font-semibold">SEKTOR / PROJECT</th>
+                    <th className="py-3 px-4 text-center border-l border-slate-800 font-semibold">RATE AWAL PERIODE</th>
+                    <th className="py-3 px-4 text-center border-l border-slate-800 font-semibold">→</th>
+                    <th className="py-3 px-4 text-center border-l border-slate-800 font-semibold">RATE AKHIR PERIODE</th>
+                    <th className="py-3 px-4 text-center border-l border-slate-800 font-semibold">DELTA KENAIKAN</th>
+                    <th className="py-3 px-4 text-center rounded-tr-2xl border-l border-slate-800 font-semibold">STATUS PERGERAKAN</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 text-xs font-semibold">
+                <tbody className="divide-y divide-slate-200 text-xs font-medium">
                   {['CDI', 'IP BAYAN', 'AGM', 'MAS', 'IT', 'PR-PAYMENT'].map((secName, idx) => {
                     const secData = snapshotMovement.sectorMap.get(secName) || { baseRate: 0, latestRate: 0, delta: 0 };
                     const isUp = secData.delta > 0;
@@ -2199,37 +2466,37 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
 
                     return (
                       <tr key={secName} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
-                        <td className="py-3.5 px-4 font-black text-slate-900 border-r border-slate-200">
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 border-r border-slate-200">
                           <div>
-                            <div className="font-black text-slate-900 text-sm">{formatted.cleanName}</div>
-                            <span className="text-[10px] font-bold text-sky-700 block mt-0.5">{formatted.subType}</span>
+                            <div className="font-semibold text-slate-900 text-sm">{formatted.cleanName}</div>
+                            <span className="text-[10px] font-medium text-sky-700 block mt-0.5">{formatted.subType}</span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-center text-slate-700 font-bold border-r border-slate-200">
+                        <td className="py-3.5 px-4 text-center text-slate-700 font-semibold border-r border-slate-200">
                           {secData.baseRate.toFixed(2).replace('.', ',')}%
                         </td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 font-black border-r border-slate-200">
+                        <td className="py-3.5 px-2 text-center text-slate-400 font-medium border-r border-slate-200">
                           →
                         </td>
-                        <td className="py-3.5 px-4 text-center font-black text-slate-900 border-r border-slate-200">
+                        <td className="py-3.5 px-4 text-center font-semibold text-slate-900 border-r border-slate-200">
                           {secData.latestRate.toFixed(2).replace('.', ',')}%
                         </td>
-                        <td className="py-3.5 px-4 text-center font-black border-r border-slate-200">
+                        <td className="py-3.5 px-4 text-center font-semibold border-r border-slate-200">
                           <span className={isUp ? 'text-emerald-600' : isDown ? 'text-rose-600' : 'text-slate-600'}>
                             {isUp ? `+${secData.delta.toFixed(2).replace('.', ',')}%` : `${secData.delta.toFixed(2).replace('.', ',')}%`}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           {isUp ? (
-                            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1 rounded-full">
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2.5 py-1 rounded-full">
                               <TrendingUp className="w-3 h-3" /> MENINGKAT
                             </span>
                           ) : isDown ? (
-                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-[10px] font-black px-2.5 py-1 rounded-full">
+                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-[10px] font-semibold px-2.5 py-1 rounded-full">
                               MENURUN
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-[10px] font-medium px-2.5 py-1 rounded-full">
                               STAGNAN
                             </span>
                           )}
@@ -2274,59 +2541,59 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider">
-                    <th className="py-3 px-4 rounded-tl-2xl">TANGGAL & WAKTU</th>
-                    <th className="py-3 px-4">SUMBER</th>
-                    <th className="py-3 px-4">CATATAN / SPREADSHEET</th>
-                    <th className="py-3 px-4 text-center">TOTAL FINDINGS</th>
-                    <th className="py-3 px-4 text-center">CLOSED</th>
-                    <th className="py-3 px-4 text-center">ACH RATE (%)</th>
-                    <th className="py-3 px-4 text-center rounded-tr-2xl">AKSI</th>
+                  <tr className="bg-slate-900 text-white text-[11px] font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-4 rounded-tl-2xl font-semibold">TANGGAL &amp; WAKTU</th>
+                    <th className="py-3 px-4 font-semibold">SUMBER</th>
+                    <th className="py-3 px-4 font-semibold">CATATAN / SPREADSHEET</th>
+                    <th className="py-3 px-4 text-center font-semibold">TOTAL FINDINGS</th>
+                    <th className="py-3 px-4 text-center font-semibold">CLOSED</th>
+                    <th className="py-3 px-4 text-center font-semibold">ACH RATE (%)</th>
+                    <th className="py-3 px-4 text-center rounded-tr-2xl font-semibold">AKSI</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 text-xs font-semibold">
+                <tbody className="divide-y divide-slate-200 text-xs font-medium">
                   {filteredSnapshots.map((snap, idx) => {
                     const snapDate = new Date(snap.timestamp || snap.date);
                     const timeStr = !isNaN(snapDate.getTime()) ? snapDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
 
                     return (
                       <tr key={snap.id} className={idx % 2 === 0 ? 'bg-white hover:bg-sky-50/40' : 'bg-slate-50/60 hover:bg-sky-50/40'}>
-                        <td className="py-3.5 px-4 font-black text-slate-900">
+                        <td className="py-3.5 px-4 font-semibold text-slate-900">
                           <div>
                             <span>{formatDateSingleIndonesian(snap.date)}</span>
-                            <span className="block text-[10px] text-slate-500 font-medium">Jam {timeStr} WIB</span>
+                            <span className="block text-[10px] text-slate-500 font-normal">Jam {timeStr} WIB</span>
                           </div>
                         </td>
 
                         <td className="py-3.5 px-4">
                           {snap.sourceType === 'sync' ? (
-                            <span className="bg-sky-100 text-sky-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                            <span className="bg-sky-100 text-sky-800 text-[10px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
                               <RotateCcw className="w-3 h-3" /> GOOGLE SHEET
                             </span>
                           ) : snap.sourceType === 'manual' ? (
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" /> MANUAL RECORD
                             </span>
                           ) : (
-                            <span className="bg-slate-200 text-slate-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            <span className="bg-slate-200 text-slate-800 text-[10px] font-semibold px-2.5 py-1 rounded-full">
                               INITIAL BASELINE
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                        <td className="py-3.5 px-4 font-medium text-slate-800">
                           {snap.note}
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-bold text-slate-700">
+                        <td className="py-3.5 px-4 text-center font-semibold text-slate-700">
                           {snap.totalRows}
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-bold text-emerald-700">
+                        <td className="py-3.5 px-4 text-center font-semibold text-emerald-700">
                           {snap.closedRows}
                         </td>
 
-                        <td className="py-3.5 px-4 text-center font-black text-slate-900 text-sm">
+                        <td className="py-3.5 px-4 text-center font-semibold text-slate-900 text-sm">
                           <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                             {snap.closeRate.toFixed(2).replace('.', ',')}%
                           </span>
@@ -2469,22 +2736,22 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-900 text-white font-black text-[10px] uppercase">
-                      <th className="py-2.5 px-3">SEKTOR</th>
-                      <th className="py-2.5 px-3 text-center">TOTAL</th>
-                      <th className="py-2.5 px-3 text-center">CLOSED</th>
-                      <th className="py-2.5 px-3 text-center">OPEN</th>
-                      <th className="py-2.5 px-3 text-center">RATE (%)</th>
+                    <tr className="bg-slate-900 text-white font-semibold text-[10px] uppercase">
+                      <th className="py-2.5 px-3 font-semibold">SEKTOR</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">TOTAL</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">CLOSED</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">OPEN</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">RATE (%)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 font-semibold text-slate-800">
+                  <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
                     {(selectedSnapshotDetail.projectStats || []).map((st) => (
                       <tr key={st.projectName} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-bold">{st.projectName}</td>
+                        <td className="py-2.5 px-3 font-semibold">{st.projectName}</td>
                         <td className="py-2.5 px-3 text-center">{st.total}</td>
-                        <td className="py-2.5 px-3 text-center text-emerald-600 font-extrabold">{st.closed}</td>
+                        <td className="py-2.5 px-3 text-center text-emerald-600 font-semibold">{st.closed}</td>
                         <td 
-                          className="py-2.5 px-3 text-center text-rose-600 font-extrabold hover:bg-rose-50 cursor-pointer underline decoration-dotted transition-colors"
+                          className="py-2.5 px-3 text-center text-rose-600 font-semibold hover:bg-rose-50 cursor-pointer underline decoration-dotted transition-colors"
                           title={`Buka temuan OPEN ${st.projectName} di Resume AFS`}
                           onClick={() => {
                             setSelectedSnapshotDetail(null);
@@ -2494,7 +2761,7 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                         >
                           {st.open}
                         </td>
-                        <td className="py-2.5 px-3 text-center font-black">{st.closeRate.toFixed(2).replace('.', ',')}%</td>
+                        <td className="py-2.5 px-3 text-center font-semibold">{st.closeRate.toFixed(2).replace('.', ',')}%</td>
                       </tr>
                     ))}
                   </tbody>

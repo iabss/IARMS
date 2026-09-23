@@ -678,7 +678,7 @@ export default function Dashboard({
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Item Risiko</p>
               <div className="flex justify-between items-baseline">
-                <span className="text-2xl font-black text-slate-900">{metrics.total}</span>
+                <span className="text-2xl font-bold text-slate-900">{metrics.total}</span>
                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">ISO 31000</span>
               </div>
               <p className="text-[10px] text-slate-500">Terdaftar dalam Risk Register</p>
@@ -687,7 +687,7 @@ export default function Dashboard({
             <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-2xs space-y-1">
               <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Risiko Sangat Tinggi</p>
               <div className="flex justify-between items-baseline">
-                <span className="text-2xl font-black text-rose-600">{metrics.extreme}</span>
+                <span className="text-2xl font-bold text-rose-600">{metrics.extreme}</span>
                 <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Score ≥ 15</span>
               </div>
               <p className="text-[10px] text-rose-600 font-medium">Perlu mitigasi segera (Priority 1)</p>
@@ -696,7 +696,7 @@ export default function Dashboard({
             <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-2xs space-y-1">
               <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Risiko Tinggi</p>
               <div className="flex justify-between items-baseline">
-                <span className="text-2xl font-black text-amber-600">{metrics.high}</span>
+                <span className="text-2xl font-bold text-amber-600">{metrics.high}</span>
                 <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Score 10 - 14</span>
               </div>
               <p className="text-[10px] text-amber-600 font-medium">Pengawasan manajemen ketat</p>
@@ -705,7 +705,7 @@ export default function Dashboard({
             <div className="bg-white p-4 rounded-2xl border border-yellow-200 bg-yellow-50/20 shadow-2xs space-y-1">
               <p className="text-[11px] font-bold text-yellow-700 uppercase tracking-wider">Risiko Sedang</p>
               <div className="flex justify-between items-baseline">
-                <span className="text-2xl font-black text-yellow-600">{metrics.medium}</span>
+                <span className="text-2xl font-bold text-yellow-600">{metrics.medium}</span>
                 <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full">Score 5 - 9</span>
               </div>
               <p className="text-[10px] text-yellow-700 font-medium">Monitoring periodik</p>
@@ -714,7 +714,7 @@ export default function Dashboard({
             <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-2xs space-y-1">
               <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Risiko Rendah</p>
               <div className="flex justify-between items-baseline">
-                <span className="text-2xl font-black text-emerald-600">{metrics.low}</span>
+                <span className="text-2xl font-bold text-emerald-600">{metrics.low}</span>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Score 1 - 4</span>
               </div>
               <p className="text-[10px] text-emerald-600 font-medium">Prosedur operasional rutin</p>

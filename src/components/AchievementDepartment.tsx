@@ -572,18 +572,18 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
             <table className="w-full text-xs text-left border-collapse">
-              <thead className="bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider">
+              <thead className="bg-slate-900 text-white font-semibold text-[11px] uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-3 text-center w-12 border-r border-slate-800">NO</th>
-                  <th className="py-3.5 px-4 min-w-[200px] border-r border-slate-800">NAMA DEPARTMENT / PIC</th>
-                  <th className="py-3.5 px-3 text-center min-w-[100px] border-r border-slate-800">TOTAL AUDIT</th>
-                  <th className="py-3.5 px-3 text-center text-emerald-400 min-w-[80px] border-r border-slate-800">CLOSED</th>
-                  <th className="py-3.5 px-3 text-center text-rose-300 min-w-[80px] border-r border-slate-800">OPEN</th>
-                  <th className="py-3.5 px-3 text-center text-amber-300 min-w-[85px] border-r border-slate-800">PROGRESS</th>
-                  <th className="py-3.5 px-3 text-center text-purple-300 min-w-[85px] border-r border-slate-800">OVERDUE</th>
-                  <th className="py-3.5 px-3 text-center text-rose-300 min-w-[120px] border-r border-slate-800">MAJOR CLOSED %</th>
-                  <th className="py-3.5 px-4 text-center text-amber-300 min-w-[170px] border-r border-slate-800">ACH CLOSING %</th>
-                  <th className="py-3.5 px-3 text-center min-w-[90px]">DETAIL</th>
+                  <th className="py-3.5 px-3 text-center w-12 border-r border-slate-800 font-semibold">NO</th>
+                  <th className="py-3.5 px-4 min-w-[200px] border-r border-slate-800 font-semibold">NAMA DEPARTMENT / PIC</th>
+                  <th className="py-3.5 px-3 text-center min-w-[100px] border-r border-slate-800 font-semibold">TOTAL AUDIT</th>
+                  <th className="py-3.5 px-3 text-center text-emerald-400 min-w-[80px] border-r border-slate-800 font-semibold">CLOSED</th>
+                  <th className="py-3.5 px-3 text-center text-rose-300 min-w-[80px] border-r border-slate-800 font-semibold">OPEN</th>
+                  <th className="py-3.5 px-3 text-center text-amber-300 min-w-[85px] border-r border-slate-800 font-semibold">PROGRESS</th>
+                  <th className="py-3.5 px-3 text-center text-purple-300 min-w-[85px] border-r border-slate-800 font-semibold">OVERDUE</th>
+                  <th className="py-3.5 px-3 text-center text-rose-300 min-w-[120px] border-r border-slate-800 font-semibold">MAJOR CLOSED %</th>
+                  <th className="py-3.5 px-4 text-center text-amber-300 min-w-[170px] border-r border-slate-800 font-semibold">ACH CLOSING %</th>
+                  <th className="py-3.5 px-3 text-center min-w-[90px] font-semibold">DETAIL</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white font-medium">
@@ -597,11 +597,11 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                       className="hover:bg-indigo-50/50 transition-colors cursor-pointer group"
                       onClick={() => setSelectedDeptDetail(item.dept)}
                     >
-                      <td className="py-3 px-3 text-center font-mono font-bold text-slate-400 border-r border-slate-200">
+                      <td className="py-3 px-3 text-center font-mono font-medium text-slate-400 border-r border-slate-200">
                         {idx + 1}.
                       </td>
 
-                      <td className="py-3 px-4 font-black text-slate-900 border-r border-slate-200 uppercase tracking-wide group-hover:text-indigo-700 transition-colors">
+                      <td className="py-3 px-4 font-semibold text-slate-900 border-r border-slate-200 uppercase tracking-wide group-hover:text-indigo-700 transition-colors">
                         <div className="flex items-center justify-between">
                           <span>{item.dept}</span>
                           <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition-colors" />
@@ -610,7 +610,7 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
 
                       {/* TOTAL AUDIT */}
                       <td 
-                        className="py-3 px-3 text-center font-extrabold text-slate-900 bg-slate-50/50 hover:bg-slate-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/total"
+                        className="py-3 px-3 text-center font-semibold text-slate-800 bg-slate-50/50 hover:bg-slate-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/total"
                         title={`Klik untuk membuka semua temuan ${item.dept} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -618,14 +618,14 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                           onToast(`Mengarahkan ke Resume AFS untuk ${item.dept} (Semua Status)...`, 'info');
                         }}
                       >
-                        <span className="underline decoration-slate-300 group-hover/total:decoration-slate-900 group-hover/total:font-black transition-all">
+                        <span className="underline decoration-slate-300 group-hover/total:decoration-slate-900 group-hover/total:font-bold transition-all">
                           {item.total}
                         </span>
                       </td>
 
                       {/* CLOSED */}
                       <td 
-                        className="py-3 px-3 text-center font-extrabold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/closed"
+                        className="py-3 px-3 text-center font-semibold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/closed"
                         title={`Klik untuk membuka temuan CLOSED untuk ${item.dept} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -633,14 +633,14 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                           onToast(`Mengarahkan ke Resume AFS untuk ${item.dept} (Status: CLOSED)...`, 'info');
                         }}
                       >
-                        <span className="underline decoration-emerald-300 group-hover/closed:decoration-emerald-700 group-hover/closed:font-black transition-all">
+                        <span className="underline decoration-emerald-300 group-hover/closed:decoration-emerald-700 group-hover/closed:font-bold transition-all">
                           {item.closed}
                         </span>
                       </td>
 
                       {/* OPEN */}
                       <td 
-                        className="py-3 px-3 text-center font-extrabold text-rose-700 bg-rose-50/70 hover:bg-rose-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/open"
+                        className="py-3 px-3 text-center font-semibold text-rose-700 bg-rose-50/70 hover:bg-rose-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/open"
                         title={`Klik untuk membuka rekomendasi OPEN untuk ${item.dept} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -648,14 +648,14 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                           onToast(`Mengarahkan ke Resume AFS untuk ${item.dept} (Status: OPEN)...`, 'info');
                         }}
                       >
-                        <span className="underline decoration-rose-300 group-hover/open:decoration-rose-700 group-hover/open:font-black transition-all">
+                        <span className="underline decoration-rose-300 group-hover/open:decoration-rose-700 group-hover/open:font-bold transition-all">
                           {item.open}
                         </span>
                       </td>
 
                       {/* PROGRESS */}
                       <td 
-                        className="py-3 px-3 text-center font-extrabold text-amber-700 bg-amber-50/50 hover:bg-amber-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/progress"
+                        className="py-3 px-3 text-center font-semibold text-amber-700 bg-amber-50/50 hover:bg-amber-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/progress"
                         title={`Klik untuk membuka temuan PROGRESS untuk ${item.dept} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -663,14 +663,14 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                           onToast(`Mengarahkan ke Resume AFS untuk ${item.dept} (Status: PROGRESS)...`, 'info');
                         }}
                       >
-                        <span className="underline decoration-amber-300 group-hover/progress:decoration-amber-700 group-hover/progress:font-black transition-all">
+                        <span className="underline decoration-amber-300 group-hover/progress:decoration-amber-700 group-hover/progress:font-bold transition-all">
                           {item.progress}
                         </span>
                       </td>
 
                       {/* OVERDUE */}
                       <td 
-                        className="py-3 px-3 text-center font-extrabold text-purple-700 bg-purple-50/50 hover:bg-purple-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/overdue"
+                        className="py-3 px-3 text-center font-semibold text-purple-700 bg-purple-50/50 hover:bg-purple-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/overdue"
                         title={`Klik untuk membuka temuan OVERDUE untuk ${item.dept} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -678,14 +678,14 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                           onToast(`Mengarahkan ke Resume AFS untuk ${item.dept} (Remarks: OVERDUE)...`, 'info');
                         }}
                       >
-                        <span className="underline decoration-purple-300 group-hover/overdue:decoration-purple-700 group-hover/overdue:font-black transition-all">
+                        <span className="underline decoration-purple-300 group-hover/overdue:decoration-purple-700 group-hover/overdue:font-bold transition-all">
                           {item.overdue}
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center font-bold text-rose-700 border-r border-slate-200 text-xs">
+                      <td className="py-3 px-3 text-center font-medium text-rose-700 border-r border-slate-200 text-xs">
                         {item.majorTotal > 0 ? (
-                          <span className="px-2 py-0.5 rounded bg-rose-50 border border-rose-200 font-extrabold">
+                          <span className="px-2 py-0.5 rounded bg-rose-50 border border-rose-200 font-semibold">
                             {item.majorRate}%
                           </span>
                         ) : (
@@ -703,7 +703,7 @@ export default function AchievementDepartment({ onToast, onNavigateToAFS }: Achi
                               style={{ width: `${item.rate}%` }} 
                             />
                           </div>
-                          <span className={`font-black text-xs min-w-[50px] text-right ${
+                          <span className={`font-semibold text-xs min-w-[50px] text-right ${
                             isHigh ? 'text-emerald-700' : isLow ? 'text-rose-700' : 'text-amber-700'
                           }`}>
                             {item.rate.toFixed(2)}%
