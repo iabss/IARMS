@@ -40,7 +40,7 @@ import {
   computeTop10RecommendationsSync, 
   parseDueDateInfo 
 } from '../services/aiPriorityService';
-import { isStatusClosed, isStatusProgress, extractFindingYear } from '../utils/statusHelper';
+import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear } from '../utils/statusHelper';
 import { getRecordDepartments } from '../utils/deptHelper';
 
 interface PriorityRecommendationsProps {
@@ -152,16 +152,94 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
 
   const hasActiveFilters = selectedSite !== 'ALL' || selectedDept !== 'ALL' || selectedYear !== 'ALL' || filterStatus !== 'all' || searchQuery.trim() !== '';
 
-  // Handle status update directly from Priority Recommendation UI (for OPEN / IN PROGRESS)
+  // Helper to render Risk Level Badges
+  const renderRiskBadge = (level: PriorityRecommendationItem['riskLevel']) => {
+    switch (level) {
+      case 'CRITICAL':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-rose-100 text-rose-700 border border-rose-200">
+            <AlertTriangle className="w-3 h-3" />
+            CRITICAL
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-200">
+            <AlertTriangle className="w-3 h-3" />
+            HIGH
+          </span>
+        );
+      case 'MEDIUM':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-sky-100 text-sky-800 border border-sky-200">
+            <ShieldAlert className="w-3 h-3" />
+            MEDIUM
+          </span>
+        );
+      case 'LOW':
+      default:
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3" />
+            LOW
+          </span>
+        );
+    }
+  };
+
+  const renderTableRiskBadge = (level: PriorityRecommendationItem['riskLevel']) => {
+    switch (level) {
+      case 'CRITICAL':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-rose-100 text-rose-700 border border-rose-200">
+            <AlertTriangle className="w-2.5 h-2.5" />
+            CRITICAL
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-200">
+            <AlertTriangle className="w-2.5 h-2.5" />
+            HIGH
+          </span>
+        );
+      case 'MEDIUM':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-sky-100 text-sky-800 border border-sky-200">
+            <ShieldAlert className="w-2.5 h-2.5" />
+            MEDIUM
+          </span>
+        );
+      case 'LOW':
+      default:
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <CheckCircle2 className="w-2.5 h-2.5" />
+            LOW
+          </span>
+        );
+    }
+  };
+
+  // Handle status update directly from Priority Recommendation UI (for OPEN / IN PROGRESS / CLOSE)
+  // Updates all records tied to this audit finding to maintain finding-level consistency
   const handleUpdateStatus = (item: PriorityRecommendationItem, newStatus: 'OPEN' | 'IN PROGRESS' | 'CLOSE') => {
     const allRows = getMergedSheetRows();
-    const rowId = item.record._rowId;
-    const targetNo = item.record.NO;
+    const rowIds = new Set(item.allRecords?.map(r => r._rowId).filter(Boolean) || [item.record._rowId]);
+    const targetNo = item.findingNo || item.record.NO;
     const targetProj = item.record['PROJECT AUDIT'];
+    const targetSite = item.record.SITE || '';
+    const targetProb = (item.findingTitle || item.record['PROBLEM/FINDING'] || '').trim().toLowerCase();
 
     let found = false;
     const updatedRows = allRows.map(r => {
-      if (r._rowId === rowId || (r.NO === targetNo && r['PROJECT AUDIT'] === targetProj)) {
+      const isMatch = (r._rowId && rowIds.has(r._rowId)) ||
+        (r['PROJECT AUDIT'] === targetProj && (r.SITE || '') === targetSite && (
+          (targetNo && r.NO === targetNo) ||
+          ((r['PROBLEM/FINDING'] || r['DETAIL TEMUAN'] || '').trim().toLowerCase() === targetProb)
+        ));
+
+      if (isMatch) {
         found = true;
         const isNowClose = newStatus === 'CLOSE';
         return {
@@ -175,42 +253,46 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
     });
 
     if (found) {
-      saveEntireDataset(updatedRows, `Update Status Rekomendasi Prioritas No #${targetNo} -> ${newStatus}`);
+      saveEntireDataset(updatedRows, `Update Status Temuan Prioritas #${targetNo || 'ID'} -> ${newStatus}`);
       setRawRows(updatedRows);
       
       if (newStatus === 'CLOSE') {
         onToast(
-          `Temuan #${targetNo} (${targetProj}) berhasil di-CLOSE! Temuan otomatis dikeluarkan dari Top 10 dan digantikan oleh temuan kritis berikutnya.`, 
+          `Temuan #${targetNo || ''} (${targetProj}) berhasil di-CLOSE! Seluruh poin rekomendasi telah ditutup dan dikeluarkan dari Top 10.`, 
           'success'
         );
       } else {
-        onToast(`Status temuan #${targetNo} (${targetProj}) diubah ke ${newStatus}. Resume AFS tersinkronisasi.`, 'success');
+        onToast(`Status temuan #${targetNo || ''} (${targetProj}) diperbarui ke ${newStatus}. Resume AFS tersinkronisasi.`, 'success');
       }
     } else {
       onToast('Gagal memperbarui status temuan.', 'error');
     }
   };
 
-  // Filter items by status and search query (Top 10 is strictly Active only)
+  // Filter items by status and search query (Finding-Centric)
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const isProg = isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
-      if (filterStatus === 'open' && isProg) return false;
-      if (filterStatus === 'progress' && !isProg) return false;
+      const hasProgress = item.recommendations?.some(r => r.isProgress) ?? isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
+      const hasOpen = item.recommendations?.some(r => r.isOpen) ?? isStatusOpen(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
 
-      // Search query
+      if (filterStatus === 'open' && !hasOpen) return false;
+      if (filterStatus === 'progress' && !hasProgress) return false;
+
+      // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const text = [
+          item.findingNo,
           item.record.NO,
           item.record['PROJECT AUDIT'],
           item.record.SITE,
+          item.findingTitle,
           item.record['PROBLEM/FINDING'],
           item.record['DETAIL TEMUAN'],
-          item.record['REKOMENDASI'],
-          item.record['PIC SITE'],
-          item.record['PIC HO'],
+          item.allRecommendationsText,
+          item.combinedPic,
           item.financialImpact.description,
+          item.financialImpact.estimatedValue,
           item.operationalImpact.description
         ].join(' ').toLowerCase();
 
@@ -221,62 +303,67 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
     });
   }, [items, filterStatus, searchQuery]);
 
-  // Export to Excel / CSV format
+  // Export to Excel / CSV format (Finding-Centric with consolidated recommendations)
   const handleExportExcel = () => {
     if (items.length === 0) {
-      onToast('Tidak ada data prioritas aktif untuk diekspor.', 'warning');
+      onToast('Tidak ada data temuan prioritas aktif untuk diekspor.', 'warning');
       return;
     }
 
     const headers = [
       'Rank',
-      'Risk Level',
+      'Risk Severity',
+      'Nilai Exposure Kerugian',
       'AI Score',
       'Project Audit',
       'Site / Lokasi',
       'No Temuan',
-      'Ringkasan Masalah / Temuan',
+      'Temuan Audit (Problem Statement)',
+      'Detail Temuan',
       'Dampak Finansial',
       'Gangguan Operasional',
       'Rasional Eksekutif AI',
-      'Rekomendasi Penanganan Prioritas',
-      'PIC Site',
-      'PIC HO',
-      'Due Date',
+      'Rekomendasi Penanganan (Seluruh Poin)',
+      'PIC (Seluruh Rekomendasi)',
+      'Target Due Date',
       'Status Tindak Lanjut'
     ];
 
-    const rows = items.map(item => [
-      `#${item.rank}`,
-      item.riskLevel,
-      `${item.score}/100`,
-      `"${(item.record['PROJECT AUDIT'] || '').replace(/"/g, '""')}"`,
-      `"${(item.record.SITE || '').replace(/"/g, '""')}"`,
-      `"${(item.record.NO || '').replace(/"/g, '""')}"`,
-      `"${(item.record['PROBLEM/FINDING'] || '').replace(/"/g, '""')}"`,
-      `"${(item.financialImpact.description || '').replace(/"/g, '""')}"`,
-      `"${(item.operationalImpact.description || '').replace(/"/g, '""')}"`,
-      `"${(item.aiRationale || '').replace(/"/g, '""')}"`,
-      `"${(item.record['REKOMENDASI'] || item.keyMitigationAction || '').replace(/"/g, '""')}"`,
-      `"${(item.record['PIC SITE'] || '').replace(/"/g, '""')}"`,
-      `"${(item.record['PIC HO'] || '').replace(/"/g, '""')}"`,
-      `"${(item.record['DUE DATE'] || '').replace(/"/g, '""')}"`,
-      `"${(item.record.STATUS || 'OPEN').replace(/"/g, '""')}"`
-    ]);
+    const rows = items.map(item => {
+      const isProg = item.recommendations.some(r => r.isProgress);
+      return [
+        `#${item.rank}`,
+        item.riskLevel,
+        `"${(item.financialImpact.estimatedValue || 'Rp 0').replace(/"/g, '""')}"`,
+        `${item.score}/100`,
+        `"${(item.record['PROJECT AUDIT'] || '').replace(/"/g, '""')}"`,
+        `"${(item.record.SITE || '').replace(/"/g, '""')}"`,
+        `"${(item.findingNo || item.record.NO || '').replace(/"/g, '""')}"`,
+        `"${(item.findingTitle || item.record['PROBLEM/FINDING'] || '').replace(/"/g, '""')}"`,
+        `"${(item.record['DETAIL TEMUAN'] || '').replace(/"/g, '""')}"`,
+        `"${(item.financialImpact.description || '').replace(/"/g, '""')}"`,
+        `"${(item.operationalImpact.description || '').replace(/"/g, '""')}"`,
+        `"${(item.aiRationale || '').replace(/"/g, '""')}"`,
+        `"${(item.allRecommendationsText || item.keyMitigationAction || '').replace(/"/g, '""')}"`,
+        `"${(item.combinedPic || item.record['PIC SITE'] || item.record['PIC HO'] || '').replace(/"/g, '""')}"`,
+        `"${(item.nearestDueDateInfo.formattedDate || '').replace(/"/g, '""')}"`,
+        `"${(isProg ? 'IN PROGRESS' : 'OPEN')}"`
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Top_10_Rekomendasi_Prioritas_Aktif_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Top_10_Temuan_Prioritas_Audit_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
     setIsExportDropdownOpen(false);
-    onToast('File Excel Top 10 Rekomendasi Prioritas berhasil diunduh.', 'success');
+    onToast('File Excel Top 10 Temuan Prioritas berhasil diunduh.', 'success');
   };
 
   return (
@@ -654,19 +741,20 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
       {filteredItems.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
           <CheckCircle2 className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="text-base font-bold text-slate-800">Tidak Ada Rekomendasi yang Sesuai</h3>
+          <h3 className="text-base font-bold text-slate-800">Tidak Ada Temuan yang Sesuai</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             {searchQuery 
-              ? `Tidak ditemukan rekomendasi prioritas dengan kata kunci "${searchQuery}".`
+              ? `Tidak ditemukan temuan audit prioritas dengan kata kunci "${searchQuery}".`
               : 'Seluruh temuan aktif telah tertangani atau tidak ada temuan dengan filter ini.'}
           </p>
         </div>
       ) : viewMode === 'card' ? (
-        /* CARD VIEW: Rank 1 - 10 */
+        /* CARD VIEW: Rank 1 - 10 (Finding-Centric) */
         <div className="space-y-4">
           {filteredItems.map((item) => {
-            const isProgress = isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
-            const dueDateInfo = parseDueDateInfo(item.record['DUE DATE']);
+            const hasProgress = item.recommendations.some(r => r.isProgress);
+            const totalRecs = item.recommendations.length;
+            const progressCount = item.recommendations.filter(r => r.isProgress).length;
 
             // Rank podium styles
             let rankBadgeClass = 'bg-slate-100 text-slate-700 border-slate-300';
@@ -707,15 +795,8 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                     <div className="flex-1 min-w-0 space-y-3">
                       {/* Meta Tags Header: Rank, Level, Site, Project, Status */}
                       <div className="flex items-center gap-2 flex-wrap text-xs">
-                        {/* Level Risiko Badge (Critical / High) */}
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                          item.riskLevel === 'CRITICAL'
-                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
-                          <AlertTriangle className="w-3 h-3" />
-                          {item.riskLevel}
-                        </span>
+                        {/* Risk Severity Badge (Critical / High / Medium / Low) */}
+                        {renderRiskBadge(item.riskLevel)}
 
                         {/* AI Score Badge */}
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
@@ -725,12 +806,17 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
 
                         {/* Status Badge (OPEN / IN PROGRESS) */}
                         <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-wide flex items-center gap-1.5 border ${
-                          isProgress
+                          hasProgress
                             ? 'bg-amber-100 text-amber-900 border-amber-300'
                             : 'bg-rose-100 text-rose-900 border-rose-300'
                         }`}>
-                          <span className={`w-2 h-2 rounded-full ${isProgress ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
-                          {isProgress ? 'IN PROGRESS' : 'OPEN'}
+                          <span className={`w-2 h-2 rounded-full ${hasProgress ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
+                          {hasProgress ? 'IN PROGRESS' : 'OPEN'}
+                          {totalRecs > 1 && (
+                            <span className="text-[10px] font-bold text-amber-800 ml-1">
+                              ({progressCount}/{totalRecs})
+                            </span>
+                          )}
                         </span>
 
                         {/* Site / Lokasi & Nama Project */}
@@ -744,17 +830,17 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                           {item.record['PROJECT AUDIT'] || 'Audit'}
                         </span>
 
-                        {item.record.NO && (
+                        {(item.findingNo || item.record.NO) && (
                           <span className="text-[11px] font-mono font-bold text-slate-400">
-                            No. {item.record.NO}
+                            No. {item.findingNo || item.record.NO}
                           </span>
                         )}
                       </div>
 
-                      {/* Finding Problem Statement */}
+                      {/* Finding Problem Statement (Finding-Centric) */}
                       <div>
                         <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                          {item.record['PROBLEM/FINDING'] || item.record['DETAIL TEMUAN'] || 'Temuan Audit'}
+                          {item.findingTitle || item.record['PROBLEM/FINDING'] || item.record['DETAIL TEMUAN'] || 'Temuan Audit'}
                         </h3>
                         {item.record['DETAIL TEMUAN'] && item.record['PROBLEM/FINDING'] !== item.record['DETAIL TEMUAN'] && (
                           <p className="mt-1 text-xs text-slate-600 line-clamp-2">
@@ -773,7 +859,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                               Potensi Dampak Finansial ({item.financialImpact.level})
                             </span>
                             {item.financialImpact.estimatedValue && (
-                              <span className="px-1.5 py-0.2 rounded bg-rose-200 text-rose-900 font-mono text-[10px]">
+                              <span className="px-2 py-0.5 rounded-md bg-rose-200 text-rose-900 font-mono font-bold text-[10px]">
                                 {item.financialImpact.estimatedValue}
                               </span>
                             )}
@@ -808,60 +894,90 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                         </p>
                       </div>
 
-                      {/* Rekomendasi Prioritas Penanganan */}
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                          Rekomendasi Prioritas Penanganan
-                        </span>
-                        <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                          {item.keyMitigationAction}
-                        </p>
+                      {/* Rekomendasi Prioritas Penanganan (Multiple Recommendations in One Finding) */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                            Rekomendasi Penanganan Audit ({item.recommendations.length} Poin)
+                          </span>
+                          {item.recommendations.length > 1 && (
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                              Multi-Rekomendasi
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {item.recommendations.map((rec, rIdx) => (
+                            <div key={rec.id || rIdx} className="p-2.5 rounded-lg bg-white border border-slate-200/80 text-xs space-y-1.5 shadow-2xs">
+                              <div className="flex items-start gap-2">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-800 font-black text-[10px] flex-shrink-0 mt-0.5">
+                                  {rIdx + 1}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-slate-800 leading-relaxed">
+                                    {rec.recommendationText}
+                                  </p>
+                                  <div className="mt-1 flex items-center gap-3 flex-wrap text-[10px] text-slate-500 font-medium">
+                                    <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                      <User className="w-3 h-3 text-slate-400" />
+                                      PIC: {rec.picCombined}
+                                    </span>
+                                    <span className="flex items-center gap-1 font-mono">
+                                      <Calendar className="w-3 h-3 text-slate-400" />
+                                      Target: {rec.dueDateInfo.formattedDate}
+                                    </span>
+                                    {rec.dueDateInfo.formattedDate !== '-' && (
+                                      <span className={`px-1.5 py-0.2 rounded font-bold ${
+                                        rec.dueDateInfo.isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {rec.dueDateInfo.isOverdue ? `Overdue ${Math.abs(rec.dueDateInfo.daysRemaining)}d` : `${rec.dueDateInfo.daysRemaining}d left`}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Right Column: PIC, Due Date, Status Action Buttons */}
                   <div className="lg:w-64 flex-shrink-0 flex flex-col justify-between space-y-3.5 pt-3 lg:pt-0 lg:border-l lg:border-slate-200/80 lg:pl-5">
-                    {/* PIC Info */}
+                    {/* PIC Info Summary */}
                     <div className="space-y-2 text-xs">
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
                           PIC Penanggung Jawab
                         </span>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            Site: {item.record['PIC SITE'] || '-'}
-                          </span>
-                          {item.record['PIC HO'] && (
-                            <span className="text-slate-600 flex items-center gap-1.5 text-[11px]">
-                              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                              HO: {item.record['PIC HO']}
-                            </span>
-                          )}
+                        <div className="font-bold text-slate-800 flex items-start gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
+                          <span className="leading-tight">{item.combinedPic}</span>
                         </div>
                       </div>
 
-                      {/* Due Date */}
+                      {/* Due Date Summary */}
                       <div className="pt-1">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                          Target Due Date
+                          Target Deadline Terdekat
                         </span>
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
                           <span className="font-mono font-bold text-slate-800">
-                            {dueDateInfo.formattedDate}
+                            {item.nearestDueDateInfo.formattedDate}
                           </span>
                         </div>
-                        {dueDateInfo.formattedDate !== '-' && (
+                        {item.nearestDueDateInfo.formattedDate !== '-' && (
                           <div className="mt-1">
-                            {dueDateInfo.isOverdue ? (
+                            {item.nearestDueDateInfo.isOverdue ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                                <AlertTriangle className="w-3 h-3" /> Overdue {Math.abs(dueDateInfo.daysRemaining)} Hari
+                                <AlertTriangle className="w-3 h-3" /> Overdue {Math.abs(item.nearestDueDateInfo.daysRemaining)} Hari
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                                <Clock className="w-3 h-3" /> {dueDateInfo.daysRemaining} Hari Tersisa
+                                <Clock className="w-3 h-3" /> {item.nearestDueDateInfo.daysRemaining} Hari Tersisa
                               </span>
                             )}
                           </div>
@@ -884,25 +1000,25 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           onClick={() => handleUpdateStatus(item, 'OPEN')}
-                          disabled={!isProgress}
+                          disabled={!hasProgress}
                           className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center border ${
-                            !isProgress 
+                            !hasProgress 
                               ? 'bg-rose-50 text-rose-800 border-rose-300 font-black' 
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
-                          title="Ubah status menjadi OPEN"
+                          title="Ubah status seluruh poin rekomendasi menjadi OPEN"
                         >
                           🔴 OPEN
                         </button>
                         <button
                           onClick={() => handleUpdateStatus(item, 'IN PROGRESS')}
-                          disabled={isProgress}
+                          disabled={hasProgress}
                           className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center border ${
-                            isProgress 
+                            hasProgress 
                               ? 'bg-amber-50 text-amber-800 border-amber-300 font-black' 
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                           }`}
-                          title="Ubah status menjadi IN PROGRESS"
+                          title="Ubah status seluruh poin rekomendasi menjadi IN PROGRESS"
                         >
                           🟡 IN PROGRESS
                         </button>
@@ -916,7 +1032,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                         className="w-full px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5" />
-                        <span>Detail Temuan</span>
+                        <span>Detail Temuan ({item.recommendations.length} Rekomendasi)</span>
                       </button>
 
                       {onNavigateToAFS && (
@@ -924,7 +1040,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                           onClick={() => {
                             onNavigateToAFS({
                               project: item.record['PROJECT AUDIT'],
-                              search: item.record['PROBLEM/FINDING'] || item.record.NO
+                              search: item.findingTitle || item.findingNo || item.record.NO
                             });
                           }}
                           className="w-full px-3 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
@@ -942,7 +1058,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
           })}
         </div>
       ) : (
-        /* TABLE VIEW: Rank 1 - 10 */
+        /* TABLE VIEW: Rank 1 - 10 (Finding-Centric with Multi-Recommendation in One Row) */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -951,17 +1067,18 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                   <th className="p-3.5 text-center w-14">Rank</th>
                   <th className="p-3.5 w-28">Level Risiko</th>
                   <th className="p-3.5 w-44">Site &amp; Project</th>
-                  <th className="p-3.5 min-w-[280px]">Ringkasan Temuan &amp; Potensi Dampak</th>
-                  <th className="p-3.5 min-w-[240px]">Rekomendasi Prioritas</th>
-                  <th className="p-3.5 w-36">PIC &amp; Due Date</th>
+                  <th className="p-3.5 min-w-[280px]">Temuan Audit &amp; Potensi Dampak</th>
+                  <th className="p-3.5 min-w-[280px]">Rekomendasi (Seluruh Poin)</th>
+                  <th className="p-3.5 min-w-[200px]">PIC &amp; Target Due Date</th>
                   <th className="p-3.5 w-32 text-center">Status</th>
                   <th className="p-3.5 w-28 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredItems.map((item) => {
-                  const isProgress = isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
-                  const dueDateInfo = parseDueDateInfo(item.record['DUE DATE']);
+                  const hasProgress = item.recommendations.some(r => r.isProgress);
+                  const totalRecs = item.recommendations.length;
+                  const progressCount = item.recommendations.filter(r => r.isProgress).length;
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -983,16 +1100,9 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                         </span>
                       </td>
 
-                      {/* Level Risiko */}
+                      {/* Level Risiko (CRITICAL / HIGH / MEDIUM / LOW) */}
                       <td className="p-3.5 align-top">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 ${
-                          item.riskLevel === 'CRITICAL'
-                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
-                          <AlertTriangle className="w-2.5 h-2.5" />
-                          {item.riskLevel}
-                        </span>
+                        {renderTableRiskBadge(item.riskLevel)}
                       </td>
 
                       {/* Site & Project */}
@@ -1004,18 +1114,27 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                           <MapPin className="w-3 h-3 text-slate-400" />
                           {item.record.SITE || 'Head Office'}
                         </span>
-                        {item.record.NO && (
+                        {(item.findingNo || item.record.NO) && (
                           <span className="text-[10px] text-slate-400 font-mono block">
-                            No #{item.record.NO}
+                            No #{item.findingNo || item.record.NO}
                           </span>
                         )}
                       </td>
 
-                      {/* Problem & Impact */}
+                      {/* Temuan Audit & Potensi Dampak (Finding-Centric) */}
                       <td className="p-3.5 align-top space-y-1.5">
-                        <p className="font-bold text-slate-800 leading-snug">
-                          {item.record['PROBLEM/FINDING']}
+                        <p className="font-bold text-slate-900 leading-snug">
+                          {item.findingTitle || item.record['PROBLEM/FINDING']}
                         </p>
+                        
+                        {/* Nilai Exposure Kerugian */}
+                        {item.financialImpact.estimatedValue && (
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 font-bold font-mono text-[10px]">
+                            <DollarSign className="w-3 h-3 text-rose-600" />
+                            Eksposur: {item.financialImpact.estimatedValue}
+                          </div>
+                        )}
+
                         <div className="text-[11px] text-rose-700 font-medium">
                           • {item.financialImpact.description}
                         </div>
@@ -1024,41 +1143,92 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                         </div>
                       </td>
 
-                      {/* Rekomendasi Prioritas */}
-                      <td className="p-3.5 align-top space-y-1">
-                        <p className="text-slate-700 font-medium leading-relaxed">
-                          {item.keyMitigationAction}
-                        </p>
+                      {/* Rekomendasi Prioritas (Multi-recommendation in One Row) */}
+                      <td className="p-3.5 align-top">
+                        {item.recommendations.length > 1 ? (
+                          <div className="space-y-2">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {item.recommendations.length} Poin Rekomendasi Terkait:
+                            </div>
+                            <ol className="space-y-2 list-none">
+                              {item.recommendations.map((rec, rIdx) => (
+                                <li key={rec.id || rIdx} className="text-slate-800 font-medium leading-snug flex items-start gap-2 bg-slate-50/80 p-2 rounded-lg border border-slate-200/60">
+                                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-indigo-800 font-bold text-[9px] flex-shrink-0 mt-0.5">
+                                    {rIdx + 1}
+                                  </span>
+                                  <span className="flex-1 text-[11px]">{rec.recommendationText}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        ) : (
+                          <p className="text-slate-700 font-medium leading-relaxed">
+                            {item.recommendations[0]?.recommendationText || item.keyMitigationAction}
+                          </p>
+                        )}
                       </td>
 
-                      {/* PIC & Due Date */}
-                      <td className="p-3.5 align-top space-y-1">
-                        <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-400" />
-                          <span>{item.record['PIC SITE'] || item.record['PIC HO'] || '-'}</span>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-600">
-                          {dueDateInfo.formattedDate}
-                        </div>
-                        {dueDateInfo.formattedDate !== '-' && (
-                          <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            dueDateInfo.isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {dueDateInfo.isOverdue ? `Overdue ${Math.abs(dueDateInfo.daysRemaining)}d` : `${dueDateInfo.daysRemaining}d left`}
-                          </span>
+                      {/* PIC & Due Date (Aggregated Multi-Recommendation) */}
+                      <td className="p-3.5 align-top">
+                        {item.recommendations.length > 1 ? (
+                          <div className="space-y-2">
+                            {item.recommendations.map((rec, rIdx) => (
+                              <div key={rec.id || rIdx} className="text-[11px] border-b border-slate-100 last:border-0 pb-1.5 last:pb-0 space-y-0.5">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-bold text-[10px] text-indigo-700">Poin #{rIdx + 1}</span>
+                                  {rec.dueDateInfo.formattedDate !== '-' && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                      rec.dueDateInfo.isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {rec.dueDateInfo.isOverdue ? `Overdue ${Math.abs(rec.dueDateInfo.daysRemaining)}d` : `${rec.dueDateInfo.daysRemaining}d left`}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-semibold text-slate-800 flex items-center gap-1">
+                                  <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                  <span className="truncate" title={rec.picCombined}>{rec.picCombined}</span>
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-500">
+                                  {rec.dueDateInfo.formattedDate}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="font-bold text-slate-800 flex items-center gap-1">
+                              <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{item.combinedPic}</span>
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-600">
+                              {item.nearestDueDateInfo.formattedDate}
+                            </div>
+                            {item.nearestDueDateInfo.formattedDate !== '-' && (
+                              <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                item.nearestDueDateInfo.isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {item.nearestDueDateInfo.isOverdue ? `Overdue ${Math.abs(item.nearestDueDateInfo.daysRemaining)}d` : `${item.nearestDueDateInfo.daysRemaining}d left`}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 
                       {/* Status Badge (OPEN / IN PROGRESS) */}
-                      <td className="p-3.5 align-top text-center space-y-1.5">
+                      <td className="p-3.5 align-top text-center space-y-1">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 border ${
-                          isProgress
+                          hasProgress
                             ? 'bg-amber-100 text-amber-900 border-amber-300'
                             : 'bg-rose-100 text-rose-900 border-rose-300'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isProgress ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
-                          {isProgress ? 'IN PROGRESS' : 'OPEN'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${hasProgress ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
+                          {hasProgress ? 'IN PROGRESS' : 'OPEN'}
                         </span>
+                        {totalRecs > 1 && (
+                          <span className="block text-[9px] font-bold text-slate-500">
+                            {progressCount}/{totalRecs} In Progress
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -1074,7 +1244,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                             onClick={() => {
                               onNavigateToAFS({
                                 project: item.record['PROJECT AUDIT'],
-                                search: item.record['PROBLEM/FINDING'] || item.record.NO
+                                search: item.findingTitle || item.findingNo || item.record.NO
                               });
                             }}
                             className="w-full text-[10px] font-bold px-1.5 py-1 rounded-lg text-violet-700 hover:bg-violet-50 cursor-pointer"
@@ -1129,10 +1299,10 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                 {/* Problem Statement */}
                 <div className="space-y-1">
                   <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-                    Problem / Finding
+                    Temuan Audit (Problem / Finding)
                   </span>
                   <p className="text-sm font-bold text-slate-900 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                    {selectedItemForModal.record['PROBLEM/FINDING']}
+                    {selectedItemForModal.findingTitle || selectedItemForModal.record['PROBLEM/FINDING']}
                   </p>
                 </div>
 
@@ -1148,14 +1318,36 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                   </div>
                 )}
 
-                {/* Rekomendasi Penanganan */}
-                <div className="space-y-1">
+                {/* Rekomendasi Penanganan (Consolidated Points) */}
+                <div className="space-y-2">
                   <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-                    Rekomendasi Penanganan Audit
+                    Rekomendasi Penanganan Audit ({selectedItemForModal.recommendations.length} Poin)
                   </span>
-                  <p className="text-indigo-900 bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-200 leading-relaxed font-semibold">
-                    {selectedItemForModal.record['REKOMENDASI'] || selectedItemForModal.keyMitigationAction}
-                  </p>
+                  <div className="space-y-2">
+                    {selectedItemForModal.recommendations.map((rec, rIdx) => (
+                      <div key={rec.id || rIdx} className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-200 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex-shrink-0 mt-0.5">
+                            {rIdx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-indigo-950 font-semibold leading-relaxed">
+                              {rec.recommendationText}
+                            </p>
+                            <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px] text-indigo-800 font-medium pt-1 border-t border-indigo-200/60">
+                              <span><strong>PIC:</strong> {rec.picCombined}</span>
+                              <span><strong>Target:</strong> {rec.dueDateInfo.formattedDate}</span>
+                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                rec.isProgress ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {rec.isProgress ? 'IN PROGRESS' : 'OPEN'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Impact Analysis */}
@@ -1164,6 +1356,11 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                     <span className="font-bold text-rose-800 text-[11px] block mb-1">
                       Dampak Finansial: {selectedItemForModal.financialImpact.level}
                     </span>
+                    {selectedItemForModal.financialImpact.estimatedValue && (
+                      <span className="inline-block px-2 py-0.5 rounded bg-rose-200 text-rose-900 font-mono font-bold text-[10px] mb-1">
+                        Eksposur: {selectedItemForModal.financialImpact.estimatedValue}
+                      </span>
+                    )}
                     <p className="text-rose-900 font-medium">
                       {selectedItemForModal.financialImpact.description}
                     </p>
@@ -1217,7 +1414,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                       onClick={() => {
                         onNavigateToAFS({
                           project: selectedItemForModal.record['PROJECT AUDIT'],
-                          search: selectedItemForModal.record['PROBLEM/FINDING'] || selectedItemForModal.record.NO
+                          search: selectedItemForModal.findingTitle || selectedItemForModal.findingNo || selectedItemForModal.record.NO
                         });
                         setSelectedItemForModal(null);
                       }}
@@ -1249,7 +1446,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                 <div className="flex items-center gap-2">
                   <Printer className="w-5 h-5 text-indigo-600" />
                   <h3 className="text-base font-extrabold text-slate-900">
-                    Executive Report: Top 10 Rekomendasi Prioritas Audit (Active Only)
+                    Executive Report: Top 10 Temuan Prioritas Audit (Active Only)
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1278,7 +1475,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                       INTERNAL AUDIT &amp; RISK MANAGEMENT SYSTEMS (IARMS)
                     </h2>
                     <p className="text-xs font-semibold text-slate-600">
-                      Laporan Eksekutif Rekomendasi Prioritas Paling Kritis (Top 10 Active Only)
+                      Laporan Eksekutif Temuan Prioritas Paling Kritis (Top 10 Finding-Centric Active Only)
                     </p>
                   </div>
                   <div className="text-right text-[11px] font-mono text-slate-500">
@@ -1293,7 +1490,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                     Ringkasan Eksekutif:
                   </span>
                   <p className="text-slate-600 leading-relaxed">
-                    Dokumen ini merangkum 10 rekomendasi prioritas utama yang berstatus aktif (OPEN / IN PROGRESS) 
+                    Dokumen ini merangkum 10 temuan prioritas utama yang berstatus aktif (OPEN / IN PROGRESS) 
                     yang dinilai memiliki eksposur kerugian finansial serta potensi gangguan operasional tertinggi.
                     Total estimasi eksposur material yang teridentifikasi: <strong>{summary?.totalEstimatedExposure}</strong>.
                   </p>
@@ -1307,15 +1504,15 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                         <th className="p-2.5 border border-slate-700 text-center w-12">Rank</th>
                         <th className="p-2.5 border border-slate-700 w-24">Level Risiko</th>
                         <th className="p-2.5 border border-slate-700">Project &amp; Site</th>
-                        <th className="p-2.5 border border-slate-700">Ringkasan Masalah &amp; Dampak</th>
-                        <th className="p-2.5 border border-slate-700">Rekomendasi Penanganan</th>
-                        <th className="p-2.5 border border-slate-700 w-28">PIC &amp; Due Date</th>
+                        <th className="p-2.5 border border-slate-700">Temuan Audit &amp; Dampak</th>
+                        <th className="p-2.5 border border-slate-700">Rekomendasi (Seluruh Poin)</th>
+                        <th className="p-2.5 border border-slate-700 w-36">PIC &amp; Due Date</th>
                         <th className="p-2.5 border border-slate-700 w-24 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map(item => {
-                        const isProg = isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
+                        const isProg = item.recommendations.some(r => r.isProgress);
                         return (
                           <tr key={item.id} className="border-b border-slate-200 hover:bg-slate-50">
                             <td className="p-2.5 border border-slate-300 font-bold text-center font-mono">
@@ -1323,7 +1520,9 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                             </td>
                             <td className="p-2.5 border border-slate-300 font-bold">
                               <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                                item.riskLevel === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                                item.riskLevel === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+                                item.riskLevel === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                                item.riskLevel === 'MEDIUM' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'
                               }`}>
                                 {item.riskLevel}
                               </span>
@@ -1334,20 +1533,35 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                             </td>
                             <td className="p-2.5 border border-slate-300 max-w-xs">
                               <p className="font-semibold text-slate-800 line-clamp-2">
-                                {item.record['PROBLEM/FINDING']}
+                                {item.findingTitle || item.record['PROBLEM/FINDING']}
                               </p>
+                              {item.financialImpact.estimatedValue && (
+                                <p className="text-[10px] font-mono font-bold text-rose-700 mt-0.5">
+                                  Eksposur: {item.financialImpact.estimatedValue}
+                                </p>
+                              )}
                               <p className="text-[11px] text-rose-700 font-medium mt-1">
                                 • {item.financialImpact.description}
                               </p>
                             </td>
                             <td className="p-2.5 border border-slate-300 max-w-xs">
-                              <p className="text-slate-700 line-clamp-2">
-                                {item.keyMitigationAction}
-                              </p>
+                              {item.recommendations.length > 1 ? (
+                                <ol className="space-y-1 list-decimal list-inside text-slate-700">
+                                  {item.recommendations.map((rec, rIdx) => (
+                                    <li key={rIdx} className="leading-snug">
+                                      {rec.recommendationText}
+                                    </li>
+                                  ))}
+                                </ol>
+                              ) : (
+                                <p className="text-slate-700 line-clamp-2">
+                                  {item.recommendations[0]?.recommendationText || item.keyMitigationAction}
+                                </p>
+                              )}
                             </td>
                             <td className="p-2.5 border border-slate-300">
-                              <span className="block font-bold text-slate-800">{item.record['PIC SITE'] || item.record['PIC HO'] || '-'}</span>
-                              <span className="text-[11px] text-slate-500">{item.record['DUE DATE'] || '-'}</span>
+                              <span className="block font-bold text-slate-800">{item.combinedPic}</span>
+                              <span className="text-[11px] text-slate-500 font-mono">{item.nearestDueDateInfo.formattedDate}</span>
                             </td>
                             <td className="p-2.5 border border-slate-300 text-center font-bold">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] ${

@@ -54,6 +54,7 @@ interface GoogleSheetSyncModalProps {
   onNavigateToAFS?: () => void;
   initialAfsProjects?: ProjectLinkConfig[];
   onAfsProjectsChange?: (projects: ProjectLinkConfig[]) => void;
+  isCheckingUpdate?: boolean;
 }
 
 export default function GoogleSheetSyncModal({
@@ -64,12 +65,24 @@ export default function GoogleSheetSyncModal({
   onSyncComplete,
   onNavigateToAFS,
   initialAfsProjects,
-  onAfsProjectsChange
+  onAfsProjectsChange,
+  isCheckingUpdate = false
 }: GoogleSheetSyncModalProps) {
   const [activeTab, setActiveTab] = useState<'projects' | 'url' | 'paste' | 'file'>('projects');
   
-  // State AFS Projects (FORCE OVERRIDE SERVER DATA)
-  const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(initialAfsProjects || []);
+  // State AFS Projects (FORCE OVERRIDE SERVER DATA with Stale-While-Revalidate)
+  const [afsProjects, setAfsProjects] = useState<ProjectLinkConfig[]>(() => {
+    if (initialAfsProjects && initialAfsProjects.length > 0) return initialAfsProjects;
+    return getProjectLinkConfigs();
+  });
+
+  // Sync state if initialAfsProjects changes silently from parent background sync
+  useEffect(() => {
+    if (initialAfsProjects) {
+      setAfsProjects(initialAfsProjects);
+    }
+  }, [initialAfsProjects]);
+
   const projectConfigs = afsProjects;
   const setProjectConfigs = (updater: ProjectLinkConfig[] | ((prev: ProjectLinkConfig[]) => ProjectLinkConfig[])) => {
     setAfsProjects(prev => {
@@ -80,6 +93,7 @@ export default function GoogleSheetSyncModal({
   };
   const [syncingProjects, setSyncingProjects] = useState<Record<string, boolean>>({});
   const [isLoadingBackend, setIsLoadingBackend] = useState(false);
+  const showCheckingBadge = isCheckingUpdate || isLoadingBackend;
 
   // Single URL tab state
   const [sheetUrl, setSheetUrl] = useState(
@@ -115,59 +129,52 @@ export default function GoogleSheetSyncModal({
     if (isOpen) {
       setSyncResult(null);
       let isMounted = true;
-      setIsLoadingBackend(true);
+      // Jika parent sudah mengelola initialAfsProjects, biarkan parent yang melakukan background fetch
+      if (!initialAfsProjects) {
+        setIsLoadingBackend(true);
 
-      // Panggil doGet ke Google Apps Script terlebih dahulu
-      fetchProjectsFromGasBackend()
-        .then((backendProjects) => {
-          if (!isMounted) return;
-          if (backendProjects && backendProjects.length > 0) {
-            const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
-              const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
-              const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
-              const bpYear = bp.year ? String(bp.year).trim() : '';
-              const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
+        // Panggil doGet ke Google Apps Script di background
+        fetchProjectsFromGasBackend()
+          .then((backendProjects) => {
+            if (!isMounted) return;
+            if (backendProjects && backendProjects.length > 0) {
+              const mappedConfigs: ProjectLinkConfig[] = backendProjects.map(bp => {
+                const bpProj = (bp.defaultProject || bp.project || bp.projectName || '').trim().toUpperCase();
+                const bpSite = (bp.site || bp.siteName || 'HEAD OFFICE').trim().toUpperCase();
+                const bpYear = bp.year ? String(bp.year).trim() : '';
+                const bpKey = bp.id || getProjectCompositeKey(bpProj, bpSite, bpYear);
 
-              return {
-                id: bpKey,
-                projectName: bpProj,
-                siteName: bpSite,
-                year: bpYear || undefined,
-                sheetUrl: bp.sheetUrl || '',
-                rowCount: bp.rowCount || 0,
-                status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
-                lastSyncedAt: bp.lastSyncedAt || null,
-                defaultProject: bpProj,
-                project: bpProj,
-                site: bpSite
-              };
-            });
+                return {
+                  id: bpKey,
+                  projectName: bpProj,
+                  siteName: bpSite,
+                  year: bpYear || undefined,
+                  sheetUrl: bp.sheetUrl || '',
+                  rowCount: bp.rowCount || 0,
+                  status: bp.sheetUrl && bp.sheetUrl.trim() ? 'synced' : 'pending',
+                  lastSyncedAt: bp.lastSyncedAt || null,
+                  defaultProject: bpProj,
+                  project: bpProj,
+                  site: bpSite
+                };
+              });
 
-            // Langsung TIMPA (OVERRIDE) state dan localStorage tanpa merge
-            overrideProjectLinkConfigs(mappedConfigs);
-            setProjectConfigs(mappedConfigs);
-            try {
-              localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
-            } catch (e) {}
-            if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
-          } else {
-            // Jika backend kosong/offline, gunakan config yang tersimpan di localStorage
-            const existing = getProjectLinkConfigs();
-            setProjectConfigs(existing);
-            if (onAfsProjectsChange) onAfsProjectsChange(existing);
-          }
-        })
-        .catch((err) => {
-          console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
-          if (isMounted) {
-            const existing = getProjectLinkConfigs();
-            setProjectConfigs(existing);
-            if (onAfsProjectsChange) onAfsProjectsChange(existing);
-          }
-        })
-        .finally(() => {
-          if (isMounted) setIsLoadingBackend(false);
-        });
+              // Langsung TIMPA (OVERRIDE) state dan localStorage tanpa merge
+              overrideProjectLinkConfigs(mappedConfigs);
+              setProjectConfigs(mappedConfigs);
+              try {
+                localStorage.setItem('afsProjects', JSON.stringify(mappedConfigs));
+              } catch (e) {}
+              if (onAfsProjectsChange) onAfsProjectsChange(mappedConfigs);
+            }
+          })
+          .catch((err) => {
+            console.warn('Gagal memuat daftar project awal dari Google Apps Script:', err);
+          })
+          .finally(() => {
+            if (isMounted) setIsLoadingBackend(false);
+          });
+      }
 
       const handleLinksUpdated = () => {
         setProjectConfigs(getProjectLinkConfigs());
@@ -709,6 +716,12 @@ export default function GoogleSheetSyncModal({
               <span className="bg-sky-500/30 text-sky-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-sky-400/30 uppercase">
                 Multi-Project Sync
               </span>
+              {showCheckingBadge && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-400/20 text-amber-200 border border-amber-300/30 rounded-full text-[11px] font-bold animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin text-amber-300" />
+                  Memeriksa pembaharuan...
+                </span>
+              )}
             </div>
             <p className="text-xs text-sky-200/80 mt-1">
               Kelola & sinkronkan link Google Sheet AFS per Project Audit, Jobsite, dan Tahun Periode
@@ -716,7 +729,14 @@ export default function GoogleSheetSyncModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {showCheckingBadge && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 text-sky-200 border border-sky-300/30 rounded-xl text-xs font-semibold animate-pulse shadow-xs">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-300" />
+              <span>Memeriksa pembaharuan...</span>
+            </div>
+          )}
+
           {onNavigateToAFS && (
             <button
               onClick={onNavigateToAFS}
@@ -927,20 +947,22 @@ export default function GoogleSheetSyncModal({
 
               {/* Project Cards List */}
               <div className="space-y-3">
-                {isLoadingBackend ? (
-                  <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-center">
-                    <div className="w-10 h-10 border-3 border-sky-200 border-t-sky-600 rounded-full animate-spin mb-3" />
-                    <p className="text-sm font-bold text-slate-800">Menyinkronkan Data AFS Project...</p>
-                    <p className="text-xs text-slate-500 mt-1">Mengambil data terbaru dari server Google Apps Script (doGet)...</p>
-                  </div>
-                ) : projectConfigs.length === 0 ? (
-                  <div className="p-8 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2">
-                    <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
-                    <p className="text-sm font-bold text-slate-700">Belum Ada AFS Project di Server</p>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto">
-                      Daftar project belum tersedia dari Google Apps Script. Tambahkan project baru melalui form di atas atau periksa koneksi backend Anda.
-                    </p>
-                  </div>
+                {projectConfigs.length === 0 ? (
+                  showCheckingBadge ? (
+                    <div className="flex flex-col items-center justify-center py-14 px-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-center">
+                      <div className="w-8 h-8 border-3 border-sky-200 border-t-sky-600 rounded-full animate-spin mb-3" />
+                      <p className="text-xs font-bold text-slate-800">Memeriksa pembaharuan...</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Mengambil data project terbaru dari Google Apps Script...</p>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2">
+                      <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
+                      <p className="text-sm font-bold text-slate-700">Belum Ada AFS Project di Server</p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        Daftar project belum tersedia dari Google Apps Script. Tambahkan project baru melalui form di atas atau periksa koneksi backend Anda.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   projectConfigs.map((proj, idx) => {
                     const isCurrentSyncing = syncingProjects[proj.projectName] || false;

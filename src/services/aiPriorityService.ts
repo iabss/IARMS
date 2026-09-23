@@ -2,17 +2,47 @@ import { AFSFindingRecord } from '../types';
 import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear } from '../utils/statusHelper';
 import { matchesDepartmentRecord } from '../utils/deptHelper';
 
-export type PriorityRiskLevel = 'CRITICAL' | 'HIGH';
+export type PriorityRiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export const SEVERITY_ORDER: Record<PriorityRiskLevel, number> = {
+  CRITICAL: 4,
+  HIGH: 3,
+  MEDIUM: 2,
+  LOW: 1
+};
+
+export interface GroupedRecommendationDetail {
+  id: string;
+  recommendationText: string;
+  picSite?: string;
+  picHo?: string;
+  picCombined: string;
+  dueDate?: string;
+  dueDateInfo: { daysRemaining: number; isOverdue: boolean; formattedDate: string };
+  status: string;
+  isClosed: boolean;
+  isProgress: boolean;
+  isOpen: boolean;
+  rowId?: string | number;
+}
 
 export interface PriorityRecommendationItem {
   id: string;
   rank: number;
   score: number; // 0 to 100
   riskLevel: PriorityRiskLevel;
+  findingTitle: string;
+  findingNo?: string;
   record: AFSFindingRecord;
+  allRecords: AFSFindingRecord[];
+  recommendations: GroupedRecommendationDetail[];
+  allRecommendationsText: string;
+  combinedPic: string;
+  nearestDueDateInfo: { daysRemaining: number; isOverdue: boolean; formattedDate: string };
   financialImpact: {
     score: number; // 0 - 100
     estimatedValue?: string; // e.g., "Rp 859 Juta"
+    estimatedRupiah: number;
     description: string;
     level: 'Sangat Tinggi' | 'Tinggi' | 'Sedang' | 'Rendah';
   };
@@ -375,6 +405,7 @@ export function scoreFindingRecord(record: AFSFindingRecord): ScoredFindingAnaly
     financialImpact: {
       score: finalFinScore,
       estimatedValue: money.rawNominal,
+      estimatedRupiah: money.estimatedRupiah,
       description: finDesc,
       level: finLevel
     },
@@ -390,6 +421,36 @@ export function scoreFindingRecord(record: AFSFindingRecord): ScoredFindingAnaly
 
   scoringCache.set(cacheKey, result);
   return result;
+}
+
+/**
+ * Unique Finding Group Key Generator (Finding-Centric)
+ * Groups all recommendation rows belonging to the exact same audit finding.
+ */
+export function getFindingGroupKey(record: AFSFindingRecord): string {
+  const proj = (record['PROJECT AUDIT'] || '').trim().toUpperCase();
+  const site = (record.SITE || 'HEAD OFFICE').trim().toUpperCase();
+  const no = (record.NO || '').trim().toUpperCase();
+  const rawProb = (record['PROBLEM/FINDING'] || record['DETAIL TEMUAN'] || '')
+    .toLowerCase()
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // If there's a specific finding number
+  if (no && no !== '-' && no !== 'N/A') {
+    if (rawProb) {
+      return `${proj}:::${site}:::NO_${no}:::${rawProb.slice(0, 80)}`;
+    }
+    return `${proj}:::${site}:::NO_${no}`;
+  }
+
+  // Fallback to problem statement prefix
+  if (rawProb) {
+    return `${proj}:::${site}:::PROB_${rawProb.slice(0, 120)}`;
+  }
+
+  return `${proj}:::${site}:::ROW_${record._rowId || Math.random()}`;
 }
 
 /**
@@ -429,7 +490,8 @@ export function resolveMergedRows(rows: AFSFindingRecord[]): AFSFindingRecord[] 
 
 /**
  * Synchronous, instant, memoized Top 10 recommendations calculation.
- * Filters out any CLOSED findings strictly. Supports site, dept, and year filtering.
+ * Finding-Centric: Groups multiple recommendations into their parent unique Finding.
+ * Sorts by Risk Severity (CRITICAL -> HIGH -> MEDIUM -> LOW) and highest loss exposure.
  */
 export function computeTop10RecommendationsSync(
   rawRows: AFSFindingRecord[],
@@ -454,49 +516,78 @@ export function computeTop10RecommendationsSync(
   const totalAfs = totalClosedAfs + totalActiveAfs;
   const overallClosingRate = totalAfs > 0 ? Math.round((totalClosedAfs / totalAfs) * 100) : 0;
 
-  // STRICT RULE: HANYA ambil temuan yang statusnya BELUM CLOSE (Status = OPEN atau IN PROGRESS)
-  // Temuan yang sudah berkategori "CLOSE" atau "DONE" DILARANG MUTLAK muncul di daftar Top 10 Prioritas!
-  const activeRows = resolved.filter(r => {
-    // 1. Must be active (not closed)
-    if (isStatusClosed(r.STATUS, r.REMARKS, r['REVIEWED CLOSING FROM IA'])) {
-      return false;
-    }
+  // 1. Group resolved rows by Finding (Finding-Centric grouping)
+  const findingGroups = new Map<string, {
+    key: string;
+    rows: AFSFindingRecord[];
+  }>();
+
+  for (const r of resolved) {
     const prob = (r['PROBLEM/FINDING'] || '').trim();
     const rec = (r['REKOMENDASI'] || '').trim();
     const detail = (r['DETAIL TEMUAN'] || '').trim();
-    if (prob.length <= 5 && rec.length <= 5 && detail.length <= 5) {
-      return false;
+    if (prob.length <= 3 && rec.length <= 3 && detail.length <= 3) {
+      continue;
     }
 
-    // 2. Filter Site if specified
+    const key = getFindingGroupKey(r);
+    let group = findingGroups.get(key);
+    if (!group) {
+      group = { key, rows: [] };
+      findingGroups.set(key, group);
+    }
+    group.rows.push(r);
+  }
+
+  // 2. Filter findings: Must have at least 1 ACTIVE recommendation (not closed) and match filter criteria
+  const activeFindings: Array<{
+    groupKey: string;
+    rows: AFSFindingRecord[];
+    primaryRecord: AFSFindingRecord;
+  }> = [];
+
+  for (const group of findingGroups.values()) {
+    // Check if the finding has any active (unclosed) recommendation
+    const hasActiveRecommendation = group.rows.some(
+      r => !isStatusClosed(r.STATUS, r.REMARKS, r['REVIEWED CLOSING FROM IA'])
+    );
+    if (!hasActiveRecommendation) {
+      continue; // Skip entirely closed findings
+    }
+
+    // Pick representative record (prefer record with most complete problem text)
+    const primaryRecord = group.rows.find(r => (r['PROBLEM/FINDING'] || '').trim().length > 5) || group.rows[0];
+
+    // Filter Site if specified
     if (options?.site && options.site !== 'ALL') {
-      const rowSite = (r.SITE || 'HEAD OFFICE').trim().toUpperCase();
-      if (rowSite !== options.site.trim().toUpperCase()) {
-        return false;
-      }
+      const matchSite = group.rows.some(
+        r => (r.SITE || 'HEAD OFFICE').trim().toUpperCase() === options.site!.trim().toUpperCase()
+      );
+      if (!matchSite) continue;
     }
 
-    // 3. Filter Dept if specified
+    // Filter Dept if specified
     if (options?.dept && options.dept !== 'ALL') {
-      if (!matchesDepartmentRecord(r, options.dept)) {
-        return false;
-      }
+      const matchDept = group.rows.some(r => matchesDepartmentRecord(r, options.dept!));
+      if (!matchDept) continue;
     }
 
-    // 4. Filter Year if specified
+    // Filter Year if specified
     if (options?.year && options.year !== 'ALL') {
-      const rowYear = extractFindingYear(r);
-      if (rowYear !== options.year.trim()) {
-        return false;
-      }
+      const matchYear = group.rows.some(r => extractFindingYear(r) === options.year!.trim());
+      if (!matchYear) continue;
     }
 
-    return true;
-  });
+    activeFindings.push({
+      groupKey: group.key,
+      rows: group.rows,
+      primaryRecord
+    });
+  }
 
-  const totalMatchingActive = activeRows.length;
+  const totalMatchingActive = activeFindings.length;
 
-  if (activeRows.length === 0) {
+  if (activeFindings.length === 0) {
     return {
       items: [],
       summary: {
@@ -522,54 +613,291 @@ export function computeTop10RecommendationsSync(
     };
   }
 
-  // Score all ACTIVE records with in-memory caching
-  const scoredItems: PriorityRecommendationItem[] = activeRows.map((record, index) => {
-    const analysis = scoreFindingRecord(record);
-    const id = `priority-${record._rowId || index}-${record.NO || ''}-${(record.SITE || '').replace(/\s+/g, '_')}`;
+  // 3. Build Finding-Centric items with consolidated multi-recommendations and risk scoring
+  const scoredFindings: PriorityRecommendationItem[] = activeFindings.map((af, idx) => {
+    const { rows, primaryRecord } = af;
+
+    // Collect all recommendations for this finding, deduplicating identical ones
+    const recMap = new Map<string, GroupedRecommendationDetail>();
+    rows.forEach((r, rIdx) => {
+      const recText = (r['REKOMENDASI'] || '').trim();
+      const picSite = (r['PIC SITE'] || '').trim();
+      const picHo = (r['PIC HO'] || '').trim();
+      const dueDateStr = (r['DUE DATE'] || '').trim();
+      const statusStr = (r.STATUS || '').trim();
+      const remarksStr = (r.REMARKS || '').trim();
+      const closingIa = (r['REVIEWED CLOSING FROM IA'] || '').trim();
+
+      const displayText = recText && recText !== '-' 
+        ? recText 
+        : (r['PROBLEM/FINDING'] || 'Tindak lanjuti temuan audit');
+      
+      const isClosed = isStatusClosed(statusStr, remarksStr, closingIa);
+      const isProgress = isStatusProgress(statusStr, remarksStr, closingIa);
+      const isOpen = isStatusOpen(statusStr, remarksStr, closingIa);
+      const dueDateInfo = parseDueDateInfo(dueDateStr);
+
+      const picParts: string[] = [];
+      if (picSite && picSite !== '-') picParts.push(`Site: ${picSite}`);
+      if (picHo && picHo !== '-') picParts.push(`HO: ${picHo}`);
+      const picCombined = picParts.length > 0 ? picParts.join(' | ') : (picSite || picHo || '-');
+
+      const dedupRecKey = `${displayText.toLowerCase()}:::${picCombined.toLowerCase()}:::${dueDateStr}`;
+      if (!recMap.has(dedupRecKey)) {
+        recMap.set(dedupRecKey, {
+          id: `rec-${r._rowId || rIdx}-${rIdx}`,
+          recommendationText: displayText,
+          picSite: picSite && picSite !== '-' ? picSite : undefined,
+          picHo: picHo && picHo !== '-' ? picHo : undefined,
+          picCombined,
+          dueDate: dueDateStr && dueDateStr !== '-' ? dueDateStr : undefined,
+          dueDateInfo,
+          status: isClosed ? 'CLOSE' : (isProgress ? 'IN PROGRESS' : 'OPEN'),
+          isClosed,
+          isProgress,
+          isOpen,
+          rowId: r._rowId
+        });
+      }
+    });
+
+    const recommendations = Array.from(recMap.values());
+
+    // Formatted numbered recommendation text for table/reports
+    const allRecommendationsText = recommendations.length > 1
+      ? recommendations.map((rec, i) => `${i + 1}. ${rec.recommendationText}`).join('\n')
+      : (recommendations[0]?.recommendationText || primaryRecord['REKOMENDASI'] || '-');
+
+    // Consolidated PIC string
+    const uniquePicSites = Array.from(new Set(rows.map(r => (r['PIC SITE'] || '').trim()).filter(p => p && p !== '-')));
+    const uniquePicHos = Array.from(new Set(rows.map(r => (r['PIC HO'] || '').trim()).filter(p => p && p !== '-')));
+    const picSummaryParts: string[] = [];
+    if (uniquePicSites.length > 0) picSummaryParts.push(`Site: ${uniquePicSites.join(', ')}`);
+    if (uniquePicHos.length > 0) picSummaryParts.push(`HO: ${uniquePicHos.join(', ')}`);
+    const combinedPic = picSummaryParts.length > 0 ? picSummaryParts.join(' | ') : '-';
+
+    // Find nearest / most urgent target due date among all recommendations
+    let nearestDueDateInfo = recommendations[0]?.dueDateInfo || parseDueDateInfo(primaryRecord['DUE DATE']);
+    for (const rec of recommendations) {
+      if (rec.dueDateInfo.formattedDate !== '-' && rec.dueDateInfo.daysRemaining !== 999) {
+        if (nearestDueDateInfo.formattedDate === '-' || rec.dueDateInfo.daysRemaining < nearestDueDateInfo.daysRemaining) {
+          nearestDueDateInfo = rec.dueDateInfo;
+        }
+      }
+    }
+
+    // Consolidated text for multi-factor risk analysis
+    const combinedFindingText = [
+      primaryRecord['PROBLEM/FINDING'] || '',
+      primaryRecord['DETAIL TEMUAN'] || '',
+      primaryRecord['KRITERIA'] || '',
+      primaryRecord['KATEGORI'] || '',
+      ...recommendations.map(r => r.recommendationText),
+      primaryRecord['REMARKS'] || ''
+    ].join(' ');
+
+    // 1. Monetary value & Exposure calculation
+    const money = extractMonetaryValue(combinedFindingText);
+    let estimatedRupiah = money.estimatedRupiah;
+    let rawNominal = money.rawNominal;
+
+    // Check individual recommendations if problem didn't state nominal
+    if (estimatedRupiah === 0) {
+      for (const rec of recommendations) {
+        const recMoney = extractMonetaryValue(rec.recommendationText);
+        if (recMoney.estimatedRupiah > estimatedRupiah) {
+          estimatedRupiah = recMoney.estimatedRupiah;
+          rawNominal = recMoney.rawNominal;
+        }
+      }
+    }
+
+    // 2. Financial Impact Score
+    let finBaseScore = 30;
+    let finDesc = 'Dampak finansial rutin / belum ada estimasi kerugian langsung.';
+    let finLevel: PriorityRecommendationItem['financialImpact']['level'] = 'Rendah';
+
+    if (estimatedRupiah >= 1_000_000_000) {
+      finBaseScore = 95;
+      finDesc = `Eksposur kerugian material sangat besar (> Rp 1 Miliar): ${rawNominal}`;
+      finLevel = 'Sangat Tinggi';
+    } else if (estimatedRupiah >= 500_000_000) {
+      finBaseScore = 88;
+      finDesc = `Eksposur kerugian material signifikan (Rp 500 Juta - 1 Miliar): ${rawNominal}`;
+      finLevel = 'Sangat Tinggi';
+    } else if (estimatedRupiah >= 100_000_000) {
+      finBaseScore = 80;
+      finDesc = `Kerugian finansial teridentifikasi (Rp 100 Juta - 500 Juta): ${rawNominal}`;
+      finLevel = 'Tinggi';
+    } else if (estimatedRupiah > 0) {
+      finBaseScore = 65;
+      finDesc = `Potensi kerugian finansial terdeteksi: ${rawNominal}`;
+      finLevel = 'Sedang';
+    }
+
+    let keywordFinBonus = 0;
+    for (const item of FINANCIAL_PATTERNS) {
+      if (item.regex.test(combinedFindingText)) {
+        keywordFinBonus += item.weight;
+        if (finDesc.includes('rutin')) {
+          finDesc = item.desc;
+        }
+      }
+    }
+    const finalFinScore = Math.min(100, Math.max(finBaseScore, Math.min(100, finBaseScore + keywordFinBonus * 0.5)));
+    if (finalFinScore >= 85) finLevel = 'Sangat Tinggi';
+    else if (finalFinScore >= 70) finLevel = 'Tinggi';
+    else if (finalFinScore >= 50) finLevel = 'Sedang';
+    else finLevel = 'Rendah';
+
+    // 3. Operational Impact Score
+    let opsBaseScore = 30;
+    let opsDesc = 'Gangguan operasional tingkat standar / administratif.';
+    let opsLevel: PriorityRecommendationItem['operationalImpact']['level'] = 'Rendah';
+    let keywordOpsBonus = 0;
+
+    for (const item of OPERATIONAL_PATTERNS) {
+      if (item.regex.test(combinedFindingText)) {
+        keywordOpsBonus += item.weight;
+        if (opsDesc.includes('standar')) {
+          opsDesc = item.desc;
+        }
+      }
+    }
+    const finalOpsScore = Math.min(100, Math.max(opsBaseScore, Math.min(100, opsBaseScore + keywordOpsBonus * 0.8)));
+    if (finalOpsScore >= 85) opsLevel = 'Sangat Tinggi';
+    else if (finalOpsScore >= 70) opsLevel = 'Tinggi';
+    else if (finalOpsScore >= 50) opsLevel = 'Sedang';
+    else opsLevel = 'Rendah';
+
+    // 4. Urgency Score
+    let urgencyScore = 30;
+    const anyOpen = recommendations.some(r => r.isOpen);
+    const anyProgress = recommendations.some(r => r.isProgress);
+    const anyOverdue = recommendations.some(r => r.dueDateInfo.isOverdue);
+    const anySoon = recommendations.some(r => r.dueDateInfo.daysRemaining >= 0 && r.dueDateInfo.daysRemaining <= 7);
+
+    if (anyOpen) urgencyScore += 35;
+    else if (anyProgress) urgencyScore += 20;
+
+    if (anyOverdue) urgencyScore += 25;
+    else if (anySoon) urgencyScore += 15;
+    urgencyScore = Math.min(100, urgencyScore);
+
+    // 5. Category Score
+    let categoryScore = 40;
+    const kat = (primaryRecord.KATEGORI || '').toUpperCase();
+    if (kat.includes('CRITICAL') || kat.includes('KRITIS')) categoryScore = 95;
+    else if (kat.includes('MAJOR') || kat.includes('HIGH')) categoryScore = 85;
+    else if (kat.includes('MODERATE') || kat.includes('MEDIUM') || kat.includes('AREA OF IMPROV')) categoryScore = 65;
+    else if (kat.includes('MINOR') || kat.includes('LOW')) categoryScore = 45;
+
+    // Composite AI Score: Fin 35% + Ops 35% + Urgency 20% + Cat 10%
+    const compositeRaw = (finalFinScore * 0.35) + (finalOpsScore * 0.35) + (urgencyScore * 0.20) + (categoryScore * 0.10);
+    const score = Math.min(100, Math.max(20, Math.round(compositeRaw)));
+
+    // Determine Risk Severity: CRITICAL -> HIGH -> MEDIUM -> LOW
+    let riskLevel: PriorityRiskLevel = 'LOW';
+    if (kat.includes('CRITICAL') || kat.includes('KRITIS') || estimatedRupiah >= 500_000_000 || finalOpsScore >= 85 || score >= 75) {
+      riskLevel = 'CRITICAL';
+    } else if (kat.includes('MAJOR') || kat.includes('HIGH') || estimatedRupiah >= 100_000_000 || finalOpsScore >= 70 || score >= 60) {
+      riskLevel = 'HIGH';
+    } else if (kat.includes('MODERATE') || kat.includes('MEDIUM') || kat.includes('AREA OF IMPROV') || estimatedRupiah > 0 || finalOpsScore >= 50 || score >= 40) {
+      riskLevel = 'MEDIUM';
+    } else {
+      riskLevel = 'LOW';
+    }
+
+    // AI Executive Rationale
+    const siteStr = primaryRecord.SITE || 'Head Office';
+    const projStr = primaryRecord['PROJECT AUDIT'] || 'Audit';
+    let aiRationale = '';
+    if (rawNominal && finalOpsScore >= 70) {
+      aiRationale = `Temuan ini menghadirkan kombinasi dampak ganda: eksposur finansial ${rawNominal} disertai potensi disrupsi rantai kerja operasional di ${siteStr}. Keterlambatan perbaikan dapat memicu eskalasi kerugian dan hambatan produksi.`;
+    } else if (rawNominal) {
+      aiRationale = `Identifikasi risiko finansial material terdeteksi sebesar ${rawNominal} pada project ${projStr}. Memerlukan rekonsiliasi nilai aset dan pengetatan otorisasi pembayaran segera.`;
+    } else if (finalOpsScore >= 80) {
+      aiRationale = `Tingkat keparahan gangguan operasional di ${siteStr} tergolong kritis, berpotensi menyebabkan penghentian aktivitas kerja, kegagalan kepatuhan izin, atau risiko keselamatan unit/personel.`;
+    } else if (anyOverdue) {
+      aiRationale = `Temuan telah melampaui batas waktu penanganan (OVERDUE) dengan dampak struktural pada proses ${primaryRecord['DETAIL TEMUAN'] || projStr}. Diperlukan intervensi manajemen untuk percepatan closing.`;
+    } else {
+      aiRationale = `Kelemahan kontrol internal pada ${projStr} yang berdampak langsung terhadap efisiensi dan mitigasi risiko operasional perusahaan.`;
+    }
+
+    const keyMitigationAction = allRecommendationsText.length > 15
+      ? allRecommendationsText
+      : `Lakukan investigasi lapangan komprehensif, terbitkan Berita Acara (BA) resmi, dan selesaikan rencana tindakan perbaikan bersama PIC terkait.`;
+
+    const findingTitle = (primaryRecord['PROBLEM/FINDING'] || primaryRecord['DETAIL TEMUAN'] || 'Temuan Audit').trim();
+    const id = `finding-${primaryRecord._rowId || idx}-${(primaryRecord.NO || idx)}-${(primaryRecord.SITE || '').replace(/\s+/g, '_')}`;
 
     return {
       id,
-      rank: 0, // will assign after sorting
-      score: analysis.score,
-      riskLevel: analysis.riskLevel,
-      record,
-      financialImpact: analysis.financialImpact,
-      operationalImpact: analysis.operationalImpact,
-      urgencyScore: analysis.urgencyScore,
-      aiRationale: analysis.aiRationale,
-      keyMitigationAction: analysis.keyMitigationAction,
+      rank: 0,
+      score,
+      riskLevel,
+      findingTitle,
+      findingNo: primaryRecord.NO || undefined,
+      record: primaryRecord,
+      allRecords: rows,
+      recommendations,
+      allRecommendationsText,
+      combinedPic,
+      nearestDueDateInfo,
+      financialImpact: {
+        score: finalFinScore,
+        estimatedValue: rawNominal,
+        estimatedRupiah,
+        description: finDesc,
+        level: finLevel
+      },
+      operationalImpact: {
+        score: finalOpsScore,
+        description: opsDesc,
+        level: opsLevel
+      },
+      urgencyScore,
+      aiRationale,
+      keyMitigationAction,
       isAiEnriched: false
     };
   });
 
-  // Sort descending by score. If score is tied, sort by OPEN status first, then by earliest due date
-  scoredItems.sort((a, b) => {
+  // 4. SORTING LOGIC:
+  // 1. Risk Severity Tier: CRITICAL -> HIGH -> MEDIUM -> LOW
+  // 2. Exposure Nilai Kerugian tertinggi per temuan
+  // 3. Composite AI Risk Score
+  // 4. Status priority (Findings with OPEN recommendations first)
+  // 5. Earliest Due Date
+  scoredFindings.sort((a, b) => {
+    // Priority 1: Risk Severity (CRITICAL -> HIGH -> MEDIUM -> LOW)
+    const sevDiff = SEVERITY_ORDER[b.riskLevel] - SEVERITY_ORDER[a.riskLevel];
+    if (sevDiff !== 0) return sevDiff;
+
+    // Priority 2: Exposure Nilai Kerugian tertinggi per temuan
+    const expDiff = b.financialImpact.estimatedRupiah - a.financialImpact.estimatedRupiah;
+    if (expDiff !== 0) return expDiff;
+
+    // Priority 3: Composite AI Risk Score
     if (b.score !== a.score) return b.score - a.score;
-    const aOpen = !isStatusClosed(a.record.STATUS, a.record.REMARKS);
-    const bOpen = !isStatusClosed(b.record.STATUS, b.record.REMARKS);
-    if (aOpen && !bOpen) return -1;
-    if (!aOpen && bOpen) return 1;
-    return (a.record._rowId || 0) - (b.record._rowId || 0);
+
+    // Priority 4: Findings with OPEN recommendations first
+    const aHasOpen = a.recommendations.some(r => r.isOpen);
+    const bHasOpen = b.recommendations.some(r => r.isOpen);
+    if (aHasOpen && !bHasOpen) return -1;
+    if (!aHasOpen && bHasOpen) return 1;
+
+    // Priority 5: Nearest Target Due Date
+    return a.nearestDueDateInfo.daysRemaining - b.nearestDueDateInfo.daysRemaining;
   });
 
-  // Deduplicate near-identical findings if any (same project + problem + recommendation)
-  const seenKey = new Set<string>();
-  const dedupedItems: typeof scoredItems = [];
-  for (const item of scoredItems) {
-    const key = `${item.record['PROJECT AUDIT']}|${item.record.SITE}|${item.record['PROBLEM/FINDING']}|${item.record['REKOMENDASI']}`.trim().toUpperCase();
-    if (!seenKey.has(key)) {
-      seenKey.add(key);
-      dedupedItems.push(item);
-    }
-  }
-
-  // Pick top 10
-  const top10 = dedupedItems.slice(0, 10).map((item, idx) => ({
+  // 5. Pick Top 10 UNIQUE Findings
+  const top10 = scoredFindings.slice(0, 10).map((item, idx) => ({
     ...item,
     rank: idx + 1
   }));
 
-  // Calculate Summary Statistics for Active Top 10
+  // 6. Calculate Summary Statistics for Active Top 10
   let totalCriticalActive = 0;
   let totalHighActive = 0;
   let nearestDeadline: PrioritySummary['nearestDeadline'] = null;
@@ -581,25 +909,20 @@ export function computeTop10RecommendationsSync(
 
   for (const item of top10) {
     if (item.riskLevel === 'CRITICAL') totalCriticalActive++;
-    else totalHighActive++;
+    else if (item.riskLevel === 'HIGH') totalHighActive++;
 
-    const isProg = isStatusProgress(item.record.STATUS, item.record.REMARKS, item.record['REVIEWED CLOSING FROM IA']);
-    if (isProg) {
+    const hasAnyProgress = item.recommendations.some(r => r.isProgress);
+    if (hasAnyProgress) {
       inProgressCount++;
     } else {
       openCount++;
     }
 
-    // Money
-    const mon = extractMonetaryValue([
-      item.record['PROBLEM/FINDING'] || '',
-      item.record['DETAIL TEMUAN'] || '',
-      item.record['REKOMENDASI'] || ''
-    ].join(' '));
-    totalNominalRupiah += mon.estimatedRupiah;
+    // Accumulate total nominal exposure
+    totalNominalRupiah += item.financialImpact.estimatedRupiah;
 
-    // Due Date & Average Target Days
-    const due = parseDueDateInfo(item.record['DUE DATE']);
+    // Nearest Deadline
+    const due = item.nearestDueDateInfo;
     if (due.formattedDate !== '-' && due.daysRemaining !== 999) {
       sumDueDays += due.daysRemaining;
       dueCount++;
@@ -610,7 +933,7 @@ export function computeTop10RecommendationsSync(
           daysRemaining: due.daysRemaining,
           isOverdue: due.isOverdue,
           projectName: item.record['PROJECT AUDIT'] || 'Audit',
-          pic: item.record['PIC SITE'] || item.record['PIC HO'] || 'PIC Unit'
+          pic: item.combinedPic !== '-' ? item.combinedPic : (item.record['PIC SITE'] || item.record['PIC HO'] || 'PIC Unit')
         };
       }
     }
@@ -655,7 +978,7 @@ export function computeTop10RecommendationsSync(
       totalCritical: totalCriticalActive,
       totalHigh: totalHighActive,
       totalCompleted: totalClosedAfs,
-      totalOpenOrProgress: top10.length
+      totalOpenOrProgress: totalActiveAfs
     },
     totalMatchingActive
   };
