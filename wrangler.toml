@@ -10,4 +10,4 @@ not_found_handling = "single-page-application"
 
 [[kv_namespaces]]
 binding = "IARMS_KV"
-id = "iarms_kv_namespace"
+id = "48c78694778449f7b724aa445d087fa7"
