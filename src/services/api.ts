@@ -88,7 +88,7 @@ export async function syncAuditData(payload: Record<string, any>): Promise<any> 
 
 /**
  * Send delete project request to centralized server backend and Google Apps Script
- * Throws an error if server response is not successful so caller can cancel local deletion
+ * Handles Cloudflare KV quota limit exceeded gracefully
  */
 export async function deleteProjectFromBackend(item: {
   id?: string;
@@ -98,7 +98,7 @@ export async function deleteProjectFromBackend(item: {
   site?: string;
   siteName?: string;
   year?: string | number;
-}): Promise<{ status: string; success: boolean; deletedKey: string; message?: string }> {
+}): Promise<{ status: string; success: boolean; deletedKey: string; message?: string; kvLimitExceeded?: boolean }> {
   const pName = (item.projectName || item.defaultProject || item.project || "").trim().toUpperCase();
   const pSite = (item.siteName || item.site || "HEAD OFFICE").trim().toUpperCase();
   const pYear = item.year ? String(item.year).trim() : "";
@@ -110,6 +110,9 @@ export async function deleteProjectFromBackend(item: {
     site: pSite,
     year: pYear
   };
+
+  let kvLimitExceeded = false;
+  let serverWarning = "";
 
   // 1. Centralized server delete (Node Express / Cloudflare Workers / KV)
   try {
@@ -125,16 +128,35 @@ export async function deleteProjectFromBackend(item: {
         const errJson = await res.json();
         if (errJson?.error) errMsg = errJson.error;
       } catch {}
-      throw new Error(errMsg);
-    }
-
-    const data = await res.json().catch(() => null);
-    if (data && data.success === false) {
-      throw new Error(data.error || 'Server menolak penghapusan project');
+      
+      const lower = errMsg.toLowerCase();
+      if (lower.includes('limit') || lower.includes('quota') || lower.includes('exceeded')) {
+        kvLimitExceeded = true;
+        serverWarning = errMsg;
+      } else {
+        throw new Error(errMsg);
+      }
+    } else {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        if (data.kvLimitExceeded || (data.warning && data.warning.toLowerCase().includes('limit'))) {
+          kvLimitExceeded = true;
+          serverWarning = data.warning || data.message;
+        }
+        if (data.success === false && !kvLimitExceeded) {
+          throw new Error(data.error || 'Server menolak penghapusan project');
+        }
+      }
     }
   } catch (err: any) {
-    console.error("Gagal hapus project dari server backend /api/delete-project:", err);
-    throw new Error(err?.message || "Gagal menghapus project dari server");
+    const msg = (err?.message || String(err)).toLowerCase();
+    if (msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded')) {
+      kvLimitExceeded = true;
+      serverWarning = err?.message || 'KV put() limit exceeded for the day';
+    } else {
+      console.error("Gagal hapus project dari server backend /api/delete-project:", err);
+      throw new Error(err?.message || "Gagal menghapus project dari server");
+    }
   }
 
   // 2. Google Apps Script delete
@@ -150,7 +172,13 @@ export async function deleteProjectFromBackend(item: {
     console.warn("Gagal kirim delete_project ke Google Apps Script:", err);
   }
 
-  return { status: "success", success: true, deletedKey: pKey };
+  return { 
+    status: "success", 
+    success: true, 
+    deletedKey: pKey,
+    kvLimitExceeded,
+    message: serverWarning
+  };
 }
 
 /**
@@ -212,12 +240,6 @@ export async function saveProjectToBackend(item: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
-    // Also post to /api/afs-projects
-    await fetch('/api/afs-projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ afs_projects: [payload] })
     });
   } catch (err) {
     console.warn("Gagal simpan project ke /api/save-project:", err);

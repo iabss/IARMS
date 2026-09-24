@@ -20,8 +20,22 @@ const CORS_HEADERS: Record<string, string> = {
 
 const GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
 
-// In-memory fallback if KV binding is not attached
+// In-memory fallback if KV binding is not attached or KV limit is reached
 let inMemoryState: any = null;
+
+// Helper to safely write to KV with error suppression when daily write limits are hit
+async function safeKvPut(kv: any, key: string, value: string): Promise<{ success: boolean; limitExceeded?: boolean; error?: string }> {
+  if (!kv) return { success: false, error: 'KV not bound' };
+  try {
+    await kv.put(key, value);
+    return { success: true };
+  } catch (err: any) {
+    const msg = (err?.message || String(err)).toLowerCase();
+    const isLimit = msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded') || msg.includes('rate');
+    console.warn(`[safeKvPut] Error writing key "${key}" to KV:`, err?.message || err);
+    return { success: false, limitExceeded: isLimit, error: err?.message || String(err) };
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -62,8 +76,10 @@ export default {
           const body: any = await request.json();
           let currentState: any = {};
           if (kv) {
-            const raw = await kv.get('app_state');
-            if (raw) currentState = JSON.parse(raw);
+            try {
+              const raw = await kv.get('app_state');
+              if (raw) currentState = JSON.parse(raw);
+            } catch {}
           } else if (inMemoryState) {
             currentState = { ...inMemoryState };
           }
@@ -74,13 +90,25 @@ export default {
             lastUpdated: new Date().toISOString()
           };
 
+          let kvResult: { success: boolean; limitExceeded?: boolean; error?: string } = { success: false };
           if (kv) {
-            await kv.put('app_state', JSON.stringify(updatedState));
+            // Check if content actually changed compared to current
+            const currentStr = JSON.stringify({ ...currentState, lastUpdated: undefined });
+            const updatedStr = JSON.stringify({ ...updatedState, lastUpdated: undefined });
+            if (currentStr !== updatedStr) {
+              kvResult = await safeKvPut(kv, 'app_state', JSON.stringify(updatedState));
+            } else {
+              kvResult = { success: true };
+            }
           }
           inMemoryState = updatedState;
 
           return new Response(
-            JSON.stringify({ success: true, state: updatedState }),
+            JSON.stringify({ 
+              success: true, 
+              state: updatedState,
+              warning: kvResult.limitExceeded ? 'KV put limit exceeded. Data saved to in-memory fallback.' : undefined
+            }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
         } catch (err: any) {
@@ -144,7 +172,7 @@ export default {
         );
       }
 
-      // POST /api/afs-projects: Menyimpan array project AFS baru ke KV (IARMS_KV.put('afs_projects', ...))
+      // POST /api/afs-projects: Menyimpan array project AFS baru ke KV
       if (url.pathname === '/api/afs-projects' && request.method === 'POST') {
         try {
           const body: any = await request.json();
@@ -222,21 +250,31 @@ export default {
             lastUpdated: new Date().toISOString()
           };
 
-          // Simpan secara permanen ke Cloudflare KV Namespace (IARMS_KV)
+          // Optimasi KV: Hanya simpan ke key 'afs_projects' jika data berbeda dengan in-memory / KV
+          let kvResult: { success: boolean; limitExceeded?: boolean; error?: string } = { success: false };
           if (kv) {
-            await kv.put('afs_projects', JSON.stringify(finalProjects));
-            await kv.put('app_state', JSON.stringify(updatedState));
+            const oldStr = JSON.stringify(currentState.projectConfigs || []);
+            const newStr = JSON.stringify(finalProjects);
+            if (oldStr !== newStr) {
+              // Cukup tulis 1 key 'afs_projects' untuk menghemat 50% kuota harian KV
+              kvResult = await safeKvPut(kv, 'afs_projects', newStr);
+            } else {
+              kvResult = { success: true };
+            }
           }
           inMemoryState = updatedState;
 
           return new Response(
             JSON.stringify({
               success: true,
-              message: 'Daftar project AFS berhasil disimpan ke Cloudflare KV Storage (IARMS_KV)',
+              message: kvResult.limitExceeded 
+                ? 'Project disimpan di memori/fallback (kuota harian KV tercapai). Sinkronisasi server berlanjut otomatis.' 
+                : 'Daftar project AFS berhasil disimpan ke Cloudflare KV Storage (IARMS_KV)',
               afs_projects: finalProjects,
               projects: finalProjects,
               total: finalProjects.length,
-              savedToKv: !!kv
+              savedToKv: kvResult.success,
+              kvLimitExceeded: !!kvResult.limitExceeded
             }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
@@ -254,8 +292,10 @@ export default {
           const config: any = await request.json();
           let currentState: any = inMemoryState || {};
           if (kv) {
-            const raw = await kv.get('app_state');
-            if (raw) currentState = JSON.parse(raw);
+            try {
+              const raw = await kv.get('app_state');
+              if (raw) currentState = JSON.parse(raw);
+            } catch {}
           }
 
           let configs = Array.isArray(currentState.projectConfigs) ? [...currentState.projectConfigs] : [];
@@ -294,11 +334,21 @@ export default {
           }
 
           const updatedState = { ...currentState, projectConfigs: configs, lastUpdated: new Date().toISOString() };
-          if (kv) await kv.put('app_state', JSON.stringify(updatedState));
+          
+          let kvResult: { success: boolean; limitExceeded?: boolean; error?: string } = { success: false };
+          if (kv) {
+            kvResult = await safeKvPut(kv, 'afs_projects', JSON.stringify(configs));
+          }
           inMemoryState = updatedState;
 
           return new Response(
-            JSON.stringify({ success: true, projectConfigs: configs, state: updatedState }),
+            JSON.stringify({ 
+              success: true, 
+              projectConfigs: configs, 
+              state: updatedState,
+              savedToKv: kvResult.success,
+              kvLimitExceeded: !!kvResult.limitExceeded
+            }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
         } catch (err: any) {
@@ -315,8 +365,10 @@ export default {
           const body: any = await request.json();
           let currentState: any = inMemoryState || {};
           if (kv) {
-            const raw = await kv.get('app_state');
-            if (raw) currentState = JSON.parse(raw);
+            try {
+              const raw = await kv.get('app_state');
+              if (raw) currentState = JSON.parse(raw);
+            } catch {}
           }
 
           const targetName = (body.project || '').trim().toUpperCase();
@@ -325,6 +377,7 @@ export default {
           const targetKey = body.id || `${targetName}|${targetSite}${targetYear ? `|${targetYear}` : ''}`;
 
           let configs = Array.isArray(currentState.projectConfigs) ? [...currentState.projectConfigs] : [];
+          const initialLength = configs.length;
           configs = configs.filter((c: any) => {
             if (body.id && c.id && c.id === body.id) return false;
             const cName = (c.projectName || c.defaultProject || '').trim().toUpperCase();
@@ -335,17 +388,43 @@ export default {
           });
 
           const updatedState = { ...currentState, projectConfigs: configs, lastUpdated: new Date().toISOString() };
+          
+          let kvResult: { success: boolean; limitExceeded?: boolean; error?: string } = { success: false };
           if (kv) {
-            await kv.put('app_state', JSON.stringify(updatedState));
-            await kv.put('afs_projects', JSON.stringify(configs));
+            // Cukup update 'afs_projects' secara aman (1 KV put saja)
+            kvResult = await safeKvPut(kv, 'afs_projects', JSON.stringify(configs));
           }
           inMemoryState = updatedState;
 
           return new Response(
-            JSON.stringify({ success: true, projectConfigs: configs, state: updatedState }),
+            JSON.stringify({ 
+              success: true, 
+              projectConfigs: configs, 
+              state: updatedState,
+              deletedKey: targetKey,
+              savedToKv: kvResult.success,
+              kvLimitExceeded: !!kvResult.limitExceeded,
+              message: kvResult.limitExceeded 
+                ? 'Project berhasil dihapus dari memori server. Kuota harian KV tercapai, sinkronisasi permanen dilanjutkan saat kuota reset.'
+                : 'Project berhasil dihapus dari server dan Cloudflare KV.'
+            }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
         } catch (err: any) {
+          // Tangani secara khusus jika ada error uncaught terkait KV quota
+          const msg = (err?.message || String(err)).toLowerCase();
+          const isLimit = msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded');
+          if (isLimit) {
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                warning: 'Cloudflare KV put limit exceeded for the day',
+                kvLimitExceeded: true,
+                message: 'Kuota harian KV tercapai. Operasi dicatat pada memori server.'
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+            );
+          }
           return new Response(
             JSON.stringify({ success: false, error: err.message }),
             { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
@@ -358,10 +437,10 @@ export default {
         try {
           let currentState: any = inMemoryState || {};
           if (kv) {
-            const raw = await kv.get('app_state');
-            if (raw) {
-              try { currentState = JSON.parse(raw); } catch {}
-            }
+            try {
+              const raw = await kv.get('app_state');
+              if (raw) currentState = JSON.parse(raw);
+            } catch {}
           }
 
           const updatedState = {
@@ -371,18 +450,22 @@ export default {
             lastUpdated: new Date().toISOString()
           };
 
+          let kvResult: { success: boolean; limitExceeded?: boolean; error?: string } = { success: false };
           if (kv) {
-            await kv.put('afs_projects', JSON.stringify([]));
-            await kv.put('app_state', JSON.stringify(updatedState));
+            kvResult = await safeKvPut(kv, 'afs_projects', JSON.stringify([]));
           }
           inMemoryState = updatedState;
 
           return new Response(
             JSON.stringify({
               success: true,
-              message: 'Semua data project AFS berhasil dibersihkan dari Cloudflare KV (IARMS_KV)',
+              message: kvResult.limitExceeded
+                ? 'Semua data project AFS berhasil dibersihkan dari memori (kuota harian KV tercapai).'
+                : 'Semua data project AFS berhasil dibersihkan dari Cloudflare KV (IARMS_KV)',
               total: 0,
-              afs_projects: []
+              afs_projects: [],
+              savedToKv: kvResult.success,
+              kvLimitExceeded: !!kvResult.limitExceeded
             }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );

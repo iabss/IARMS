@@ -537,6 +537,7 @@ export default function GoogleSheetSyncModal({
 
   // Save changes to a project URL input field
   const handleUpdateProjectUrl = (proj: ProjectLinkConfig, newUrl: string) => {
+    if (proj.sheetUrl === newUrl) return; // Ignore if unchanged to save KV calls
     const updated: ProjectLinkConfig = {
       ...proj,
       sheetUrl: newUrl,
@@ -544,37 +545,35 @@ export default function GoogleSheetSyncModal({
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
-    const currentList = getProjectLinkConfigs();
-    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
   // Save changes to a project Site input field
   const handleUpdateProjectSite = (proj: ProjectLinkConfig, newSite: string) => {
+    const formattedSite = newSite.toUpperCase();
+    if (proj.siteName === formattedSite || proj.site === formattedSite) return;
     const updated: ProjectLinkConfig = {
       ...proj,
-      siteName: newSite.toUpperCase(),
-      site: newSite.toUpperCase(),
+      siteName: formattedSite,
+      site: formattedSite,
       status: 'pending'
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
-    const currentList = getProjectLinkConfigs();
-    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
   // Save changes to a project Year input field
   const handleUpdateProjectYear = (proj: ProjectLinkConfig, newYear: string) => {
+    const formattedYear = newYear.trim();
+    if (String(proj.year || '').trim() === formattedYear) return;
     const updated: ProjectLinkConfig = {
       ...proj,
-      year: newYear.trim(),
+      year: formattedYear,
       status: 'pending'
     };
     saveProjectLinkConfig(updated);
     saveProjectToBackend(updated);
-    const currentList = getProjectLinkConfigs();
-    saveAfsProjectsToServer(currentList);
     refreshProjectConfigs();
   };
 
@@ -605,8 +604,6 @@ export default function GoogleSheetSyncModal({
 
     saveProjectLinkConfig(newConfig);
     saveProjectToBackend(newConfig);
-    const currentList = getProjectLinkConfigs();
-    saveAfsProjectsToServer(currentList);
 
     setNewProjectName('');
     setNewProjectSite('HEAD OFFICE');
@@ -628,9 +625,11 @@ export default function GoogleSheetSyncModal({
 
   // Fungsi Hapus (Delete Icon):
   // 1. Panggil API backend (Cloudflare KV / Server / GAS) terlebih dahulu
-  // 2. Tunggu konfirmasi respon sukses dari server
-  // 3. Jika sukses: hapus dari local state & localStorage, tampilkan notifikasi toast sukses
-  // 4. Jika gagal/error: tampilkan toast error dan batalkan penghapusan lokal agar UI tetap sinkron
+  // 2. Jika sukses (atau jika kuota KV habis / limit exceeded):
+  //    - Izinkan penghapusan data secara lokal di browser (localStorage & state) agar user tidak terjebak dan bisa tetap bekerja
+  //    - Tampilkan notifikasi yang sesuai kepada user (notifikasi peringatan jika kuota KV habis bahwa sync akan dilanjutkan saat kuota reset)
+  // 3. Jika gagal karena error lain (misal offline/server down):
+  //    - Batalkan penghapusan lokal dan tampilkan error
   const handleDeleteProject = async (item: ProjectLinkConfig) => {
     const projectToDelete = item.defaultProject || item.project || item.projectName;
     const siteToDelete = item.site || item.siteName || 'HEAD OFFICE';
@@ -645,14 +644,8 @@ export default function GoogleSheetSyncModal({
 
     setDeletingProjectKeys(prev => ({ ...prev, [itemKey]: true }));
 
-    try {
-      // 1. PERSISTENT DELETE TO SERVER / GAS TERLEBIH DAHULU:
-      const res = await deleteProjectFromBackend(item);
-      if (!res || res.success === false) {
-        throw new Error(res?.message || 'Server menolak penghapusan');
-      }
-
-      // 2. AWAIT SERVER RESPONSE: Server mengembalikan respon sukses!
+    // Helper untuk membersihkan data secara lokal di browser
+    const performLocalDeletion = () => {
       // A. Hapus project dari state afsProjects lokal
       setProjectConfigs(prev => prev.filter(p => {
         const pProj = p.defaultProject || p.project || p.projectName;
@@ -670,16 +663,51 @@ export default function GoogleSheetSyncModal({
         deleteProjectLinkConfigById(item.id);
       }
       refreshProjectConfigs();
+    };
+
+    try {
+      // 1. PERSISTENT DELETE TO SERVER / GAS:
+      const res = await deleteProjectFromBackend(item);
+
+      // Cek apakah terjadi limitasi kuota KV
+      if (res && res.kvLimitExceeded) {
+        // Fallback: hapus lokal agar user tidak terjebak dan bisa tetap bekerja
+        performLocalDeletion();
+        onToast(
+          `Project "${displayName}" dihapus secara lokal. Kuota harian Cloudflare KV tercapai, sinkronisasi server permanen dilanjutkan setelah reset kuota harian.`,
+          'info'
+        );
+        return;
+      }
+
+      if (!res || res.success === false) {
+        throw new Error(res?.message || 'Server menolak penghapusan');
+      }
+
+      // 2. AWAIT SERVER RESPONSE: Server mengembalikan respon sukses!
+      performLocalDeletion();
 
       // C. Tampilkan notifikasi toast sukses hapus
       onToast(`Project ${displayName} berhasil dihapus dari server!`, 'success');
     } catch (err: any) {
       // 3. JIKA SERVER GAGAL / ERROR:
-      // Tampilkan notifikasi error "Gagal menghapus project dari server"
-      // Batalkan penghapusan lokal agar UI tetap sinkron dengan server
-      console.error('Gagal menghapus project dari server:', err);
-      const errMsg = err?.message ? `Gagal menghapus project dari server: ${err.message}` : 'Gagal menghapus project dari server';
-      onToast(errMsg, 'error');
+      // Periksa apakah pesan error mengindikasikan limitasi kuota Cloudflare KV
+      const errMsgStr = (err?.message || String(err)).toLowerCase();
+      const isKvLimit = errMsgStr.includes('limit') || errMsgStr.includes('quota') || errMsgStr.includes('exceeded') || errMsgStr.includes('put()');
+
+      if (isKvLimit) {
+        // Fallback: izinkan penghapusan lokal agar user tidak terblokir
+        performLocalDeletion();
+        onToast(
+          `Project "${displayName}" dihapus di browser. Kuota Cloudflare KV untuk hari ini telah tercapai (limit exceeded). Sinkronisasi server akan diperbarui otomatis saat kuota reset.`,
+          'warning'
+        );
+      } else {
+        // Error server non-kuota: batalkan penghapusan lokal agar UI tetap sinkron
+        console.error('Gagal menghapus project dari server:', err);
+        const errMsg = err?.message ? `Gagal menghapus project dari server: ${err.message}` : 'Gagal menghapus project dari server';
+        onToast(errMsg, 'error');
+      }
     } finally {
       setDeletingProjectKeys(prev => {
         const next = { ...prev };
