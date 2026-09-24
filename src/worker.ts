@@ -335,11 +335,55 @@ export default {
           });
 
           const updatedState = { ...currentState, projectConfigs: configs, lastUpdated: new Date().toISOString() };
-          if (kv) await kv.put('app_state', JSON.stringify(updatedState));
+          if (kv) {
+            await kv.put('app_state', JSON.stringify(updatedState));
+            await kv.put('afs_projects', JSON.stringify(configs));
+          }
           inMemoryState = updatedState;
 
           return new Response(
             JSON.stringify({ success: true, projectConfigs: configs, state: updatedState }),
+            { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+          );
+        } catch (err: any) {
+          return new Response(
+            JSON.stringify({ success: false, error: err.message }),
+            { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+          );
+        }
+      }
+
+      // POST /api/purge-afs-projects & /api/reset-afs-projects: One-time database purge for Cloudflare KV
+      if ((url.pathname === '/api/purge-afs-projects' || url.pathname === '/api/reset-afs-projects') && request.method === 'POST') {
+        try {
+          let currentState: any = inMemoryState || {};
+          if (kv) {
+            const raw = await kv.get('app_state');
+            if (raw) {
+              try { currentState = JSON.parse(raw); } catch {}
+            }
+          }
+
+          const updatedState = {
+            ...currentState,
+            projectConfigs: [],
+            deletedKeys: [],
+            lastUpdated: new Date().toISOString()
+          };
+
+          if (kv) {
+            await kv.put('afs_projects', JSON.stringify([]));
+            await kv.put('app_state', JSON.stringify(updatedState));
+          }
+          inMemoryState = updatedState;
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Semua data project AFS berhasil dibersihkan dari Cloudflare KV (IARMS_KV)',
+              total: 0,
+              afs_projects: []
+            }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
         } catch (err: any) {

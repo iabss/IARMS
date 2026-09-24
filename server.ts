@@ -584,6 +584,23 @@ app.post('/api/afs-projects', (req, res) => {
   }
 });
 
+// API One-Time Purge / Reset AFS Projects from Centralized Master Database
+app.post(['/api/purge-afs-projects', '/api/reset-afs-projects'], (req, res) => {
+  try {
+    const updated = saveServerState({ projectConfigs: [], deletedKeys: [] });
+    return res.json({
+      success: true,
+      message: 'Semua data project AFS berhasil dibersihkan dari server database master',
+      afs_projects: [],
+      projects: [],
+      total: 0,
+      state: updated
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // API Centralized Save / Update Project Link Configuration
 app.post('/api/save-project', (req, res) => {
   try {

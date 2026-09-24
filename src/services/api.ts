@@ -88,6 +88,7 @@ export async function syncAuditData(payload: Record<string, any>): Promise<any> 
 
 /**
  * Send delete project request to centralized server backend and Google Apps Script
+ * Throws an error if server response is not successful so caller can cancel local deletion
  */
 export async function deleteProjectFromBackend(item: {
   id?: string;
@@ -97,7 +98,7 @@ export async function deleteProjectFromBackend(item: {
   site?: string;
   siteName?: string;
   year?: string | number;
-}): Promise<any> {
+}): Promise<{ status: string; success: boolean; deletedKey: string; message?: string }> {
   const pName = (item.projectName || item.defaultProject || item.project || "").trim().toUpperCase();
   const pSite = (item.siteName || item.site || "HEAD OFFICE").trim().toUpperCase();
   const pYear = item.year ? String(item.year).trim() : "";
@@ -112,13 +113,28 @@ export async function deleteProjectFromBackend(item: {
 
   // 1. Centralized server delete (Node Express / Cloudflare Workers / KV)
   try {
-    await fetch('/api/delete-project', {
+    const res = await fetch('/api/delete-project', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (err) {
-    console.warn("Gagal hapus project dari server backend /api/delete-project:", err);
+
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson?.error) errMsg = errJson.error;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json().catch(() => null);
+    if (data && data.success === false) {
+      throw new Error(data.error || 'Server menolak penghapusan project');
+    }
+  } catch (err: any) {
+    console.error("Gagal hapus project dari server backend /api/delete-project:", err);
+    throw new Error(err?.message || "Gagal menghapus project dari server");
   }
 
   // 2. Google Apps Script delete
@@ -127,13 +143,32 @@ export async function deleteProjectFromBackend(item: {
       action: "delete_project",
       project: pName,
       site: pSite,
-      year: pYear
+      year: pYear,
+      id: pKey
     });
   } catch (err) {
     console.warn("Gagal kirim delete_project ke Google Apps Script:", err);
   }
 
   return { status: "success", success: true, deletedKey: pKey };
+}
+
+/**
+ * One-time purge of all AFS projects in Centralized Cloudflare KV / Server Master Database
+ */
+export async function purgeAfsProjectsFromServer(): Promise<any> {
+  try {
+    const res = await fetch('/api/purge-afs-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Gagal request /api/purge-afs-projects:", err);
+  }
+  return { success: false };
 }
 
 /**

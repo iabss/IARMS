@@ -1,162 +1,5 @@
 {
-  "projectConfigs": [
-    {
-      "id": "PR-PAYMENT|JKT|2026",
-      "projectName": "PR-PAYMENT",
-      "siteName": "JKT",
-      "year": "2026",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1266648135#gid=1266648135",
-      "rowCount": 90,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:32.944Z",
-      "defaultProject": "PR-PAYMENT",
-      "project": "PR-PAYMENT",
-      "site": "JKT"
-    },
-    {
-      "id": "AUDIT OPERASIONAL IT|JKT|2026",
-      "projectName": "AUDIT OPERASIONAL IT",
-      "siteName": "JKT",
-      "year": "2026",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1641654012#gid=1641654012",
-      "rowCount": 107,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:34.372Z",
-      "defaultProject": "AUDIT OPERASIONAL IT",
-      "project": "AUDIT OPERASIONAL IT",
-      "site": "JKT"
-    },
-    {
-      "id": "CLOSING PROJECT|MAS|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "MAS",
-      "year": "2026",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1389087209#gid=1389087209",
-      "rowCount": 31,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:35.386Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "MAS"
-    },
-    {
-      "id": "CLOSING PROJECT|AGM|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "AGM",
-      "year": "2026",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1539166529#gid=1539166529",
-      "rowCount": 43,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:37.761Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "AGM"
-    },
-    {
-      "id": "AUDIT OPERASIONAL|IP BAYAN|2026",
-      "projectName": "AUDIT OPERASIONAL",
-      "siteName": "IP BAYAN",
-      "year": "2026",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1494177098#gid=1494177098",
-      "rowCount": 166,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:39.188Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
-      "site": "IP BAYAN"
-    },
-    {
-      "id": "AUDIT OPERASIONAL|CDI|2025",
-      "projectName": "AUDIT OPERASIONAL",
-      "siteName": "CDI",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1980857748#gid=1980857748",
-      "rowCount": 144,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:40.460Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
-      "site": "CDI"
-    },
-    {
-      "id": "AUDIT OPERASIONAL|MBL|2025",
-      "projectName": "AUDIT OPERASIONAL",
-      "siteName": "MBL",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=914111570#gid=914111570",
-      "rowCount": 121,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:43.977Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
-      "site": "MBL"
-    },
-    {
-      "id": "AUDIT OPERASIONAL|MME|2025",
-      "projectName": "AUDIT OPERASIONAL",
-      "siteName": "MME",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1203180077#gid=1203180077",
-      "rowCount": 95,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:45.679Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
-      "site": "MME"
-    },
-    {
-      "id": "AUDIT INVESTIGASI|AGM|2025",
-      "projectName": "AUDIT INVESTIGASI",
-      "siteName": "AGM",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=858614751#gid=858614751",
-      "rowCount": 21,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:51.606Z",
-      "defaultProject": "AUDIT INVESTIGASI",
-      "project": "AUDIT INVESTIGASI",
-      "site": "AGM"
-    },
-    {
-      "id": "AUDIT OPERASIONAL|MAS|2025",
-      "projectName": "AUDIT OPERASIONAL",
-      "siteName": "MAS",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=279759483#gid=279759483",
-      "rowCount": 110,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:33:59.186Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
-      "site": "MAS"
-    },
-    {
-      "id": "proj_1787211387100_olvhh",
-      "projectName": "AUDIT OPERASIONAL IT",
-      "siteName": "JKT",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1433562805#gid=1433562805",
-      "rowCount": 115,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:34:02.369Z",
-      "defaultProject": "AUDIT OPERASIONAL IT",
-      "project": "AUDIT OPERASIONAL IT",
-      "site": "JKT"
-    },
-    {
-      "id": "AUDIT OPERASIONAL IT|JKT|2025",
-      "projectName": "AUDIT OPERASIONAL IT",
-      "siteName": "JKT",
-      "year": "2025",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit?gid=1433562805#gid=1433562805",
-      "rowCount": 115,
-      "status": "synced",
-      "lastSyncedAt": "2026-09-23T09:30:01.357Z",
-      "defaultProject": "AUDIT OPERASIONAL IT",
-      "project": "AUDIT OPERASIONAL IT",
-      "site": "JKT"
-    }
-  ],
+  "projectConfigs": [],
   "customRows": [
     {
       "_rowId": 2,
@@ -21125,7 +20968,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 1,
+      "_rowId": 2,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21147,7 +20990,7 @@
       "NOTE": "Lampirannya?"
     },
     {
-      "_rowId": 2,
+      "_rowId": 3,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21169,7 +21012,7 @@
       "NOTE": "Tolong direview\n\nMOM sudah sesuai, selesaikan hingga mekanisme nya dibakukan dan disoisalisasikan"
     },
     {
-      "_rowId": 3,
+      "_rowId": 4,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21191,7 +21034,7 @@
       "NOTE": "Temuan IPMS terkait dengan unit yang belum terdaftar pada sistem IPMS\n- PIC PLANT \n merujuk ke BSS SOP PLANT 015 DISPOSE EQUIPMENT"
     },
     {
-      "_rowId": 4,
+      "_rowId": 5,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21213,7 +21056,7 @@
       "NOTE": "Temuan IPMS terkait dengan unit yang belum terdaftar pada sistem IPMS\n- PIC PLANT \n merujuk ke BSS SOP PLANT 015 DISPOSE EQUIPMENT"
     },
     {
-      "_rowId": 5,
+      "_rowId": 6,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21235,7 +21078,7 @@
       "NOTE": "Pembuatan integrasi masuk BSS SOP ATA 08 Asset Management"
     },
     {
-      "_rowId": 6,
+      "_rowId": 7,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21257,7 +21100,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 7,
+      "_rowId": 8,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21279,7 +21122,7 @@
       "NOTE": "Tolong direview"
     },
     {
-      "_rowId": 8,
+      "_rowId": 9,
       "NO": "1",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21301,7 +21144,7 @@
       "NOTE": "Integrasi 4 SOP\n1. Pengadaan Aset\n2. Dispose Equipment\n3. Mobilisasi Unit\n4. Asset Management"
     },
     {
-      "_rowId": 9,
+      "_rowId": 10,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21323,7 +21166,7 @@
       "NOTE": "1. PO Blocking. PO memang belum bisa dibuat jika PR belum release\n2. GR memang tidak bisa di lakukan jika PO belum release.\n3. Mekanisme lock backdate GR (Link)"
     },
     {
-      "_rowId": 10,
+      "_rowId": 11,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21345,7 +21188,7 @@
       "NOTE": "Tolong direview, silahkan dizoom in"
     },
     {
-      "_rowId": 11,
+      "_rowId": 12,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21367,7 +21210,7 @@
       "NOTE": "Tolong direview, silahkan dizoom in"
     },
     {
-      "_rowId": 12,
+      "_rowId": 13,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21389,7 +21232,7 @@
       "NOTE": "Pembahasan lebih lanjut untuk memunculkan release date lvl 1/2"
     },
     {
-      "_rowId": 13,
+      "_rowId": 14,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21411,7 +21254,7 @@
       "NOTE": "Lampirannya?"
     },
     {
-      "_rowId": 14,
+      "_rowId": 15,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21433,7 +21276,7 @@
       "NOTE": "Alur Proses DA"
     },
     {
-      "_rowId": 15,
+      "_rowId": 16,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21455,7 +21298,7 @@
       "NOTE": "Penjadwalan sosialisasi 09/04 dengan tim Log"
     },
     {
-      "_rowId": 16,
+      "_rowId": 17,
       "NO": "2",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21477,7 +21320,7 @@
       "NOTE": "Proses PR-PO- GR sudah mengunci terkait budget di SAP FM"
     },
     {
-      "_rowId": 17,
+      "_rowId": 18,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21499,7 +21342,7 @@
       "NOTE": "Revisi SOP Pengadaan\nBSS-SOP-SM- 004 Purchase Order"
     },
     {
-      "_rowId": 18,
+      "_rowId": 19,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21521,7 +21364,7 @@
       "NOTE": "Form Scoring"
     },
     {
-      "_rowId": 19,
+      "_rowId": 20,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21543,7 +21386,7 @@
       "NOTE": "Time line kontrak vendor"
     },
     {
-      "_rowId": 20,
+      "_rowId": 21,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21565,7 +21408,7 @@
       "NOTE": "Pembuatan procurement policy"
     },
     {
-      "_rowId": 21,
+      "_rowId": 22,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21587,7 +21430,7 @@
       "NOTE": "Pembuatan procurement policy"
     },
     {
-      "_rowId": 22,
+      "_rowId": 23,
       "NO": "3",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21609,7 +21452,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 23,
+      "_rowId": 24,
       "NO": "4",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21631,7 +21474,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 24,
+      "_rowId": 25,
       "NO": "4",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21653,7 +21496,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 25,
+      "_rowId": 26,
       "NO": "4",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21675,7 +21518,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 26,
+      "_rowId": 27,
       "NO": "4",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21697,7 +21540,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 27,
+      "_rowId": 28,
       "NO": "4",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21719,7 +21562,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 28,
+      "_rowId": 29,
       "NO": "5",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21741,7 +21584,7 @@
       "NOTE": "MOM Sosialisasi"
     },
     {
-      "_rowId": 29,
+      "_rowId": 30,
       "NO": "5",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21763,7 +21606,7 @@
       "NOTE": "Pembuatan IM"
     },
     {
-      "_rowId": 30,
+      "_rowId": 31,
       "NO": "5",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21785,7 +21628,7 @@
       "NOTE": "Terlampir monitoring mobilisasi yang terintegrasi dan bisa diakses seluruh departemen"
     },
     {
-      "_rowId": 31,
+      "_rowId": 32,
       "NO": "5",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21807,7 +21650,7 @@
       "NOTE": "Pembuatan IM"
     },
     {
-      "_rowId": 32,
+      "_rowId": 33,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21829,7 +21672,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 33,
+      "_rowId": 34,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21851,7 +21694,7 @@
       "NOTE": "Akan dilakukan diskusi bersama SM, Plant, Eng. 04/05"
     },
     {
-      "_rowId": 34,
+      "_rowId": 35,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21873,7 +21716,7 @@
       "NOTE": "Pembahasan lanjut dengan eng dan plant"
     },
     {
-      "_rowId": 35,
+      "_rowId": 36,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21895,7 +21738,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 36,
+      "_rowId": 37,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21917,7 +21760,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 37,
+      "_rowId": 38,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21939,7 +21782,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 38,
+      "_rowId": 39,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21961,7 +21804,7 @@
       "NOTE": "Pembuatan IM"
     },
     {
-      "_rowId": 39,
+      "_rowId": 40,
       "NO": "6",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -21983,7 +21826,7 @@
       "NOTE": "1. MOM Pembahasan PNL SAP"
     },
     {
-      "_rowId": 40,
+      "_rowId": 41,
       "NO": "7",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22005,7 +21848,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 41,
+      "_rowId": 42,
       "NO": "7",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22027,7 +21870,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 42,
+      "_rowId": 43,
       "NO": "7",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22049,7 +21892,7 @@
       "NOTE": "Pembuatan EM transkasi no PO no transaction"
     },
     {
-      "_rowId": 43,
+      "_rowId": 44,
       "NO": "7",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22071,7 +21914,7 @@
       "NOTE": "1. Revisi SOP Pemilihan supplier terkait dengan penambahan poin review dokumen kelengkapan 1 tahun sekali"
     },
     {
-      "_rowId": 44,
+      "_rowId": 45,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22093,7 +21936,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 45,
+      "_rowId": 46,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22115,7 +21958,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 46,
+      "_rowId": 47,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22137,7 +21980,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 47,
+      "_rowId": 48,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22159,7 +22002,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 48,
+      "_rowId": 49,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22181,7 +22024,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 49,
+      "_rowId": 50,
       "NO": "8",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22203,7 +22046,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 50,
+      "_rowId": 51,
       "NO": "9",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22225,7 +22068,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 51,
+      "_rowId": 52,
       "NO": "9",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22247,7 +22090,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 52,
+      "_rowId": 53,
       "NO": "10",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22269,7 +22112,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 53,
+      "_rowId": 54,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22291,7 +22134,7 @@
       "NOTE": "Belum ada kontrak\nvendor housekeeping\nLaundry\nAir minum /air bersih"
     },
     {
-      "_rowId": 54,
+      "_rowId": 55,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22313,7 +22156,7 @@
       "NOTE": "Belum ada kontrak\nvendor housekeeping\nLaundry\nAir minum /air bersih"
     },
     {
-      "_rowId": 55,
+      "_rowId": 56,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22335,7 +22178,7 @@
       "NOTE": "Belum ada kontrak\nvendor housekeeping\nLaundry\nAir minum /air bersih"
     },
     {
-      "_rowId": 56,
+      "_rowId": 57,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22357,7 +22200,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 57,
+      "_rowId": 58,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22379,7 +22222,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 58,
+      "_rowId": 59,
       "NO": "11",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22401,7 +22244,7 @@
       "NOTE": "sudah ada notif untuk kontak yang akan habis\ndari legal dan monitoring GS"
     },
     {
-      "_rowId": 59,
+      "_rowId": 60,
       "NO": "12",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22423,7 +22266,7 @@
       "NOTE": "Penambahan catering kemungkinan adanya vendor yang menginap di mess"
     },
     {
-      "_rowId": 60,
+      "_rowId": 61,
       "NO": "12",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22445,7 +22288,7 @@
       "NOTE": "Penambahan catering kemungkinan adanya vendor yang menginap di mess"
     },
     {
-      "_rowId": 61,
+      "_rowId": 62,
       "NO": "12",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22467,7 +22310,7 @@
       "NOTE": "Sudah melakukan Barcode in dan out"
     },
     {
-      "_rowId": 62,
+      "_rowId": 63,
       "NO": "12",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22489,7 +22332,7 @@
       "NOTE": "belum ada aproval untuk tambahan diluar jadwal roster\naproval dilakukan di spreadsheet oleh kepala seksi GS Site"
     },
     {
-      "_rowId": 63,
+      "_rowId": 64,
       "NO": "13",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22511,7 +22354,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 64,
+      "_rowId": 65,
       "NO": "13",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22533,7 +22376,7 @@
       "NOTE": "uji petik hanya dilakukan untuk mengukur fuel, bukan untuk life time sparepart"
     },
     {
-      "_rowId": 65,
+      "_rowId": 66,
       "NO": "13",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22555,7 +22398,7 @@
       "NOTE": "sudah ada monitoring pelaksanaan PM cek, tapi dokumen PM cek disimpan di site"
     },
     {
-      "_rowId": 66,
+      "_rowId": 67,
       "NO": "13",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22577,7 +22420,7 @@
       "NOTE": "BAK body tidak menyebabkan unit tidak bisa running, sehingga kerancuan tidak berhubungan antara penyebab dan akibat\n\nlaporan tidak di colect di GS tapi ke SHE"
     },
     {
-      "_rowId": 67,
+      "_rowId": 68,
       "NO": "14",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22599,7 +22442,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 68,
+      "_rowId": 69,
       "NO": "14",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22621,7 +22464,7 @@
       "NOTE": "sudah ada lampiran PA tiap unit pada saat invoice"
     },
     {
-      "_rowId": 69,
+      "_rowId": 70,
       "NO": "14",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22643,7 +22486,7 @@
       "NOTE": "Add charge hanya berlaku untuk vendor track, sekarang sudah tidak ada, sekarang semua sparepart yang rusak sebelum life time habis ditanggung oleh vendor"
     },
     {
-      "_rowId": 70,
+      "_rowId": 71,
       "NO": "14",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22665,7 +22508,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 71,
+      "_rowId": 72,
       "NO": "14",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22687,7 +22530,7 @@
       "NOTE": "laporan BD di collect oleh SHE site,\ndi GS hanya monitoring unit ready / BD"
     },
     {
-      "_rowId": 72,
+      "_rowId": 73,
       "NO": "15",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22709,7 +22552,7 @@
       "NOTE": "PA dan PM cek semua site sudah tercolect ke HO"
     },
     {
-      "_rowId": 73,
+      "_rowId": 74,
       "NO": "15",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22731,7 +22574,7 @@
       "NOTE": "PA dan PM cek semua site sudah tercolect ke HO"
     },
     {
-      "_rowId": 74,
+      "_rowId": 75,
       "NO": "16",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22753,7 +22596,7 @@
       "NOTE": "PA dan PM cek semua site sudah tercolect ke HO"
     },
     {
-      "_rowId": 75,
+      "_rowId": 76,
       "NO": "16",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22775,7 +22618,7 @@
       "NOTE": "PA dan PM cek semua site sudah tercolect ke HO"
     },
     {
-      "_rowId": 76,
+      "_rowId": 77,
       "NO": "17",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22797,7 +22640,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 77,
+      "_rowId": 78,
       "NO": "17",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22819,7 +22662,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 78,
+      "_rowId": 79,
       "NO": "17",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22841,7 +22684,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 79,
+      "_rowId": 80,
       "NO": "17",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22863,7 +22706,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 80,
+      "_rowId": 81,
       "NO": "18",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22885,7 +22728,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 81,
+      "_rowId": 82,
       "NO": "18",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22907,7 +22750,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 82,
+      "_rowId": 83,
       "NO": "18",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22929,7 +22772,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 83,
+      "_rowId": 84,
       "NO": "18",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22951,7 +22794,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 84,
+      "_rowId": 85,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22973,7 +22816,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 85,
+      "_rowId": 86,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -22995,7 +22838,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 86,
+      "_rowId": 87,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -23017,7 +22860,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 87,
+      "_rowId": 88,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -23039,7 +22882,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 88,
+      "_rowId": 89,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -23061,7 +22904,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 89,
+      "_rowId": 90,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -23083,7 +22926,7 @@
       "NOTE": ""
     },
     {
-      "_rowId": 90,
+      "_rowId": 91,
       "NO": "19",
       "PROJECT AUDIT": "PR-PAYMENT",
       "SITE": "JKT",
@@ -23105,9 +22948,7 @@
       "NOTE": ""
     }
   ],
-  "deletedKeys": [
-    "TEST_PROJECT|JKT|2026"
-  ],
+  "deletedKeys": [],
   "trendExclusions": [
     "MAS - AUDIT OPERASIONAL",
     "MME - AUDIT OPERASIONAL",
@@ -23119,73 +22960,9 @@
   ],
   "snapshots": [
     {
-      "id": "snap_1790155427068_d47t",
-      "timestamp": "2026-09-23T09:23:47.067Z",
-      "date": "2026-09-23",
-      "note": "Sync Google Sheet: AUDIT OPERASIONAL",
-      "sourceType": "sync",
-      "totalRows": 1043,
-      "closedRows": 929,
-      "openRows": 109,
-      "progressRows": 5,
-      "closeRate": 89.07,
-      "projectStats": [
-        {
-          "projectName": "AUDIT OPERASIONAL",
-          "total": 636,
-          "closed": 602,
-          "open": 30,
-          "progress": 4,
-          "closeRate": 94.65,
-          "siteRate": 94.65,
-          "hoRate": 94.65
-        },
-        {
-          "projectName": "AUDIT INVESTIGASI",
-          "total": 21,
-          "closed": 21,
-          "open": 0,
-          "progress": 0,
-          "closeRate": 100,
-          "siteRate": 100,
-          "hoRate": 100
-        },
-        {
-          "projectName": "CLOSING PROJECT",
-          "total": 74,
-          "closed": 57,
-          "open": 17,
-          "progress": 0,
-          "closeRate": 77.03,
-          "siteRate": 77.03,
-          "hoRate": 77.03
-        },
-        {
-          "projectName": "AUDIT OPERASIONAL IT",
-          "total": 222,
-          "closed": 200,
-          "open": 22,
-          "progress": 0,
-          "closeRate": 90.09,
-          "siteRate": 90.09,
-          "hoRate": 90.09
-        },
-        {
-          "projectName": "PR-PAYMENT",
-          "total": 90,
-          "closed": 49,
-          "open": 40,
-          "progress": 1,
-          "closeRate": 54.44,
-          "siteRate": 54.44,
-          "hoRate": 54.44
-        }
-      ]
-    },
-    {
-      "id": "snap_1790155428479_dyqw",
-      "timestamp": "2026-09-23T09:23:48.477Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233125717_cqg3",
+      "timestamp": "2026-09-24T06:58:45.716Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23247,9 +23024,9 @@
       ]
     },
     {
-      "id": "snap_1790155756408_tiyi",
-      "timestamp": "2026-09-23T09:29:16.406Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233411971_d5m4",
+      "timestamp": "2026-09-24T07:03:31.969Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: PR-PAYMENT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23311,9 +23088,9 @@
       ]
     },
     {
-      "id": "snap_1790155760097_4yk5",
-      "timestamp": "2026-09-23T09:29:20.094Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233413454_ry3w",
+      "timestamp": "2026-09-24T07:03:33.454Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23375,9 +23152,9 @@
       ]
     },
     {
-      "id": "snap_1790155761708_6wos",
-      "timestamp": "2026-09-23T09:29:21.707Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233415086_ybp1",
+      "timestamp": "2026-09-24T07:03:35.084Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: CLOSING PROJECT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23439,9 +23216,9 @@
       ]
     },
     {
-      "id": "snap_1790155765603_dr29",
-      "timestamp": "2026-09-23T09:29:25.600Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233417495_2xr6",
+      "timestamp": "2026-09-24T07:03:37.493Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: CLOSING PROJECT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23503,9 +23280,9 @@
       ]
     },
     {
-      "id": "snap_1790155772545_elhu",
-      "timestamp": "2026-09-23T09:29:32.542Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233419038_nunk",
+      "timestamp": "2026-09-24T07:03:39.037Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23567,9 +23344,9 @@
       ]
     },
     {
-      "id": "snap_1790155779620_bjg5",
-      "timestamp": "2026-09-23T09:29:39.619Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233420741_2d4h",
+      "timestamp": "2026-09-24T07:03:40.738Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23631,9 +23408,9 @@
       ]
     },
     {
-      "id": "snap_1790155785593_1ny9",
-      "timestamp": "2026-09-23T09:29:45.592Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233422730_5bg4",
+      "timestamp": "2026-09-24T07:03:42.729Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23695,9 +23472,9 @@
       ]
     },
     {
-      "id": "snap_1790155788952_jczs",
-      "timestamp": "2026-09-23T09:29:48.950Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233424883_35h7",
+      "timestamp": "2026-09-24T07:03:44.883Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23759,9 +23536,9 @@
       ]
     },
     {
-      "id": "snap_1790155792573_ta5k",
-      "timestamp": "2026-09-23T09:29:52.572Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233426688_jjve",
+      "timestamp": "2026-09-24T07:03:46.688Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT INVESTIGASI",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23823,9 +23600,9 @@
       ]
     },
     {
-      "id": "snap_1790155794186_yq5a",
-      "timestamp": "2026-09-23T09:29:54.185Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233428165_iabw",
+      "timestamp": "2026-09-24T07:03:48.164Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23887,9 +23664,9 @@
       ]
     },
     {
-      "id": "snap_1790155801606_j85m",
-      "timestamp": "2026-09-23T09:30:01.602Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233430209_oxng",
+      "timestamp": "2026-09-24T07:03:50.209Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23951,9 +23728,73 @@
       ]
     },
     {
-      "id": "snap_1790156013045_8it2",
-      "timestamp": "2026-09-23T09:33:33.045Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233431356_vg39",
+      "timestamp": "2026-09-24T07:03:51.355Z",
+      "date": "2026-09-24",
+      "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
+      "sourceType": "sync",
+      "totalRows": 1043,
+      "closedRows": 929,
+      "openRows": 109,
+      "progressRows": 5,
+      "closeRate": 89.07,
+      "projectStats": [
+        {
+          "projectName": "AUDIT OPERASIONAL IT",
+          "total": 222,
+          "closed": 200,
+          "open": 22,
+          "progress": 0,
+          "closeRate": 90.09,
+          "siteRate": 90.09,
+          "hoRate": 90.09
+        },
+        {
+          "projectName": "AUDIT OPERASIONAL",
+          "total": 636,
+          "closed": 602,
+          "open": 30,
+          "progress": 4,
+          "closeRate": 94.65,
+          "siteRate": 94.65,
+          "hoRate": 94.65
+        },
+        {
+          "projectName": "AUDIT INVESTIGASI",
+          "total": 21,
+          "closed": 21,
+          "open": 0,
+          "progress": 0,
+          "closeRate": 100,
+          "siteRate": 100,
+          "hoRate": 100
+        },
+        {
+          "projectName": "CLOSING PROJECT",
+          "total": 74,
+          "closed": 57,
+          "open": 17,
+          "progress": 0,
+          "closeRate": 77.03,
+          "siteRate": 77.03,
+          "hoRate": 77.03
+        },
+        {
+          "projectName": "PR-PAYMENT",
+          "total": 90,
+          "closed": 49,
+          "open": 40,
+          "progress": 1,
+          "closeRate": 54.44,
+          "siteRate": 54.44,
+          "hoRate": 54.44
+        }
+      ]
+    },
+    {
+      "id": "snap_1790233728959_eq1l",
+      "timestamp": "2026-09-24T07:08:48.956Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: PR-PAYMENT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -23973,16 +23814,6 @@
           "hoRate": 54.44
         },
         {
-          "projectName": "CLOSING PROJECT",
-          "total": 74,
-          "closed": 57,
-          "open": 17,
-          "progress": 0,
-          "closeRate": 77.03,
-          "siteRate": 77.03,
-          "hoRate": 77.03
-        },
-        {
           "projectName": "AUDIT OPERASIONAL IT",
           "total": 222,
           "closed": 200,
@@ -24011,13 +23842,23 @@
           "closeRate": 100,
           "siteRate": 100,
           "hoRate": 100
+        },
+        {
+          "projectName": "CLOSING PROJECT",
+          "total": 74,
+          "closed": 57,
+          "open": 17,
+          "progress": 0,
+          "closeRate": 77.03,
+          "siteRate": 77.03,
+          "hoRate": 77.03
         }
       ]
     },
     {
-      "id": "snap_1790156014490_ay6y",
-      "timestamp": "2026-09-23T09:33:34.490Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233731106_yv5k",
+      "timestamp": "2026-09-24T07:08:51.106Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24047,16 +23888,6 @@
           "hoRate": 54.44
         },
         {
-          "projectName": "CLOSING PROJECT",
-          "total": 74,
-          "closed": 57,
-          "open": 17,
-          "progress": 0,
-          "closeRate": 77.03,
-          "siteRate": 77.03,
-          "hoRate": 77.03
-        },
-        {
           "projectName": "AUDIT OPERASIONAL",
           "total": 636,
           "closed": 602,
@@ -24075,13 +23906,23 @@
           "closeRate": 100,
           "siteRate": 100,
           "hoRate": 100
+        },
+        {
+          "projectName": "CLOSING PROJECT",
+          "total": 74,
+          "closed": 57,
+          "open": 17,
+          "progress": 0,
+          "closeRate": 77.03,
+          "siteRate": 77.03,
+          "hoRate": 77.03
         }
       ]
     },
     {
-      "id": "snap_1790156015483_u16e",
-      "timestamp": "2026-09-23T09:33:35.483Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233732722_fjs7",
+      "timestamp": "2026-09-24T07:08:52.721Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: CLOSING PROJECT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24143,9 +23984,9 @@
       ]
     },
     {
-      "id": "snap_1790156017849_o1hm",
-      "timestamp": "2026-09-23T09:33:37.849Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233735646_cyhq",
+      "timestamp": "2026-09-24T07:08:55.645Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: CLOSING PROJECT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24207,9 +24048,9 @@
       ]
     },
     {
-      "id": "snap_1790156019261_83f7",
-      "timestamp": "2026-09-23T09:33:39.261Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233736916_vgpv",
+      "timestamp": "2026-09-24T07:08:56.914Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24271,9 +24112,9 @@
       ]
     },
     {
-      "id": "snap_1790156020526_o6k8",
-      "timestamp": "2026-09-23T09:33:40.525Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233738210_uo19",
+      "timestamp": "2026-09-24T07:08:58.210Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24335,9 +24176,9 @@
       ]
     },
     {
-      "id": "snap_1790156024116_golg",
-      "timestamp": "2026-09-23T09:33:44.114Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233739555_uzum",
+      "timestamp": "2026-09-24T07:08:59.553Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24399,9 +24240,9 @@
       ]
     },
     {
-      "id": "snap_1790156025826_ttb4",
-      "timestamp": "2026-09-23T09:33:45.825Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233740825_icf0",
+      "timestamp": "2026-09-24T07:09:00.825Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24463,9 +24304,9 @@
       ]
     },
     {
-      "id": "snap_1790156031743_jpsv",
-      "timestamp": "2026-09-23T09:33:51.742Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233743619_9a1x",
+      "timestamp": "2026-09-24T07:09:03.617Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT INVESTIGASI",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24527,9 +24368,9 @@
       ]
     },
     {
-      "id": "snap_1790156039290_cstb",
-      "timestamp": "2026-09-23T09:33:59.289Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233751683_k1um",
+      "timestamp": "2026-09-24T07:09:11.682Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24591,9 +24432,9 @@
       ]
     },
     {
-      "id": "snap_1790156041140_m50n",
-      "timestamp": "2026-09-23T09:34:01.139Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233752883_3rgd",
+      "timestamp": "2026-09-24T07:09:12.882Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24655,9 +24496,9 @@
       ]
     },
     {
-      "id": "snap_1790156042480_40gl",
-      "timestamp": "2026-09-23T09:34:02.479Z",
-      "date": "2026-09-23",
+      "id": "snap_1790233770260_8qu4",
+      "timestamp": "2026-09-24T07:09:30.259Z",
+      "date": "2026-09-24",
       "note": "Sync Google Sheet: AUDIT OPERASIONAL IT",
       "sourceType": "sync",
       "totalRows": 1043,
@@ -24719,5 +24560,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-09-23T09:35:01.805Z"
+  "lastUpdated": "2026-09-24T07:12:13.302Z"
 }

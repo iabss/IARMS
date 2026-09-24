@@ -1014,6 +1014,20 @@ export function deleteProjectLinkConfig(projectName: string, siteName?: string, 
   }
 }
 
+// Purge all local AFS project configurations and caches (one-time database purge)
+export function purgeAllAfsProjectsLocalAndStorage() {
+  try {
+    inMemoryProjectConfigs = [];
+    localStorage.removeItem(STORAGE_KEY_PROJECT_LINKS);
+    localStorage.removeItem('afs_projects');
+    localStorage.removeItem(STORAGE_KEY_DELETED_PROJECTS);
+    localStorage.removeItem(STORAGE_KEY_TREND_EXCLUDED_PROJECTS);
+    window.dispatchEvent(new CustomEvent('afs_project_links_updated', { detail: [] }));
+  } catch (e) {
+    console.error('Error purging local AFS projects:', e);
+  }
+}
+
 // Explicit cleanup function to deduplicate project link configs and audit finding rows
 export function cleanupDuplicates(): { removedRows: number; removedConfigs: number } {
   let removedRows = 0;

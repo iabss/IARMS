@@ -31,6 +31,7 @@ import {
   saveProjectToBackend,
   saveAfsProjectsToServer,
   deleteProjectFromBackend,
+  purgeAfsProjectsFromServer,
   syncSheetUrlToBackend
 } from '../services/api';
 import { parseAuditCsvClient } from '../utils/csvParser';
@@ -42,6 +43,7 @@ import {
   saveProjectLinkConfig,
   deleteProjectLinkConfig,
   deleteProjectLinkConfigById,
+  purgeAllAfsProjectsLocalAndStorage,
   cleanupDuplicates,
   getDeletedProjectKeys,
   getProjectCompositeKey,
@@ -620,35 +622,92 @@ export default function GoogleSheetSyncModal({
     }
   };
 
+  // Track project items currently being deleted
+  const [deletingProjectKeys, setDeletingProjectKeys] = useState<Record<string, boolean>>({});
+  const [isPurging, setIsPurging] = useState(false);
+
   // Fungsi Hapus (Delete Icon):
-  // Saat tombol hapus diklik, hapus dari database server terpusat & GAS, dan update UI seketika
+  // 1. Panggil API backend (Cloudflare KV / Server / GAS) terlebih dahulu
+  // 2. Tunggu konfirmasi respon sukses dari server
+  // 3. Jika sukses: hapus dari local state & localStorage, tampilkan notifikasi toast sukses
+  // 4. Jika gagal/error: tampilkan toast error dan batalkan penghapusan lokal agar UI tetap sinkron
   const handleDeleteProject = async (item: ProjectLinkConfig) => {
     const projectToDelete = item.defaultProject || item.project || item.projectName;
     const siteToDelete = item.site || item.siteName || 'HEAD OFFICE';
     const yearToDelete = item.year ? String(item.year).trim() : '';
+    const itemKey = item.id || `${projectToDelete}|${siteToDelete}${yearToDelete ? `|${yearToDelete}` : ''}`;
 
-    // Perbarui local state agar item langsung hilang dari UI
-    setProjectConfigs(prev => prev.filter(p => {
-      const pProj = p.defaultProject || p.project || p.projectName;
-      const pSite = p.site || p.siteName || 'HEAD OFFICE';
-      const pYear = p.year ? String(p.year).trim() : '';
+    if (deletingProjectKeys[itemKey]) return;
 
-      if (p.id && item.id && p.id === item.id) return false;
-      if (pProj === projectToDelete && pSite === siteToDelete && pYear === yearToDelete) return false;
-      return true;
-    }));
+    const displayName = `${projectToDelete} (${siteToDelete}${yearToDelete ? ' - ' + yearToDelete : ''})`;
+    const confirmDelete = window.confirm(`Apakah Anda yakin ingin menghapus project "${displayName}" dari database server dan seluruh sistem?`);
+    if (!confirmDelete) return;
 
-    // Update persistent storage
-    deleteProjectLinkConfig(projectToDelete, siteToDelete, yearToDelete);
-    if (item.id) {
-      deleteProjectLinkConfigById(item.id);
+    setDeletingProjectKeys(prev => ({ ...prev, [itemKey]: true }));
+
+    try {
+      // 1. PERSISTENT DELETE TO SERVER / GAS TERLEBIH DAHULU:
+      const res = await deleteProjectFromBackend(item);
+      if (!res || res.success === false) {
+        throw new Error(res?.message || 'Server menolak penghapusan');
+      }
+
+      // 2. AWAIT SERVER RESPONSE: Server mengembalikan respon sukses!
+      // A. Hapus project dari state afsProjects lokal
+      setProjectConfigs(prev => prev.filter(p => {
+        const pProj = p.defaultProject || p.project || p.projectName;
+        const pSite = p.site || p.siteName || 'HEAD OFFICE';
+        const pYear = p.year ? String(p.year).trim() : '';
+
+        if (p.id && item.id && p.id === item.id) return false;
+        if (pProj === projectToDelete && pSite === siteToDelete && pYear === yearToDelete) return false;
+        return true;
+      }));
+
+      // B. Perbarui localStorage
+      deleteProjectLinkConfig(projectToDelete, siteToDelete, yearToDelete);
+      if (item.id) {
+        deleteProjectLinkConfigById(item.id);
+      }
+      refreshProjectConfigs();
+
+      // C. Tampilkan notifikasi toast sukses hapus
+      onToast(`Project ${displayName} berhasil dihapus dari server!`, 'success');
+    } catch (err: any) {
+      // 3. JIKA SERVER GAGAL / ERROR:
+      // Tampilkan notifikasi error "Gagal menghapus project dari server"
+      // Batalkan penghapusan lokal agar UI tetap sinkron dengan server
+      console.error('Gagal menghapus project dari server:', err);
+      const errMsg = err?.message ? `Gagal menghapus project dari server: ${err.message}` : 'Gagal menghapus project dari server';
+      onToast(errMsg, 'error');
+    } finally {
+      setDeletingProjectKeys(prev => {
+        const next = { ...prev };
+        delete next[itemKey];
+        return next;
+      });
     }
-    deleteProjectFromBackend(item);
-    const currentList = getProjectLinkConfigs();
-    saveAfsProjectsToServer(currentList);
-    refreshProjectConfigs();
+  };
 
-    onToast(`Project ${projectToDelete} (${siteToDelete}${yearToDelete ? ' ' + yearToDelete : ''}) dihapus`, 'info');
+  // Fungsi Pembersihan Total Database (One-Time Database Purge)
+  const handlePurgeAllProjects = async () => {
+    const confirmPurge = window.confirm(
+      "Apakah Anda yakin ingin MENGHAPUS SEMUA data project AFS dari Cloudflare KV dan database master?\n\nSemua project duplikat/rusak akan dikosongkan total sehingga siap untuk input link AFS bersih dari awal."
+    );
+    if (!confirmPurge) return;
+
+    setIsPurging(true);
+    try {
+      await purgeAfsProjectsFromServer();
+      purgeAllAfsProjectsLocalAndStorage();
+      setProjectConfigs([]);
+      onToast("Semua data project AFS di Cloudflare KV & cache lokal berhasil dibersihkan total!", "success");
+    } catch (err: any) {
+      console.error("Gagal melakukan purge database:", err);
+      onToast("Gagal membersihkan database server: " + (err?.message || "error"), "error");
+    } finally {
+      setIsPurging(false);
+    }
   };
 
   // Handle URL Sync (Single Tab)
@@ -879,6 +938,16 @@ export default function GoogleSheetSyncModal({
 
                 <div className="flex flex-wrap items-center gap-2">
                   <button
+                    onClick={handlePurgeAllProjects}
+                    disabled={isPurging}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                    title="Hapus semua project duplikat/rusak dari Cloudflare KV dan mulai bersih dari awal"
+                  >
+                    <Trash2 className={`w-3.5 h-3.5 ${isPurging ? 'animate-spin text-rose-600' : 'text-rose-600'}`} />
+                    {isPurging ? 'Membersihkan...' : 'Purge Database'}
+                  </button>
+
+                  <button
                     onClick={handleCleanupDuplicates}
                     className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
                     title="Bersihkan duplikat project & data temuan audit"
@@ -1051,6 +1120,11 @@ export default function GoogleSheetSyncModal({
                 ) : (
                   projectConfigs.map((proj, idx) => {
                     const isCurrentSyncing = syncingProjects[proj.projectName] || false;
+                    const projToDelete = proj.defaultProject || proj.project || proj.projectName || '';
+                    const siteToDelete = proj.site || proj.siteName || 'HEAD OFFICE';
+                    const yearToDelete = proj.year ? String(proj.year).trim() : '';
+                    const itemKey = proj.id || `${projToDelete}|${siteToDelete}${yearToDelete ? `|${yearToDelete}` : ''}`;
+                    const isItemDeleting = deletingProjectKeys[itemKey] || false;
 
                   return (
                     <div 
@@ -1111,10 +1185,19 @@ export default function GoogleSheetSyncModal({
 
                           <button
                             onClick={() => handleDeleteProject(proj)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            title="Hapus Project Ini"
+                            disabled={isItemDeleting}
+                            className={`p-1.5 rounded-lg transition-all ${
+                              isItemDeleting 
+                                ? 'text-rose-400 bg-rose-50 cursor-not-allowed opacity-75' 
+                                : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                            }`}
+                            title={isItemDeleting ? "Sedang menghapus dari server..." : "Hapus Project Ini"}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isItemDeleting ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </div>
