@@ -10,6 +10,7 @@ import {
   getProjectLinkConfigs, 
   overrideProjectLinkConfigs,
   purgeAllAfsProjectsLocalAndStorage,
+  getDeletedProjectKeys,
   ProjectLinkConfig 
 } from '../data/dataSyncManager';
 
@@ -42,6 +43,13 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
       const data = await fetchAfsProjectsFromServer();
 
       if (!data || !Array.isArray(data) || data.length === 0) {
+        // PERBAIKAN STATE TAMPILAN (OPTIMISTIC UI):
+        // Jika server mengembalikan kosong (misal kuota KV habis), pertahankan data lokal user
+        const local = getProjectLinkConfigs();
+        if (local && local.length > 0) {
+          setAfsProjects(local);
+          return;
+        }
         setAfsProjects([]);
         overrideProjectLinkConfigs([]);
         return;
@@ -69,15 +77,29 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
         };
       });
 
+      // GABUNGKAN DENGAN PENDING LOCAL PROJECTS (Optimistic UI):
+      // Pertahankan project lokal yang baru diinput user meskipun belum masuk KV karena kuota habis
+      const local = getProjectLinkConfigs();
+      const deletedKeys = getDeletedProjectKeys();
+      const serverKeySet = new Set(mapped.map(m => m.id || `${m.projectName}|${m.siteName}${m.year ? `|${m.year}` : ''}`));
+
+      const pendingLocal = local.filter(loc => {
+        const locKey = loc.id || `${loc.projectName}|${loc.siteName}${loc.year ? `|${loc.year}` : ''}`;
+        if (deletedKeys.has(locKey) || deletedKeys.has(loc.projectName)) return false;
+        return !serverKeySet.has(locKey);
+      });
+
+      const combined = [...mapped, ...pendingLocal];
+
       // 3. SINKRONISASI STATE TABEL:
-      setAfsProjects(mapped);
-      overrideProjectLinkConfigs(mapped);
+      setAfsProjects(combined);
+      overrideProjectLinkConfigs(combined);
 
       // Periksa temuan customRows dari backend master untuk data temuan
       fetchProjectsFromBackend().then(backendResult => {
         if (backendResult?.customRows && backendResult.customRows.length > 0) {
           hydrateServerState({
-            projects: mapped,
+            projects: combined,
             customRows: backendResult.customRows,
             deletedKeys: backendResult.deletedKeys
           });
@@ -135,6 +157,7 @@ export default function InputFindingStatement({ onToast, onNavigateToAFS }: Inpu
         onToast={onToast}
         onNavigateToAFS={onNavigateToAFS}
         initialAfsProjects={afsProjects}
+        onAfsProjectsChange={setAfsProjects}
         isCheckingUpdate={isLoadingBackend}
       />
     </div>

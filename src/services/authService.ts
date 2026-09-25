@@ -85,6 +85,13 @@ export const SYSTEM_MENUS: MenuItemConfig[] = [
     defaultRoles: ['auditor']
   },
   {
+    id: 'risk-management',
+    label: 'Risk Management',
+    category: 'Risk Management',
+    description: 'Enterprise Risk Management (ERM) Dashboard, 5x5 Heatmap, KRI Early Warning, dan Action Tracker ISO 31000:2018.',
+    defaultRoles: ['auditor', 'management', 'auditee', 'public']
+  },
+  {
     id: 'risk-register',
     label: 'Risk Register (Inherent & Residual)',
     category: 'Risk Management',

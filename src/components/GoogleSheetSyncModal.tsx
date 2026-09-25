@@ -578,7 +578,7 @@ export default function GoogleSheetSyncModal({
   };
 
   // Add new project link
-  const handleAddNewProject = (e: React.FormEvent) => {
+  const handleAddNewProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) {
       onToast('Silakan masukkan nama Project Audit', 'warning');
@@ -602,19 +602,64 @@ export default function GoogleSheetSyncModal({
       status: newProjectUrl.trim() ? 'synced' : 'pending'
     };
 
+    // 1. OPTIMISTIC UI: Simpan ke localStorage & langsung update state agar list project di UI segera muncul (tidak kosong)
     saveProjectLinkConfig(newConfig);
-    saveProjectToBackend(newConfig);
+    setProjectConfigs(prev => {
+      const exists = prev.some(p => {
+        if (p.id && p.id === newConfig.id) return true;
+        const pName = (p.projectName || p.defaultProject || '').trim().toUpperCase();
+        const pSite = (p.siteName || p.site || 'HEAD OFFICE').trim().toUpperCase();
+        const pYear = p.year ? String(p.year).trim() : '';
+        return pName === formattedProj && pSite === formattedSite && pYear === formattedYear;
+      });
+      if (exists) return prev;
+      return [...prev, newConfig];
+    });
 
+    const addedUrl = newProjectUrl.trim();
     setNewProjectName('');
     setNewProjectSite('HEAD OFFICE');
     setNewProjectYear('2026');
     setNewProjectUrl('');
     setShowAddProjectForm(false);
     refreshProjectConfigs();
-    onToast(`Project ${formattedProj} (${formattedSite}${formattedYear ? ' - ' + formattedYear : ''}) berhasil ditambahkan!`, 'success');
+
+    // 2. KIRIM KE SERVER TERPUSAT (TANGANI KV PUT LIMIT TANPA NOTIFIKASI SUKSES PALSU)
+    try {
+      const res = await saveProjectToBackend(newConfig);
+
+      if (res && res.kvLimitExceeded) {
+        // Notifikasi peringatan saat kuota harian Cloudflare KV habis
+        onToast(
+          'Gagal menyimpan ke server karena kuota harian KV habis. Data disimpan sementara secara lokal dan akan disinkronkan otomatis besok setelah pukul 07:00 WIB.',
+          'warning'
+        );
+      } else if (res && res.success === false) {
+        onToast(
+          res.message || 'Gagal menyimpan ke server. Data disimpan sementara secara lokal di browser Anda.',
+          'warning'
+        );
+      } else {
+        onToast(`Project ${formattedProj} (${formattedSite}${formattedYear ? ' - ' + formattedYear : ''}) berhasil ditambahkan!`, 'success');
+      }
+    } catch (err: any) {
+      const errMsg = (err?.message || String(err)).toLowerCase();
+      const isKvLimit = errMsg.includes('limit') || errMsg.includes('quota') || errMsg.includes('exceeded') || errMsg.includes('put()');
+      if (isKvLimit) {
+        onToast(
+          'Gagal menyimpan ke server karena kuota harian KV habis. Data disimpan sementara secara lokal dan akan disinkronkan otomatis besok setelah pukul 07:00 WIB.',
+          'warning'
+        );
+      } else {
+        onToast(
+          'Gagal menyimpan ke server. Data disimpan sementara secara lokal di browser Anda.',
+          'warning'
+        );
+      }
+    }
 
     // If new project includes URL, sync it to backend immediately
-    if (newProjectUrl.trim()) {
+    if (addedUrl) {
       handleSyncSingleProject(newConfig);
     }
   };

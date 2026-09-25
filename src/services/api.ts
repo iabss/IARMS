@@ -235,14 +235,56 @@ export async function saveProjectToBackend(item: {
   };
 
   // 1. Centralized server persist (Node Express / Cloudflare Workers / KV)
+  let kvLimitExceeded = false;
+  let serverSuccess = true;
+  let serverMessage = "";
+
   try {
-    await fetch('/api/save-project', {
+    const res = await fetch('/api/save-project', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (err) {
-    console.warn("Gagal simpan project ke /api/save-project:", err);
+
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson?.error) errMsg = errJson.error;
+      } catch {}
+
+      const lower = errMsg.toLowerCase();
+      if (lower.includes('limit') || lower.includes('quota') || lower.includes('exceeded') || lower.includes('put()')) {
+        kvLimitExceeded = true;
+        serverSuccess = false;
+        serverMessage = errMsg;
+      } else {
+        serverSuccess = false;
+        serverMessage = errMsg;
+      }
+    } else {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        if (data.kvLimitExceeded || (data.warning && String(data.warning).toLowerCase().includes('limit'))) {
+          kvLimitExceeded = true;
+          serverMessage = data.warning || data.message || 'KV put limit exceeded';
+        }
+        if (data.savedToKv === false && kvLimitExceeded) {
+          serverSuccess = false;
+        }
+      }
+    }
+  } catch (err: any) {
+    const msg = (err?.message || String(err)).toLowerCase();
+    if (msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded') || msg.includes('put()')) {
+      kvLimitExceeded = true;
+      serverSuccess = false;
+      serverMessage = err?.message || 'KV put() limit exceeded for the day';
+    } else {
+      console.warn("Gagal simpan project ke /api/save-project:", err);
+      serverSuccess = false;
+      serverMessage = err?.message || 'Gagal terhubung ke server';
+    }
   }
 
   // 2. Google Apps Script sync
@@ -252,7 +294,13 @@ export async function saveProjectToBackend(item: {
     console.warn("Gagal kirim sync_sheet_url ke Google Apps Script:", err);
   }
 
-  return { status: "success", success: true, project: payload };
+  return { 
+    status: kvLimitExceeded ? "kv_limit_exceeded" : (serverSuccess ? "success" : "warning"), 
+    success: serverSuccess, 
+    kvLimitExceeded,
+    message: serverMessage,
+    project: payload 
+  };
 }
 
 /**

@@ -343,15 +343,32 @@ export default {
 
           return new Response(
             JSON.stringify({ 
-              success: true, 
+              success: !kvResult.limitExceeded, 
               projectConfigs: configs, 
               state: updatedState,
               savedToKv: kvResult.success,
-              kvLimitExceeded: !!kvResult.limitExceeded
+              kvLimitExceeded: !!kvResult.limitExceeded,
+              message: kvResult.limitExceeded
+                ? 'Gagal menyimpan ke server karena kuota harian KV habis. Data disimpan sementara secara lokal dan akan disinkronkan otomatis besok setelah pukul 07:00 WIB.'
+                : 'Project berhasil disimpan ke server'
             }),
             { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
           );
         } catch (err: any) {
+          const msg = (err?.message || String(err)).toLowerCase();
+          const isLimit = msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded') || msg.includes('put()');
+          if (isLimit) {
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                savedToKv: false, 
+                kvLimitExceeded: true,
+                warning: 'Cloudflare KV put limit exceeded for the day',
+                message: 'Gagal menyimpan ke server karena kuota harian KV habis. Data disimpan sementara secara lokal dan akan disinkronkan otomatis besok setelah pukul 07:00 WIB.'
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
+            );
+          }
           return new Response(
             JSON.stringify({ success: false, error: err.message }),
             { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }

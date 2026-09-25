@@ -28,6 +28,7 @@ import UserProfileModal from './components/UserProfileModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import AccessSettings from './components/AccessSettings';
 import LandingPage from './components/LandingPage';
+import RiskManagementDashboard from './risk_management/RiskManagementDashboard';
 import { AuditEngagement, PublicAuditItem, ToastMessage, UserProfile, UserRole } from './types';
 import { autoSyncAllProjects, syncWithServer } from './data/dataSyncManager';
 import { initDailyCutoffScheduler } from './services/cutoffService';
@@ -450,6 +451,11 @@ export default function App() {
                 onToast={triggerToast}
                 onNavigateToAFS={handleNavigateToAFS}
               />
+            )}
+            {activeTab === 'risk-management' && (
+              <div key="risk-management" className="w-full">
+                <RiskManagementDashboard />
+              </div>
             )}
             {activeTab === 'risk-register' && (
               <RiskRegister
