@@ -750,11 +750,34 @@ app.post('/api/sync-all-server', async (req, res) => {
         if (fetchedData) {
           const parsed = parseCsvRows(fetchedData, proj.projectName);
           if (parsed.length > 0) {
-            // Remove previous rows for this project
             const tProj = (proj.projectName || '').trim().toUpperCase();
-            newMergedRows = newMergedRows.filter(r => (r['PROJECT AUDIT'] || '').trim().toUpperCase() !== tProj);
-            newMergedRows.push(...parsed);
-            proj.rowCount = parsed.length;
+            const tSite = (proj.siteName || '').trim().toUpperCase();
+            const tYear = proj.year ? String(proj.year).trim() : '';
+
+            // Ensure rows are tagged with site and year from project config if missing or defaulted to HO
+            const tagged = parsed.map(r => ({
+              ...r,
+              'PROJECT AUDIT': tProj || r['PROJECT AUDIT'] || 'AUDIT',
+              'SITE': tSite || r['SITE'] || 'HEAD OFFICE',
+              'PERIODE AUDIT': tYear || r['PERIODE AUDIT'] || '2026'
+            }));
+
+            // Remove previous rows for this composite project/site
+            newMergedRows = newMergedRows.filter(r => {
+              const rProj = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
+              const rSite = (r['SITE'] || '').trim().toUpperCase();
+              const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
+
+              if (rProj === tProj) {
+                if (!tSite || rSite === tSite) {
+                  if (!tYear || rYear === tYear) return false;
+                }
+              }
+              return true;
+            });
+
+            newMergedRows.push(...tagged);
+            proj.rowCount = tagged.length;
             proj.status = 'synced';
             proj.lastSyncedAt = new Date().toISOString();
             syncedCount++;

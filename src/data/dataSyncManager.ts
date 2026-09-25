@@ -210,13 +210,14 @@ export function deleteProjectPermanently(projectName: string, siteName?: string,
   }
 }
 
-// Deduplicate finding rows by exact composite content key
+// Deduplicate finding rows by exact composite content key while preserving distinct spreadsheet row entries
 export function deduplicateRows(rows: AFSFindingRecord[]): AFSFindingRecord[] {
   if (!Array.isArray(rows)) return [];
   const seen = new Set<string>();
   const result: AFSFindingRecord[] = [];
 
-  for (const r of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
     if (!r) continue;
     const proj = (r['PROJECT AUDIT'] || '').toString().trim().toUpperCase();
     const site = (r['SITE'] || '').toString().trim().toUpperCase();
@@ -224,8 +225,13 @@ export function deduplicateRows(rows: AFSFindingRecord[]): AFSFindingRecord[] {
     const no = (r['NO'] || '').toString().trim().toUpperCase();
     const prob = (r['PROBLEM/FINDING'] || '').toString().trim().toUpperCase();
     const rec = (r['REKOMENDASI'] || '').toString().trim().toUpperCase();
+    const rowId = r._rowId !== undefined && r._rowId !== null ? String(r._rowId) : '';
 
-    const uniqueKey = `${proj}|${site}|${year}|${no}|${prob}|${rec}`;
+    // If _rowId exists (representing distinct row in source spreadsheet), preserve every spreadsheet row!
+    const uniqueKey = rowId
+      ? `${proj}|${site}|${year}|row_${rowId}`
+      : `${proj}|${site}|${year}|${no}|${prob}|${rec}`;
+
     if (!seen.has(uniqueKey)) {
       seen.add(uniqueKey);
       result.push(r);
