@@ -78,7 +78,16 @@ import { parseAuditCsvClient } from '../utils/csvParser';
 interface TrendAchievementProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
   onNavigateToDept?: () => void;
-  onNavigateToAFS?: (filter?: { dept?: string; search?: string; status?: string; project?: string }) => void;
+  onNavigateToAFS?: (filter?: {
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+  }) => void;
   onOpenDriveBackup?: () => void;
   key?: string;
 }
@@ -2749,13 +2758,29 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
                       <tr key={st.projectName} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-semibold">{st.projectName}</td>
                         <td className="py-2.5 px-3 text-center">{st.total}</td>
-                        <td className="py-2.5 px-3 text-center text-emerald-600 font-semibold">{st.closed}</td>
+                        <td 
+                          className="py-2.5 px-3 text-center text-emerald-600 font-semibold hover:bg-emerald-50 cursor-pointer underline decoration-dotted transition-colors"
+                          title={`Buka temuan CLOSED ${st.projectName} di Resume AFS`}
+                          onClick={() => {
+                            setSelectedSnapshotDetail(null);
+                            const upper = st.projectName.toUpperCase().trim();
+                            const site = upper === 'MAS' || upper.includes('MAS') ? 'MAS' : upper === 'AGM' || upper.includes('AGM') ? 'AGM' : upper.includes('BAYAN') ? 'IP BAYAN' : upper.includes('CDI') ? 'CDI' : undefined;
+                            const project = (upper.includes('CLOSING') || upper === 'MAS' || upper === 'AGM') ? 'CLOSING PROJECT' : upper.includes('BAYAN') ? 'AUDIT OPERASIONAL' : upper.includes('PAYMENT') ? 'PR-PAYMENT' : upper.includes('IT') ? 'AUDIT OPERASIONAL IT' : undefined;
+                            onNavigateToAFS?.({ site, project, search: (!site && !project) ? st.projectName : undefined, status: 'CLOSE' });
+                            onToast(`Mengarahkan ke Resume AFS untuk ${st.projectName} (Status: CLOSE)...`, 'info');
+                          }}
+                        >
+                          {st.closed}
+                        </td>
                         <td 
                           className="py-2.5 px-3 text-center text-rose-600 font-semibold hover:bg-rose-50 cursor-pointer underline decoration-dotted transition-colors"
                           title={`Buka temuan OPEN ${st.projectName} di Resume AFS`}
                           onClick={() => {
                             setSelectedSnapshotDetail(null);
-                            onNavigateToAFS?.({ search: st.projectName, status: 'OPEN' });
+                            const upper = st.projectName.toUpperCase().trim();
+                            const site = upper === 'MAS' || upper.includes('MAS') ? 'MAS' : upper === 'AGM' || upper.includes('AGM') ? 'AGM' : upper.includes('BAYAN') ? 'IP BAYAN' : upper.includes('CDI') ? 'CDI' : undefined;
+                            const project = (upper.includes('CLOSING') || upper === 'MAS' || upper === 'AGM') ? 'CLOSING PROJECT' : upper.includes('BAYAN') ? 'AUDIT OPERASIONAL' : upper.includes('PAYMENT') ? 'PR-PAYMENT' : upper.includes('IT') ? 'AUDIT OPERASIONAL IT' : undefined;
+                            onNavigateToAFS?.({ site, project, search: (!site && !project) ? st.projectName : undefined, status: 'OPEN' });
                             onToast(`Mengarahkan ke Resume AFS untuk ${st.projectName} (Status: OPEN)...`, 'info');
                           }}
                         >

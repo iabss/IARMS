@@ -33,7 +33,16 @@ import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear } fr
 interface PublicPortalProps {
   publicAuditList?: PublicAuditItem[];
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
-  onNavigateToAFS?: (filter?: { dept?: string; search?: string; status?: string; project?: string }) => void;
+  onNavigateToAFS?: (filter?: {
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+  }) => void;
   key?: string;
 }
 
@@ -908,20 +917,54 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-                    <span>Closed: <strong className="text-emerald-700 font-bold">{project.closedItems}</strong></span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const filterKey = project.scopeAudit || project.siteName;
-                        onNavigateToAFS?.({ search: filterKey, status: 'OPEN' });
-                        onToast(`Mengarahkan ke Resume AFS (${filterKey} - OPEN)...`, 'info');
+                        onNavigateToAFS?.({
+                          site: project.siteName,
+                          project: project.scopeAudit,
+                          status: 'CLOSE',
+                          year: project.year
+                        });
+                        onToast(`Mengarahkan ke Resume AFS (${project.siteName} - ${project.scopeAudit} | CLOSE)...`, 'info');
+                      }}
+                      className="hover:text-emerald-900 cursor-pointer transition-colors"
+                      title="Klik untuk membuka rekomendasi CLOSE di Resume AFS"
+                    >
+                      <span>Closed: <strong className="text-emerald-700 font-bold underline decoration-dotted hover:decoration-solid">{project.closedItems}</strong></span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToAFS?.({
+                          site: project.siteName,
+                          project: project.scopeAudit,
+                          status: 'OPEN',
+                          year: project.year
+                        });
+                        onToast(`Mengarahkan ke Resume AFS (${project.siteName} - ${project.scopeAudit} | OPEN)...`, 'info');
                       }}
                       className="hover:text-rose-900 cursor-pointer transition-colors"
                       title="Klik untuk membuka rekomendasi OPEN di Resume AFS"
                     >
                       <span>Open: <strong className="text-rose-700 font-bold underline decoration-dotted hover:decoration-solid">{project.openItems}</strong></span>
                     </button>
-                    <span>Total: <strong className="text-slate-800 font-bold">{project.totalItems}</strong></span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToAFS?.({
+                          site: project.siteName,
+                          project: project.scopeAudit,
+                          status: 'ALL',
+                          year: project.year
+                        });
+                        onToast(`Mengarahkan ke Resume AFS (${project.siteName} - ${project.scopeAudit} | Semua)...`, 'info');
+                      }}
+                      className="hover:text-slate-900 cursor-pointer transition-colors"
+                      title="Klik untuk membuka seluruh rekomendasi di Resume AFS"
+                    >
+                      <span>Total: <strong className="text-slate-800 font-bold underline decoration-dotted hover:decoration-solid">{project.totalItems}</strong></span>
+                    </button>
                   </div>
                 </div>
 
@@ -961,8 +1004,16 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
 
                   {onNavigateToAFS && (
                     <button
-                      onClick={onNavigateToAFS}
-                      className="text-xs font-bold text-sky-600 hover:text-sky-700 hover:underline inline-flex items-center gap-1"
+                      onClick={() => {
+                        onNavigateToAFS({
+                          site: project.siteName,
+                          project: project.scopeAudit,
+                          status: 'ALL',
+                          year: project.year
+                        });
+                        onToast(`Mengarahkan ke Resume AFS (${project.siteName} - ${project.scopeAudit})...`, 'info');
+                      }}
+                      className="text-xs font-bold text-sky-600 hover:text-sky-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
                     >
                       Detail Temuan <ChevronRight className="w-3.5 h-3.5" />
                     </button>
@@ -1018,25 +1069,55 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center font-extrabold text-slate-900 border-r border-slate-200 text-sm">
-                        {proj.totalItems}
+                      <td 
+                        className="py-3 px-3 text-center font-extrabold text-slate-900 bg-slate-50/50 hover:bg-slate-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/total"
+                        title={`Klik untuk melihat SEMUA temuan ${proj.siteName} - ${proj.scopeAudit} di Resume AFS`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigateToAFS?.({
+                            site: proj.siteName,
+                            project: proj.scopeAudit,
+                            status: 'ALL',
+                            year: proj.year
+                          });
+                          onToast(`Mengarahkan ke Resume AFS (${proj.siteName} - ${proj.scopeAudit} | Semua)...`, 'info');
+                        }}
+                      >
+                        <span className="underline decoration-slate-300 group-hover/total:decoration-slate-800 transition-all">{proj.totalItems}</span>
                       </td>
 
                       <td 
                         className="py-3 px-3 text-center font-extrabold text-rose-700 bg-rose-50/70 hover:bg-rose-100 border-r border-slate-200 text-sm cursor-pointer transition-colors group/open"
-                        title={`Klik untuk melihat temuan OPEN ${proj.scopeAudit || proj.siteName} di Resume AFS`}
+                        title={`Klik untuk melihat temuan OPEN ${proj.siteName} - ${proj.scopeAudit} di Resume AFS`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          const filterKey = proj.scopeAudit || proj.siteName;
-                          onNavigateToAFS?.({ search: filterKey, status: 'OPEN' });
-                          onToast(`Mengarahkan ke Resume AFS (${filterKey} - OPEN)...`, 'info');
+                          onNavigateToAFS?.({ 
+                            site: proj.siteName, 
+                            project: proj.scopeAudit, 
+                            status: 'OPEN',
+                            year: proj.year
+                          });
+                          onToast(`Mengarahkan ke Resume AFS (${proj.siteName} - ${proj.scopeAudit} | OPEN)...`, 'info');
                         }}
                       >
                         <span className="underline decoration-dotted group-hover/open:decoration-solid group-hover/open:font-black transition-all">{proj.openItems}</span>
                       </td>
 
-                      <td className="py-3 px-3 text-center font-extrabold text-emerald-700 border-r border-slate-200 text-sm">
-                        {proj.closedItems}
+                      <td 
+                        className="py-3 px-3 text-center font-extrabold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/80 border-r border-slate-200 text-sm cursor-pointer transition-colors group/close"
+                        title={`Klik untuk melihat temuan CLOSE ${proj.siteName} - ${proj.scopeAudit} di Resume AFS`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigateToAFS?.({ 
+                            site: proj.siteName, 
+                            project: proj.scopeAudit, 
+                            status: 'CLOSE',
+                            year: proj.year
+                          });
+                          onToast(`Mengarahkan ke Resume AFS (${proj.siteName} - ${proj.scopeAudit} | CLOSE)...`, 'info');
+                        }}
+                      >
+                        <span className="underline decoration-dotted group-hover/close:decoration-solid group-hover/close:font-black transition-all">{proj.closedItems}</span>
                       </td>
 
                       <td 

@@ -42,7 +42,11 @@ interface FindingStatementProps {
     search?: string;
     status?: string;
     project?: string;
+    site?: string;
+    year?: string;
     remarks?: string;
+    category?: string;
+    timestamp?: number;
   } | null;
   key?: string;
 }
@@ -102,12 +106,12 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
   }, []);
   
   // Filter States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('ALL');
-  const [selectedProject, setSelectedProject] = useState('ALL');
-  const [selectedSite, setSelectedSite] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState(initialFilter?.search || '');
+  const [selectedDept, setSelectedDept] = useState(initialFilter?.dept?.toUpperCase() || 'ALL');
+  const [selectedProject, setSelectedProject] = useState(initialFilter?.project || 'ALL');
+  const [selectedSite, setSelectedSite] = useState(initialFilter?.site || 'ALL');
+  const [selectedStatus, setSelectedStatus] = useState(initialFilter?.status?.toUpperCase() || 'ALL');
+  const [selectedCategory, setSelectedCategory] = useState(initialFilter?.category?.toUpperCase() || 'ALL');
 
   // Column-Specific Header Filter States
   const [colFilterNo, setColFilterNo] = useState('');
@@ -116,46 +120,8 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
   const [colFilterPicSite, setColFilterPicSite] = useState('');
   const [colFilterPicHO, setColFilterPicHO] = useState('');
   const [colFilterDueDate, setColFilterDueDate] = useState('');
-  const [colFilterRemarks, setColFilterRemarks] = useState('ALL');
+  const [colFilterRemarks, setColFilterRemarks] = useState(initialFilter?.remarks?.toUpperCase() || 'ALL');
   const [colFilterIaReview, setColFilterIaReview] = useState('ALL');
-
-  // React to initialFilter navigation triggers from other components
-  React.useEffect(() => {
-    if (initialFilter) {
-      if (initialFilter.dept) {
-        setSelectedDept(initialFilter.dept.toUpperCase());
-        setSearchQuery(''); // Critical: Clear search query so "IT" doesn't falsely substring-match 'Audit', 'Site', 'Terkait', etc.
-      } else {
-        setSelectedDept('ALL');
-      }
-
-      if (initialFilter.search) {
-        setSearchQuery(initialFilter.search);
-      } else if (!initialFilter.dept) {
-        setSearchQuery('');
-      }
-
-      if (initialFilter.status) {
-        setSelectedStatus(initialFilter.status.toUpperCase());
-      } else {
-        setSelectedStatus('ALL');
-      }
-
-      if (initialFilter.project) {
-        setSelectedProject(initialFilter.project);
-      } else {
-        setSelectedProject('ALL');
-      }
-
-      if (initialFilter.remarks) {
-        setColFilterRemarks(initialFilter.remarks.toUpperCase());
-      } else {
-        setColFilterRemarks('ALL');
-      }
-
-      setCurrentPage(1);
-    }
-  }, [initialFilter]);
 
   // Sorting & Pagination States
   const [sortField, setSortField] = useState<keyof AFSFindingRecord>('_rowId');
@@ -282,6 +248,79 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
     return Array.from(map.values()).sort();
   }, [data]);
 
+  // React to initialFilter navigation triggers from other components
+  React.useEffect(() => {
+    if (initialFilter) {
+      // 1. Department
+      if (initialFilter.dept) {
+        setSelectedDept(initialFilter.dept.toUpperCase());
+      } else {
+        setSelectedDept('ALL');
+      }
+
+      // 2. Status
+      if (initialFilter.status) {
+        setSelectedStatus(initialFilter.status.toUpperCase());
+      } else {
+        setSelectedStatus('ALL');
+      }
+
+      // 3. Project / Scope (Case-insensitive matching to available dropdown options)
+      if (initialFilter.project && initialFilter.project !== 'ALL') {
+        const targetProj = initialFilter.project.trim().toUpperCase();
+        const matchedProject = projects.find(p => p.trim().toUpperCase() === targetProj) ||
+                               projects.find(p => p.trim().toUpperCase().includes(targetProj) || targetProj.includes(p.trim().toUpperCase())) ||
+                               initialFilter.project;
+        setSelectedProject(matchedProject);
+      } else {
+        setSelectedProject('ALL');
+      }
+
+      // 4. Site / Jobsite (Case-insensitive matching to available dropdown options)
+      if (initialFilter.site && initialFilter.site !== 'ALL') {
+        const targetSite = initialFilter.site.trim().toUpperCase();
+        const matchedSite = sites.find(s => s.trim().toUpperCase() === targetSite) ||
+                            sites.find(s => s.trim().toUpperCase().includes(targetSite) || targetSite.includes(s.trim().toUpperCase())) ||
+                            initialFilter.site;
+        setSelectedSite(matchedSite);
+      } else {
+        setSelectedSite('ALL');
+      }
+
+      // 5. Remarks (e.g. OVERDUE)
+      if (initialFilter.remarks) {
+        setColFilterRemarks(initialFilter.remarks.toUpperCase());
+      } else {
+        setColFilterRemarks('ALL');
+      }
+
+      // 6. Category
+      if (initialFilter.category) {
+        setSelectedCategory(initialFilter.category.toUpperCase());
+      } else {
+        setSelectedCategory('ALL');
+      }
+
+      // 7. Search query
+      if (initialFilter.search) {
+        setSearchQuery(initialFilter.search);
+      } else {
+        setSearchQuery('');
+      }
+
+      // Clear column specific filters
+      setColFilterNo('');
+      setColFilterDetail('');
+      setColFilterRekomendasi('');
+      setColFilterPicSite('');
+      setColFilterPicHO('');
+      setColFilterDueDate('');
+      setColFilterIaReview('ALL');
+
+      setCurrentPage(1);
+    }
+  }, [initialFilter, projects, sites]);
+
   // Statistics Calculation
   const stats = useMemo(() => {
     let total = data.length;
@@ -330,12 +369,17 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
       const matchesDept = selectedDept === 'ALL' || matchesDepartmentRecord(item, selectedDept);
 
+      const rowProjUpper = (item["PROJECT AUDIT"] || '').trim().toUpperCase();
+      const selProjUpper = selectedProject.trim().toUpperCase();
       const matchesProject = selectedProject === 'ALL'
         ? true
         : selectedProject === 'LINKED_ONLY'
-          ? configuredProjectSet.has((item["PROJECT AUDIT"] || '').trim().toUpperCase())
-          : item["PROJECT AUDIT"] === selectedProject;
-      const matchesSite = selectedSite === 'ALL' || item.SITE === selectedSite;
+          ? configuredProjectSet.has(rowProjUpper)
+          : rowProjUpper === selProjUpper;
+
+      const rowSiteUpper = (item.SITE || '').trim().toUpperCase();
+      const selSiteUpper = selectedSite.trim().toUpperCase();
+      const matchesSite = selectedSite === 'ALL' || rowSiteUpper === selSiteUpper;
       const matchesStatus = selectedStatus === 'ALL'
         ? true
         : selectedStatus === 'CLOSE'
@@ -899,6 +943,9 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                     {projects.map((p, idx) => (
                       <option key={`fs-fp-${p}-${idx}`} value={p} className="bg-slate-800 text-white">{p}</option>
                     ))}
+                    {selectedProject !== 'ALL' && !projects.some(p => p.trim().toUpperCase() === selectedProject.trim().toUpperCase()) && (
+                      <option value={selectedProject} className="bg-slate-800 text-white">{selectedProject}</option>
+                    )}
                   </select>
                 </td>
                 <td className="p-1.5">
@@ -911,6 +958,9 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                     {sites.map((s, idx) => (
                       <option key={`fs-fs-${s}-${idx}`} value={s} className="bg-slate-800 text-white">{s}</option>
                     ))}
+                    {selectedSite !== 'ALL' && !sites.some(s => s.trim().toUpperCase() === selectedSite.trim().toUpperCase()) && (
+                      <option value={selectedSite} className="bg-slate-800 text-white">{selectedSite}</option>
+                    )}
                   </select>
                 </td>
                 <td className="p-1.5">

@@ -49,7 +49,16 @@ import { toPng } from 'html-to-image';
 interface PriorityRecommendationsProps {
   key?: string;
   onToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
-  onNavigateToAFS?: (filter?: { dept?: string; search?: string; status?: string; project?: string; remarks?: string }) => void;
+  onNavigateToAFS?: (filter?: {
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+  }) => void;
 }
 
 // Helper to format date badge like "01 Sep '26"
@@ -1251,6 +1260,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                           onClick={() => {
                             onNavigateToAFS({
                               project: item.record['PROJECT AUDIT'],
+                              site: item.record.SITE,
                               search: item.findingTitle || item.findingNo || item.record.NO
                             });
                           }}
@@ -1455,6 +1465,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                             onClick={() => {
                               onNavigateToAFS({
                                 project: item.record['PROJECT AUDIT'],
+                                site: item.record.SITE,
                                 search: item.findingTitle || item.findingNo || item.record.NO
                               });
                             }}
@@ -1625,6 +1636,7 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                       onClick={() => {
                         onNavigateToAFS({
                           project: selectedItemForModal.record['PROJECT AUDIT'],
+                          site: selectedItemForModal.record.SITE,
                           search: selectedItemForModal.findingTitle || selectedItemForModal.findingNo || selectedItemForModal.record.NO
                         });
                         setSelectedItemForModal(null);

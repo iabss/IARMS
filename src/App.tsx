@@ -54,7 +54,17 @@ const INITIAL_PUBLIC_AUDIT_LIST: PublicAuditItem[] = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('public-portal');
-  const [afsFilter, setAfsFilter] = useState<{ dept?: string; search?: string; status?: string; project?: string; remarks?: string } | null>(null);
+  const [afsFilter, setAfsFilter] = useState<{
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+    timestamp?: number;
+  } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
   const [userRole, setUserRole] = useState<UserRole>(() => getCurrentUser()?.role || 'auditor');
@@ -100,9 +110,18 @@ export default function App() {
     }
   }, [activeTab, currentUser]);
 
-  const handleNavigateToAFS = (filter?: { dept?: string; search?: string; status?: string; project?: string; remarks?: string }) => {
+  const handleNavigateToAFS = (filter?: {
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+  }) => {
     if (filter) {
-      setAfsFilter(filter);
+      setAfsFilter({ ...filter, timestamp: Date.now() });
     } else {
       setAfsFilter(null);
     }

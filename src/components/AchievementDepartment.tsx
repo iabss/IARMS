@@ -27,7 +27,16 @@ import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusH
 
 interface AchievementDepartmentProps {
   onToast: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void;
-  onNavigateToAFS?: (filter?: { dept?: string; search?: string; status?: string; project?: string; remarks?: string }) => void;
+  onNavigateToAFS?: (filter?: {
+    dept?: string;
+    search?: string;
+    status?: string;
+    project?: string;
+    site?: string;
+    year?: string;
+    remarks?: string;
+    category?: string;
+  }) => void;
   key?: string;
 }
 
