@@ -12,7 +12,7 @@ import { getMergedSheetRows, getAchievementSnapshots, getProjectLinkConfigs } fr
 import { GOOGLE_SCRIPT_URL } from './api';
 
 // Initialize Firebase App instance safely (singleton)
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Google Drive Target Folder ID

@@ -70,7 +70,7 @@ import {
   WeeklyBaselineStorage,
   STANDARD_USER_BASELINE_JSON
 } from '../data/dataSyncManager';
-import { parseDepartments } from '../utils/deptHelper';
+import { parseDepartments, isDepartment } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear, calculateOverallAchievementRate } from '../utils/statusHelper';
 import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
 import { parseAuditCsvClient } from '../utils/csvParser';
@@ -1323,26 +1323,73 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
         });
       });
     } else {
-      defaultSectors.forEach(s => {
-        const uniqueKey = s.id;
-        if (isExcluded(uniqueKey, undefined, s.name, s.site, s.rawProj)) return;
-        const matching = filteredRows.filter(r => {
-          const site = (r.SITE || '').toUpperCase().trim();
-          const rawProj = (r['PROJECT AUDIT'] || '').toUpperCase().trim();
-          if (s.site && site.includes(s.site)) return true;
-          if (s.rawProj && rawProj.includes(s.rawProj)) return true;
-          return false;
-        });
+      // Dynamic fallback: discover all projects present in filteredRows / allRows exactly matching Dashboard grouping
+      const dynamicMap = new Map<string, {
+        uniqueKey: string;
+        name: string;
+        rawProjectName: string;
+        siteName: string;
+        year?: string;
+        records: AFSFindingRecord[];
+      }>();
 
-        projEntries.push({
-          uniqueKey,
-          name: s.name,
-          rawProjectName: s.rawProj,
-          siteName: s.site,
-          type: s.type,
-          records: matching
-        });
+      filteredRows.forEach(r => {
+        const siteStr = (r.SITE || 'HEAD OFFICE').trim();
+        const projStr = (r['PROJECT AUDIT'] || 'LAINNYA').trim();
+        const yearStr = extractFindingYear(r, '2026');
+        const uniqueKey = `${siteStr.toUpperCase()}___${projStr.toUpperCase()}___${yearStr.toUpperCase()}`;
+        const fullName = siteStr && siteStr !== 'HEAD OFFICE' ? `${siteStr} - ${projStr}` : projStr;
+        const displayName = yearStr ? `${fullName} (${yearStr})` : fullName;
+
+        if (isExcluded(uniqueKey, undefined, displayName, siteStr, projStr, yearStr)) return;
+
+        if (!dynamicMap.has(uniqueKey)) {
+          dynamicMap.set(uniqueKey, {
+            uniqueKey,
+            name: displayName,
+            rawProjectName: projStr,
+            siteName: siteStr,
+            year: yearStr,
+            records: []
+          });
+        }
+        dynamicMap.get(uniqueKey)!.records.push(r);
       });
+
+      if (dynamicMap.size > 0) {
+        dynamicMap.forEach(d => {
+          projEntries.push({
+            uniqueKey: d.uniqueKey,
+            name: d.name,
+            rawProjectName: d.rawProjectName,
+            siteName: d.siteName,
+            year: d.year,
+            type: 'Audit Project',
+            records: d.records
+          });
+        });
+      } else {
+        defaultSectors.forEach(s => {
+          const uniqueKey = s.id;
+          if (isExcluded(uniqueKey, undefined, s.name, s.site, s.rawProj)) return;
+          const matching = filteredRows.filter(r => {
+            const site = (r.SITE || '').toUpperCase().trim();
+            const rawProj = (r['PROJECT AUDIT'] || '').toUpperCase().trim();
+            const matchSite = s.site ? (site.includes(s.site) || s.site.includes(site)) : true;
+            const matchProj = s.rawProj ? (rawProj.includes(s.rawProj) || s.rawProj.includes(rawProj)) : true;
+            return matchSite && matchProj;
+          });
+
+          projEntries.push({
+            uniqueKey,
+            name: s.name,
+            rawProjectName: s.rawProj,
+            siteName: s.site,
+            type: s.type,
+            records: matching
+          });
+        });
+      }
     }
 
     const result = projEntries.map((data, idx) => {
@@ -1350,38 +1397,30 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
       const closed = data.records.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
       let liveCurrentRate = total > 0 ? parseFloat(((closed / total) * 100).toFixed(2)) : 0;
 
-      // Uniform formula for Site records across ALL projects
-      const siteRecords = data.records.filter(r => {
-        const picSite = (r['PIC SITE'] || '').trim();
-        const picHo = (r['PIC HO'] || '').trim();
-        const site = (r.SITE || '').trim().toUpperCase();
-        const hasPicSite = Boolean(picSite && picSite !== '-' && picSite !== 'N/A');
-        const hasPicHo = Boolean(picHo && picHo !== '-' && picHo !== 'N/A');
-        const isHoSite = site === 'HO' || site === 'HEAD OFFICE' || site === 'JKT';
+      // Uniform formula for Site & HO records matching Dashboard (PublicPortal) using isDepartment
+      let siteTotal = 0;
+      let siteClosed = 0;
+      let hoTotal = 0;
+      let hoClosed = 0;
 
-        return hasPicSite || (!hasPicHo && !isHoSite);
+      data.records.forEach(r => {
+        const isItemClosed = isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"]);
+        const picSiteStr = (r['PIC SITE'] || '').trim();
+        const picHOStr = (r['PIC HO'] || '').trim();
+
+        if (isDepartment(picSiteStr)) {
+          siteTotal += 1;
+          if (isItemClosed) siteClosed += 1;
+        }
+
+        if (isDepartment(picHOStr)) {
+          hoTotal += 1;
+          if (isItemClosed) hoClosed += 1;
+        }
       });
-      const siteTotal = siteRecords.length;
-      const siteClosed = siteRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
-      let liveSiteCurrentRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : 0;
 
-      // Uniform formula for HO records across ALL projects
-      const hoRecords = data.records.filter(r => {
-        const picSite = (r['PIC SITE'] || '').trim();
-        const picHo = (r['PIC HO'] || '').trim();
-        const site = (r.SITE || '').trim().toUpperCase();
-        const hasPicSite = Boolean(picSite && picSite !== '-' && picSite !== 'N/A');
-        const hasPicHo = Boolean(picHo && picHo !== '-' && picHo !== 'N/A');
-        const isHoSite = site === 'HO' || site === 'HEAD OFFICE' || site === 'JKT';
-
-        return hasPicHo || (!hasPicSite && isHoSite);
-      });
-      const hoTotal = hoRecords.length;
-      const hoClosed = hoRecords.filter(r => isStatusClosed(r.STATUS, r.REMARKS, r["REVIEWED CLOSING FROM IA"])).length;
-      let liveHoCurrentRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : 0;
-
-      if (siteTotal === 0 && total > 0) liveSiteCurrentRate = liveCurrentRate;
-      if (hoTotal === 0 && total > 0) liveHoCurrentRate = liveCurrentRate;
+      let liveSiteCurrentRate = siteTotal > 0 ? parseFloat(((siteClosed / siteTotal) * 100).toFixed(2)) : liveCurrentRate;
+      let liveHoCurrentRate = hoTotal > 0 ? parseFloat(((hoClosed / hoTotal) * 100).toFixed(2)) : liveCurrentRate;
 
       // Authoritative baseline for this project
       const stdBaseline = getBaselineForProject(data.name || data.rawProjectName);
@@ -1550,9 +1589,14 @@ export default function TrendAchievement({ onToast, onNavigateToDept, onNavigate
     }
 
     // Overall Gauges Values - Unweighted Average Achievement Closing Rate across ALL projects in dataset (matches Dashboard KPI exactly)
+    const validTrendProjects = projectTrendMatrix.filter(p => p.total > 0);
+    const avgTrendCloseRate = validTrendProjects.length > 0
+      ? parseFloat((validTrendProjects.reduce((acc, p) => acc + p.currentRate, 0) / validTrendProjects.length).toFixed(2))
+      : 0;
+
     const targetDatasetRows = (useDateFilter && filteredRows.length > 0) ? filteredRows : allRows;
     const globalOverallAvg = calculateOverallAchievementRate(targetDatasetRows);
-    const totalAchClosing = globalOverallAvg > 0 ? globalOverallAvg : 82.39;
+    const totalAchClosing = avgTrendCloseRate > 0 ? avgTrendCloseRate : (globalOverallAvg > 0 ? globalOverallAvg : 81.78);
     const overallChange = 1.60;
 
     const leadTimeAch = 78.20;

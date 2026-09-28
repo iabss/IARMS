@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -104,13 +104,13 @@ export default function App() {
 
   // Enforce menu access security based on NIK and permissions
   useEffect(() => {
-    if (!canUserAccessMenu(currentUser, activeTab)) {
+    if (activeTab !== 'public-portal' && !canUserAccessMenu(currentUser, activeTab)) {
       setActiveTab('public-portal');
       triggerToast('Akses dibatasi: NIK Anda tidak memiliki izin untuk membuka menu tersebut.', 'warning');
     }
   }, [activeTab, currentUser]);
 
-  const handleNavigateToAFS = (filter?: {
+  const handleNavigateToAFS = useCallback((filter?: {
     dept?: string;
     search?: string;
     status?: string;
@@ -126,7 +126,7 @@ export default function App() {
       setAfsFilter(null);
     }
     setActiveTab('finding-statement');
-  };
+  }, []);
 
   // Load audit data from Google Apps Script API on initial mount
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function App() {
   }, []);
 
   // Unified Toast Dispatcher
-  const triggerToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+  const triggerToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
     const newToast: ToastMessage = { id, message, type };
     setToasts((prev) => [...prev, newToast]);
@@ -190,7 +190,7 @@ export default function App() {
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3500);
-  };
+  }, []);
 
   const handleCreateAudit = async (newAudit: Omit<AuditEngagement, 'id' | 'actDays' | 'progress'>) => {
     const freshRecord: AuditEngagement = {

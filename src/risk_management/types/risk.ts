@@ -1,12 +1,22 @@
 export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 
-export type SiteOption = 'MHU' | 'CDI' | 'MBL' | 'HAULING (MSJ, TD)';
+export type SiteOption = 
+  | 'MHU' 
+  | 'CDI' 
+  | 'MBL' 
+  | 'HAULING (MSJ, TD)' 
+  | 'CORPORATE' 
+  | 'PALARAN'
+  | 'Corporate'
+  | 'Palaran';
 
 export const SITE_OPTIONS: SiteOption[] = [
   'MHU',
   'CDI',
   'MBL',
   'HAULING (MSJ, TD)',
+  'CORPORATE',
+  'PALARAN',
 ];
 
 export type RiskCategory =

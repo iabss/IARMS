@@ -88,38 +88,47 @@ export default function GoogleSheetSyncModal({
     return DEFAULT_DEV_AFS_PROJECTS;
   });
 
+  // Safely notify parent when afsProjects change via effect (never during render or inside state updater)
+  const onAfsProjectsChangeRef = useRef(onAfsProjectsChange);
+  useEffect(() => {
+    onAfsProjectsChangeRef.current = onAfsProjectsChange;
+  }, [onAfsProjectsChange]);
+
+  const prevNotifiedRef = useRef<string>('');
+  useEffect(() => {
+    if (onAfsProjectsChangeRef.current) {
+      const serialized = JSON.stringify(afsProjects);
+      if (serialized !== prevNotifiedRef.current) {
+        prevNotifiedRef.current = serialized;
+        onAfsProjectsChangeRef.current(afsProjects);
+      }
+    }
+  }, [afsProjects]);
+
   // Sync state if initialAfsProjects changes silently from parent background sync
   const isFirstMountRef = useRef(true);
+  const prevInitialRef = useRef<string>('');
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
       return;
     }
     if (initialAfsProjects && initialAfsProjects.length > 0) {
-      setAfsProjects(initialAfsProjects);
+      const serialized = JSON.stringify(initialAfsProjects);
+      if (serialized !== prevInitialRef.current) {
+        prevInitialRef.current = serialized;
+        setAfsProjects(initialAfsProjects);
+      }
     }
   }, [initialAfsProjects]);
 
   const projectConfigs = afsProjects;
   const setProjectConfigs = useCallback((updater: ProjectLinkConfig[] | ((prev: ProjectLinkConfig[]) => ProjectLinkConfig[])) => {
     setAfsProjects(prev => {
-      return typeof updater === 'function' ? updater(prev) : updater;
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      return next;
     });
   }, []);
-
-  // Safely notify parent when afsProjects state changes without triggering "setState during render"
-  const onAfsProjectsChangeRef = useRef(onAfsProjectsChange);
-  useEffect(() => {
-    onAfsProjectsChangeRef.current = onAfsProjectsChange;
-  }, [onAfsProjectsChange]);
-
-  const lastNotifiedProjectsRef = useRef<ProjectLinkConfig[] | null>(null);
-  useEffect(() => {
-    if (onAfsProjectsChangeRef.current && afsProjects !== lastNotifiedProjectsRef.current) {
-      lastNotifiedProjectsRef.current = afsProjects;
-      onAfsProjectsChangeRef.current(afsProjects);
-    }
-  }, [afsProjects]);
   const [syncingProjects, setSyncingProjects] = useState<Record<string, boolean>>({});
   const [isLoadingBackend, setIsLoadingBackend] = useState(false);
   const showCheckingBadge = isCheckingUpdate || isLoadingBackend;
@@ -215,7 +224,11 @@ export default function GoogleSheetSyncModal({
       }
 
       const handleLinksUpdated = () => {
-        setProjectConfigs(getProjectLinkConfigs());
+        const nextConfigs = getProjectLinkConfigs();
+        setProjectConfigs(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(nextConfigs)) return prev;
+          return nextConfigs;
+        });
         setAvailableDataCount(getMergedSheetRows().length);
         setDataSyncMeta(getSyncMetadata());
       };

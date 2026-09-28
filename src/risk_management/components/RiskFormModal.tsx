@@ -279,6 +279,9 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({
                       {s}
                     </option>
                   ))}
+                  {site && !SITE_OPTIONS.includes(site as any) && (
+                    <option value={site}>{site}</option>
+                  )}
                 </select>
               </div>
 

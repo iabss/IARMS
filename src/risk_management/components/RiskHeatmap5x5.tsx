@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Info,
   FilterX,
@@ -6,8 +6,11 @@ import {
   TrendingDown,
   Layers,
   Sparkles,
+  Building2,
+  MapPin,
+  Filter,
 } from 'lucide-react';
-import { RiskItem, RiskLevel } from '../types/risk';
+import { RiskItem, RiskLevel, SITE_OPTIONS } from '../types/risk';
 import {
   LIKELIHOOD_LABELS,
   IMPACT_LABELS,
@@ -20,6 +23,10 @@ interface RiskHeatmap5x5Props {
   selectedCell: { likelihood: number; impact: number } | null;
   onSelectCell: (cell: { likelihood: number; impact: number } | null) => void;
   onSelectRiskItem: (risk: RiskItem) => void;
+  selectedDepartment?: string;
+  onSelectDepartment?: (dept: string) => void;
+  selectedSite?: string;
+  onSelectSite?: (site: string) => void;
 }
 
 type MatrixViewMode = 'inherent' | 'residual' | 'comparison';
@@ -29,13 +36,62 @@ export const RiskHeatmap5x5: React.FC<RiskHeatmap5x5Props> = ({
   selectedCell,
   onSelectCell,
   onSelectRiskItem,
+  selectedDepartment,
+  onSelectDepartment,
+  selectedSite,
+  onSelectSite,
 }) => {
   const [viewMode, setViewMode] = useState<MatrixViewMode>('inherent');
   const [hoveredCell, setHoveredCell] = useState<{ l: number; i: number } | null>(null);
 
+  // Internal filter state fallback when not controlled from outside
+  const [internalDept, setInternalDept] = useState<string>('');
+  const [internalSite, setInternalSite] = useState<string>('');
+
+  const currentDept = selectedDepartment !== undefined ? selectedDepartment : internalDept;
+  const currentSite = selectedSite !== undefined ? selectedSite : internalSite;
+
+  const handleDeptChange = (val: string) => {
+    if (onSelectDepartment) {
+      onSelectDepartment(val);
+    } else {
+      setInternalDept(val);
+    }
+  };
+
+  const handleSiteChange = (val: string) => {
+    if (onSelectSite) {
+      onSelectSite(val);
+    } else {
+      setInternalSite(val);
+    }
+  };
+
+  // Available options
+  const availableSites = useMemo(() => {
+    return Array.from(
+      new Set([...SITE_OPTIONS, ...(risks.map((r) => r.site).filter(Boolean) as string[])])
+    ).sort();
+  }, [risks]);
+
+  const availableDepartments = useMemo(() => {
+    return Array.from(
+      new Set(risks.map((r) => r.department).filter(Boolean))
+    ).sort();
+  }, [risks]);
+
+  // Filter risks by selected department & site inside heatmap
+  const filteredHeatmapRisks = useMemo(() => {
+    return risks.filter((r) => {
+      if (currentDept && r.department !== currentDept) return false;
+      if (currentSite && r.site !== currentSite) return false;
+      return true;
+    });
+  }, [risks, currentDept, currentSite]);
+
   // Group risks into cells based on current viewMode
   const getRisksForCell = (l: number, i: number, mode: 'inherent' | 'residual') => {
-    return risks.filter((r) => {
+    return filteredHeatmapRisks.filter((r) => {
       if (mode === 'inherent') {
         return r.inherentLikelihood === l && r.inherentImpact === i;
       } else {
@@ -50,10 +106,10 @@ export const RiskHeatmap5x5: React.FC<RiskHeatmap5x5Props> = ({
 
   // Stats for the matrix legend
   const currentLevelCounts = {
-    Critical: risks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Critical').length,
-    High: risks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'High').length,
-    Medium: risks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Medium').length,
-    Low: risks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Low').length,
+    Critical: filteredHeatmapRisks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Critical').length,
+    High: filteredHeatmapRisks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'High').length,
+    Medium: filteredHeatmapRisks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Medium').length,
+    Low: filteredHeatmapRisks.filter((r) => (viewMode === 'inherent' ? r.inherentLevel : r.residualLevel) === 'Low').length,
   };
 
   return (
@@ -63,7 +119,7 @@ export const RiskHeatmap5x5: React.FC<RiskHeatmap5x5Props> = ({
         <div>
           <div className="flex items-center space-x-2.5">
             <h2 className="text-lg font-bold text-slate-900">
-              Matriks Peta Panas Risiko 5x5 (ISO 31000)
+              Risk Matrix Heat Map
             </h2>
             <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
               Likelihood × Impact
@@ -110,6 +166,83 @@ export const RiskHeatmap5x5: React.FC<RiskHeatmap5x5Props> = ({
             <TrendingDown className="w-3.5 h-3.5 mr-1 text-emerald-600" />
             <span>Migrasi Mitigasi</span>
           </button>
+        </div>
+      </div>
+
+      {/* Filter Departemen & Site (Di atas Matrix Risiko) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/90 rounded-lg mb-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mr-1">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <span>Filter Heat Map:</span>
+          </div>
+
+          {/* Department Filter */}
+          <div className="flex items-center space-x-1.5">
+            <label htmlFor="heatmap-filter-dept" className="text-xs font-medium text-slate-600 flex items-center gap-1 whitespace-nowrap">
+              <Building2 className="w-3.5 h-3.5 text-slate-500" />
+              <span>Departemen:</span>
+            </label>
+            <select
+              id="heatmap-filter-dept"
+              value={currentDept}
+              onChange={(e) => handleDeptChange(e.target.value)}
+              className="text-xs font-medium bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs cursor-pointer"
+            >
+              <option value="">Semua Departemen</option>
+              {availableDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Site Filter */}
+          <div className="flex items-center space-x-1.5">
+            <label htmlFor="heatmap-filter-site" className="text-xs font-medium text-slate-600 flex items-center gap-1 whitespace-nowrap">
+              <MapPin className="w-3.5 h-3.5 text-slate-500" />
+              <span>Site:</span>
+            </label>
+            <select
+              id="heatmap-filter-site"
+              value={currentSite}
+              onChange={(e) => handleSiteChange(e.target.value)}
+              className="text-xs font-medium bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs cursor-pointer"
+            >
+              <option value="">Semua Site</option>
+              {availableSites.map((site) => (
+                <option key={site} value={site}>
+                  {site}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reset Filters */}
+          {(currentDept || currentSite) && (
+            <button
+              onClick={() => {
+                handleDeptChange('');
+                handleSiteChange('');
+              }}
+              className="text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded-md flex items-center gap-1 transition"
+              title="Reset Filter Departemen & Site"
+            >
+              <FilterX className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
+          )}
+        </div>
+
+        {/* Count indicator */}
+        <div className="text-xs text-slate-500 font-medium">
+          Menampilkan <span className="font-bold text-slate-800">{filteredHeatmapRisks.length}</span> dari {risks.length} risiko
+          {(currentDept || currentSite) && (
+            <span className="text-[11px] text-blue-600 ml-1.5 font-semibold">
+              (Terfilter)
+            </span>
+          )}
         </div>
       </div>
 

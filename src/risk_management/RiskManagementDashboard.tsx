@@ -415,6 +415,10 @@ export default function RiskManagementDashboard() {
           selectedCell={selectedCell}
           onSelectCell={(cell) => setSelectedCell(cell)}
           onSelectRiskItem={(risk) => setViewingRisk(risk)}
+          selectedDepartment={selectedDepartment}
+          onSelectDepartment={setSelectedDepartment}
+          selectedSite={selectedSite}
+          onSelectSite={setSelectedSite}
         />
 
         {/* Key Risk Indicators (KRI) Early Warning Section */}

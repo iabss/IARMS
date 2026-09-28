@@ -406,6 +406,11 @@ export function saveRoleMenuPermissions(perms: Record<UserRole, string[]>): void
 
 // Check if user has permission to access a specific menu ID
 export function canUserAccessMenu(user: UserProfile | null, menuId: string): boolean {
+  // Public portal is universally accessible to all users and guests as default fallback
+  if (menuId === 'public-portal') {
+    return true;
+  }
+
   // If guest or no user session, follow Auditee configured menus
   if (!user) {
     const auditeeMenus = getAuditeeConfiguredMenus();
