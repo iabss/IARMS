@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileSpreadsheet, 
@@ -134,6 +134,7 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
   const [detailItem, setDetailItem] = useState<AFSFindingRecord | null>(null);
   const [editingItem, setEditingItem] = useState<AFSFindingRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [highlightedRowId, setHighlightedRowId] = useState<number | null>(null);
 
   // Form State for Add / Edit
   const [formNo, setFormNo] = useState('');
@@ -541,6 +542,73 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
     setFormNote(item.NOTE || '');
     setIsModalOpen(true);
   };
+
+  // Listen to navigation event from NotificationBell or quick access shortcuts
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (!customEvent.detail) return;
+      const { no, rowId, project, site, openDetail, openEdit } = customEvent.detail;
+
+      // Reset filters so the target finding is visible
+      setSearchQuery('');
+      setSelectedDept('ALL');
+      setSelectedStatus('ALL');
+      setSelectedCategory('ALL');
+      setColFilterDetail('');
+      setColFilterRekomendasi('');
+      setColFilterPicSite('');
+      setColFilterPicHO('');
+      setColFilterDueDate('');
+      setColFilterRemarks('ALL');
+      setColFilterIaReview('ALL');
+
+      if (project && project !== 'ALL') {
+        setSelectedProject(project);
+      } else {
+        setSelectedProject('ALL');
+      }
+
+      if (site && site !== 'ALL') {
+        setSelectedSite(site);
+      } else {
+        setSelectedSite('ALL');
+      }
+
+      if (no) {
+        setColFilterNo(String(no).trim());
+      } else {
+        setColFilterNo('');
+      }
+
+      setCurrentPage(1);
+
+      // Find target item in dataset
+      const target = data.find(d => 
+        (rowId && d._rowId === rowId) || 
+        (no && String(d.NO).trim() === String(no).trim())
+      );
+
+      if (target) {
+        setHighlightedRowId(target._rowId);
+        if (openDetail) {
+          setDetailItem(target);
+        } else if (openEdit) {
+          handleOpenEditModal(target);
+        }
+
+        // Auto remove highlight after 5 seconds
+        setTimeout(() => {
+          setHighlightedRowId(null);
+        }, 5000);
+      }
+    };
+
+    window.addEventListener('iarms_navigate_finding', handleNavigate);
+    return () => {
+      window.removeEventListener('iarms_navigate_finding', handleNavigate);
+    };
+  }, [data]);
 
   const handleDelete = (rowId: number) => {
     if (confirm('Apakah Anda yakin ingin menghapus data temuan ini?')) {
@@ -1074,55 +1142,63 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                   const isOpen = statusUpper === 'OPEN';
                   const katUpper = (item.KATEGORI || '').toUpperCase();
                   const iaReviewUpper = (item["REVIEWED CLOSING FROM IA"] || '').toUpperCase().trim();
+                  const isHighlighted = highlightedRowId === item._rowId;
 
                   return (
-                    <tr key={`fs-row-${item._rowId ?? 'item'}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                    <tr 
+                      key={`fs-row-${item._rowId ?? 'item'}-${idx}`} 
+                      className={`transition-all duration-300 h-auto ${
+                        isHighlighted 
+                          ? 'bg-amber-100/90 ring-2 ring-amber-500 font-semibold shadow-md' 
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
                       {/* NO */}
-                      <td className="py-2 px-1 text-center font-mono text-slate-500 font-semibold border-r border-slate-200 text-[10px]">
+                      <td className="py-2.5 px-1 text-center font-mono text-slate-500 font-semibold border-r border-slate-200 text-[10px] align-top">
                         {item.NO}
                       </td>
 
                       {/* PROJECT AUDIT */}
-                      <td className="py-2 px-1 font-bold text-slate-800 border-r border-slate-200 break-words">
+                      <td className="py-2.5 px-1 font-bold text-slate-800 border-r border-slate-200 break-words whitespace-normal align-top">
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-800 border border-slate-200 inline-block">
                           {item["PROJECT AUDIT"]}
                         </span>
                       </td>
 
                       {/* SITE */}
-                      <td className="py-2 px-1 text-center font-extrabold text-slate-900 border-r border-slate-200 text-[10px]">
+                      <td className="py-2.5 px-1 text-center font-extrabold text-slate-900 border-r border-slate-200 text-[10px] align-top">
                         {item.SITE}
                       </td>
 
                       {/* DETAIL TEMUAN / PROBLEM */}
-                      <td className="py-2 px-2 border-r border-slate-200 break-words">
+                      <td className="py-2.5 px-2.5 border-r border-slate-200 align-top whitespace-normal break-words">
                         {item["PROBLEM/FINDING"] && item["DETAIL TEMUAN"] && item["PROBLEM/FINDING"].trim() === item["DETAIL TEMUAN"].trim() ? (
-                          <p className="font-semibold text-slate-800 text-[10px] line-clamp-3 leading-tight" title={item["DETAIL TEMUAN"]}>
+                          <p className="font-semibold text-slate-800 text-[10.5px] leading-relaxed whitespace-normal break-words">
                             {item["DETAIL TEMUAN"]}
                           </p>
                         ) : (
-                          <>
+                          <div className="space-y-1.5 whitespace-normal break-words">
                             {item["PROBLEM/FINDING"] && (
-                              <p className="font-bold text-slate-900 mb-0.5 text-[10px] line-clamp-2 leading-tight" title={item["PROBLEM/FINDING"]}>
+                              <p className="font-bold text-slate-900 text-[10.5px] leading-snug whitespace-normal break-words">
                                 {item["PROBLEM/FINDING"]}
                               </p>
                             )}
                             {item["DETAIL TEMUAN"] && (
-                              <p className="text-slate-600 text-[10px] line-clamp-2 leading-tight" title={item["DETAIL TEMUAN"]}>
+                              <p className="text-slate-700 text-[10.5px] leading-relaxed whitespace-normal break-words">
                                 {item["DETAIL TEMUAN"]}
                               </p>
                             )}
                             {!item["PROBLEM/FINDING"] && !item["DETAIL TEMUAN"] && (
-                              <span className="text-slate-400 text-[10px] italic block truncate" title={item.NOTE || `Sub-rekomendasi temuan No. ${item.NO}`}>
+                              <span className="text-slate-400 text-[10px] italic block whitespace-normal">
                                 {item.NOTE ? `Note: ${item.NOTE}` : `(Sub-rekomendasi No. ${item.NO})`}
                               </span>
                             )}
-                          </>
+                          </div>
                         )}
                       </td>
 
                       {/* KATEGORI */}
-                      <td className="py-2 px-1 text-center border-r border-slate-200">
+                      <td className="py-2.5 px-1 text-center border-r border-slate-200 align-top">
                         {katUpper.includes('MAJOR') ? (
                           <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-block">
                             MAJOR
@@ -1139,14 +1215,14 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                       </td>
 
                       {/* REKOMENDASI AUDIT */}
-                      <td className="py-2 px-2 border-r border-slate-200 text-slate-700 leading-tight font-medium break-words">
-                        <p className="line-clamp-3 text-[10px]" title={item.REKOMENDASI}>
+                      <td className="py-2.5 px-2.5 border-r border-slate-200 text-slate-700 leading-relaxed font-medium align-top whitespace-normal break-words">
+                        <p className="text-[10.5px] whitespace-normal break-words">
                           {item.REKOMENDASI || '-'}
                         </p>
                       </td>
 
                       {/* STATUS */}
-                      <td className="py-2 px-1 text-center border-r border-slate-200">
+                      <td className="py-2.5 px-1 text-center border-r border-slate-200 align-top">
                         {isClose ? (
                           <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500 text-white shadow-sm inline-flex items-center gap-0.5">
                             <CheckCircle2 className="w-2.5 h-2.5" /> CLOSE
@@ -1163,17 +1239,17 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                       </td>
 
                       {/* PIC SITE */}
-                      <td className="py-2 px-1 border-r border-slate-200 text-[10px] font-semibold text-slate-800 break-words">
+                      <td className="py-2.5 px-1.5 border-r border-slate-200 text-[10px] font-semibold text-slate-800 break-words whitespace-normal align-top">
                         {formatUniqueText(item["PIC SITE"])}
                       </td>
 
                       {/* PIC HO */}
-                      <td className="py-2 px-1 border-r border-slate-200 text-[10px] font-medium text-slate-700 break-words">
+                      <td className="py-2.5 px-1.5 border-r border-slate-200 text-[10px] font-medium text-slate-700 break-words whitespace-normal align-top">
                         {formatUniqueText(item["PIC HO"])}
                       </td>
 
                       {/* DUE DATE / REMARKS */}
-                      <td className="py-2 px-1 text-center border-r border-slate-200">
+                      <td className="py-2.5 px-1 text-center border-r border-slate-200 align-top">
                         <span className="font-mono text-slate-700 block font-semibold text-[10px]">
                           {item["DUE DATE"] || '-'}
                         </span>
@@ -1187,7 +1263,7 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                       </td>
 
                       {/* CLOSING DOKUMEN */}
-                      <td className="py-2 px-1 text-center border-r border-slate-200">
+                      <td className="py-2.5 px-1 text-center border-r border-slate-200 align-top">
                         {item["DOKUMENTASI CLOSING"] ? (
                           <button
                             onClick={() => setDetailItem(item)}
@@ -1203,7 +1279,7 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                       </td>
 
                       {/* REVIEW FROM IA */}
-                      <td className="py-2 px-1 text-center border-r border-slate-200">
+                      <td className="py-2.5 px-1 text-center border-r border-slate-200 align-top">
                         <select
                           value={item["REVIEWED CLOSING FROM IA"] || ''}
                           onChange={(e) => handleIaReviewChange(item._rowId, e.target.value)}
@@ -1222,7 +1298,7 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
                       </td>
 
                       {/* AKSI */}
-                      <td className="py-2 px-1 text-center">
+                      <td className="py-2.5 px-1 text-center align-top">
                         <button
                           onClick={() => handleOpenEditModal(item)}
                           className="p-1.5 text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg shadow-sm transition-all inline-flex items-center justify-center cursor-pointer active:scale-95 mx-auto"
@@ -1336,24 +1412,24 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
               {detailItem["PROBLEM/FINDING"] && (
                 <div>
                   <h4 className="font-bold text-slate-900 uppercase text-[11px] mb-1">Problem / Finding Utama:</h4>
-                  <p className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 text-slate-800 leading-relaxed font-medium">
+                  <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 text-slate-800 leading-relaxed font-medium h-auto min-h-[44px] whitespace-pre-line break-words">
                     {detailItem["PROBLEM/FINDING"]}
-                  </p>
+                  </div>
                 </div>
               )}
 
               <div>
                 <h4 className="font-bold text-slate-900 uppercase text-[11px] mb-1">Detail Temuan:</h4>
-                <p className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-800 leading-relaxed whitespace-pre-wrap">
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-slate-800 leading-relaxed whitespace-pre-line break-words h-auto min-h-[44px]">
                   {detailItem["DETAIL TEMUAN"] || '-'}
-                </p>
+                </div>
               </div>
 
               <div>
                 <h4 className="font-bold text-slate-900 uppercase text-[11px] mb-1">Rekomendasi Audit:</h4>
-                <p className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-800 leading-relaxed whitespace-pre-wrap">
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-slate-800 leading-relaxed whitespace-pre-line break-words h-auto min-h-[44px]">
                   {detailItem.REKOMENDASI || '-'}
-                </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1527,35 +1603,37 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Problem / Finding Utama</label>
-                <textarea
-                  rows={2}
-                  readOnly={!!editingItem}
-                  placeholder="Ringkasan temuan utama..."
-                  value={formProblem}
-                  onChange={(e) => setFormProblem(e.target.value)}
-                  className={`w-full px-3 py-2 text-xs border rounded-xl ${
-                    editingItem 
-                      ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed focus:outline-none resize-none' 
-                      : 'border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-violet-500'
-                  }`}
-                />
+                {editingItem ? (
+                  <div className="w-full p-3 text-xs border border-slate-200 bg-slate-50 text-slate-800 rounded-xl leading-relaxed whitespace-pre-line break-words font-medium h-auto min-h-[44px]">
+                    {formProblem || '-'}
+                  </div>
+                ) : (
+                  <textarea
+                    rows={3}
+                    placeholder="Ringkasan temuan utama..."
+                    value={formProblem}
+                    onChange={(e) => setFormProblem(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 bg-white text-slate-800 rounded-xl focus:outline-none focus:border-violet-500 whitespace-pre-line break-words h-auto min-h-[60px]"
+                  />
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Detail Temuan {!editingItem && '*'}</label>
-                <textarea
-                  rows={3}
-                  required={!editingItem}
-                  readOnly={!!editingItem}
-                  placeholder="Uraian detail temuan audit..."
-                  value={formDetail}
-                  onChange={(e) => setFormDetail(e.target.value)}
-                  className={`w-full px-3 py-2 text-xs border rounded-xl ${
-                    editingItem 
-                      ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed focus:outline-none resize-none' 
-                      : 'border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-violet-500'
-                  }`}
-                />
+                {editingItem ? (
+                  <div className="w-full p-3 text-xs border border-slate-200 bg-slate-50 text-slate-800 rounded-xl leading-relaxed whitespace-pre-line break-words font-medium h-auto min-h-[56px]">
+                    {formDetail || '-'}
+                  </div>
+                ) : (
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="Uraian detail temuan audit..."
+                    value={formDetail}
+                    onChange={(e) => setFormDetail(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 bg-white text-slate-800 rounded-xl focus:outline-none focus:border-violet-500 whitespace-pre-line break-words h-auto min-h-[80px]"
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

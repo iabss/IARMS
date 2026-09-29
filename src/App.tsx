@@ -29,6 +29,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 import AccessSettings from './components/AccessSettings';
 import LandingPage from './components/LandingPage';
 import RiskManagementDashboard from './risk_management/RiskManagementDashboard';
+import NotificationBell from './components/NotificationBell';
 import { AuditEngagement, PublicAuditItem, ToastMessage, UserProfile, UserRole } from './types';
 import { autoSyncAllProjects, syncWithServer } from './data/dataSyncManager';
 import { initDailyCutoffScheduler } from './services/cutoffService';
@@ -322,6 +323,15 @@ export default function App() {
         
         {/* Top Header Bar with Auth Controls */}
         <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-end gap-3 sticky top-0 z-40 shadow-2xs">
+          {/* Notification Bell (Khusus Role Internal Audit) */}
+          <NotificationBell
+            currentUser={currentUser}
+            onNavigateToFinding={() => {
+              setActiveTab('finding-statement');
+            }}
+            onToast={triggerToast}
+          />
+
           {/* Right Auth / Profile Controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {currentUser ? (

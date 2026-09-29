@@ -1523,9 +1523,9 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                   <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
                     Temuan Audit (Problem / Finding)
                   </span>
-                  <p className="text-sm font-bold text-slate-900 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <div className="text-sm font-bold text-slate-900 bg-slate-50 p-3.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line break-words h-auto min-h-[44px]">
                     {selectedItemForModal.findingTitle || selectedItemForModal.record['PROBLEM/FINDING']}
-                  </p>
+                  </div>
                 </div>
 
                 {/* Detail Temuan */}
@@ -1534,9 +1534,9 @@ export default function PriorityRecommendations({ onToast, onNavigateToAFS }: Pr
                     <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
                       Detail Masalah
                     </span>
-                    <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed font-medium">
+                    <div className="text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-200 leading-relaxed font-medium whitespace-pre-line break-words h-auto min-h-[44px]">
                       {selectedItemForModal.record['DETAIL TEMUAN']}
-                    </p>
+                    </div>
                   </div>
                 )}
 
