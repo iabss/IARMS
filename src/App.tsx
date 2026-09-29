@@ -498,6 +498,13 @@ export default function App() {
                 onToast={triggerToast} 
               />
             )}
+            {activeTab === 'iso-system' && (
+              <WorkingPaper 
+                key="iso-system" 
+                currentKkaTitle="Checklist Audit Sistem Manajemen ISO (ISO 9001 / 14001 / 45001)" 
+                onToast={triggerToast} 
+              />
+            )}
             {activeTab === 'field-mobile' && (
               <FieldMobile 
                 key="field-mobile" 

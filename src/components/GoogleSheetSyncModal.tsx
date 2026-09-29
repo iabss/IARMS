@@ -922,13 +922,6 @@ export default function GoogleSheetSyncModal({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {showCheckingBadge && (
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 text-sky-200 border border-sky-300/30 rounded-xl text-xs font-semibold animate-pulse shadow-xs">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-300" />
-              <span>Memeriksa pembaharuan...</span>
-            </div>
-          )}
-
           {onNavigateToAFS && (
             <button
               onClick={onNavigateToAFS}

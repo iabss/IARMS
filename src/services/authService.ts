@@ -80,9 +80,16 @@ export const SYSTEM_MENUS: MenuItemConfig[] = [
   {
     id: 'working-paper',
     label: 'Kertas Kerja Audit (KKA)',
-    category: 'Audit Execution',
-    description: 'Dokumen kerja audit internal, bukti pengujian, kontrol, dan monitoring log rahasia.',
-    defaultRoles: ['auditor']
+    category: 'Audit Management System',
+    description: 'Dokumen kerja audit internal, bukti pengujian, kontrol, dan checklist ISO/SOP.',
+    defaultRoles: ['auditor', 'management', 'auditee', 'public']
+  },
+  {
+    id: 'iso-system',
+    label: 'Checklist Sistem Manajemen ISO',
+    category: 'Audit Management System',
+    description: 'Checklist kepatuhan ISO 9001, ISO 14001, ISO 45001, dan SOP operasional perusahaan.',
+    defaultRoles: ['auditor', 'management', 'auditee', 'public']
   },
   {
     id: 'risk-management',
@@ -224,10 +231,18 @@ export function checkIsInternalAudit(nik?: string, role?: UserRole, dept?: strin
 // Default menu permissions for Auditees (Akses Terbatas)
 export const DEFAULT_AUDITEE_MENUS: string[] = [
   'public-portal',
+  'input-finding-statement',
   'trend-achievement',
   'achievement-department',
   'finding-statement',
-  'priority-recommendations'
+  'priority-recommendations',
+  'working-paper',
+  'iso-system',
+  'risk-management',
+  'risk-register',
+  'dashboard',
+  'field-mobile',
+  'timeframe'
 ];
 
 // Get Auditee Configured Menus (Menu apa saja yang bisa diakses oleh Auditee)
