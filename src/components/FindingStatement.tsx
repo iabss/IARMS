@@ -31,6 +31,7 @@ import {
 import { AFSFindingRecord } from '../types';
 import rawSheetData from '../data/sheetData.json';
 import { getMergedSheetRows, getProjectLinkConfigs, saveEntireDataset } from '../data/dataSyncManager';
+import { recordEvidenceSubmission } from '../services/evidenceNotificationService';
 import { parseDepartments, getRecordDepartments, matchesDepartmentRecord } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
@@ -488,6 +489,22 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
     if (updatedRows.length > 0) {
       saveEntireDataset(updatedRows, `Review IA Row #${rowId}`);
+      const targetItem = updatedRows.find(r => r._rowId === rowId);
+      if (targetItem && targetItem["DOKUMENTASI CLOSING"]) {
+        recordEvidenceSubmission({
+          rowId: targetItem._rowId,
+          no: targetItem.NO,
+          project: targetItem["PROJECT AUDIT"],
+          site: targetItem.SITE,
+          title: targetItem["PROBLEM/FINDING"] || targetItem["DETAIL TEMUAN"] || 'Temuan',
+          kategori: targetItem.KATEGORI,
+          status: targetItem.STATUS,
+          dokumentasiClosing: targetItem["DOKUMENTASI CLOSING"],
+          reviewedIA: value,
+          picSite: targetItem["PIC SITE"],
+          picHO: targetItem["PIC HO"]
+        });
+      }
     }
 
     if (value) {
@@ -647,6 +664,24 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
         }
         return item;
       });
+
+      // Record evidence submission if closing proof is attached or updated
+      if (formDokumenClosing && formDokumenClosing.trim()) {
+        recordEvidenceSubmission({
+          rowId: editingItem._rowId,
+          no: formNo || editingItem.NO,
+          project: formProject || editingItem["PROJECT AUDIT"],
+          site: formSite || editingItem.SITE,
+          title: formProblem || editingItem["PROBLEM/FINDING"] || formDetail || editingItem["DETAIL TEMUAN"],
+          kategori: formKategori,
+          status: formStatus,
+          dokumentasiClosing: formDokumenClosing,
+          reviewedIA: formIaReview,
+          picSite: formPicSite,
+          picHO: formPicHO
+        });
+      }
+
       setData(next);
       saveEntireDataset(next, `Edit Temuan ${formNo}`);
       onToast('Data temuan audit berhasil diperbarui & dashboard disinkronkan', 'success');
@@ -672,6 +707,23 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
         "REVIEWED CLOSING FROM IA": formIaReview,
         NOTE: formNote
       };
+
+      if (formDokumenClosing && formDokumenClosing.trim()) {
+        recordEvidenceSubmission({
+          rowId: newItem._rowId,
+          no: newItem.NO,
+          project: newItem["PROJECT AUDIT"],
+          site: newItem.SITE,
+          title: newItem["PROBLEM/FINDING"] || newItem["DETAIL TEMUAN"] || 'Temuan Baru',
+          kategori: newItem.KATEGORI,
+          status: newItem.STATUS,
+          dokumentasiClosing: newItem["DOKUMENTASI CLOSING"],
+          reviewedIA: newItem["REVIEWED CLOSING FROM IA"],
+          picSite: newItem["PIC SITE"],
+          picHO: newItem["PIC HO"]
+        });
+      }
+
       const next = [newItem, ...data];
       setData(next);
       saveEntireDataset(next, `Tambah Temuan Baru ${formNo}`);

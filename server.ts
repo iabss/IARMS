@@ -800,11 +800,15 @@ app.post('/api/sync-all-server', async (req, res) => {
 });
 
 // Google Apps Script Proxy Endpoints (Avoid CORS & handle fallback gracefully)
-const GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
+const DEFAULT_GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
 
 app.get('/api/gas-audit-data', async (req, res) => {
   try {
-    const result = await fetchUrl(GAS_BACKEND_URL, 3);
+    const targetGasUrl = (typeof req.query.targetUrl === 'string' && req.query.targetUrl.startsWith('https://script.google.com/')) 
+      ? req.query.targetUrl 
+      : DEFAULT_GAS_BACKEND_URL;
+
+    const result = await fetchUrl(targetGasUrl, 3);
     if (result.statusCode === 200 && result.data) {
       const trimmed = result.data.trim();
       if (!trimmed.startsWith('<') && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
@@ -841,10 +845,15 @@ app.post('/api/gas-proxy', async (req, res) => {
 
   try {
     const payload = req.body || {};
+    const targetGasUrl = (payload._targetGasUrl && typeof payload._targetGasUrl === 'string' && payload._targetGasUrl.startsWith('https://script.google.com/'))
+      ? payload._targetGasUrl
+      : DEFAULT_GAS_BACKEND_URL;
+
+    delete payload._targetGasUrl;
     const postData = JSON.stringify(payload);
 
-    const client = GAS_BACKEND_URL.startsWith('https') ? https : http;
-    const gasReq = client.request(GAS_BACKEND_URL, {
+    const client = targetGasUrl.startsWith('https') ? https : http;
+    const gasReq = client.request(targetGasUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',

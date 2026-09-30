@@ -16,11 +16,19 @@ import {
   Building2,
   FileSpreadsheet,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  FileCheck,
+  Paperclip,
+  Calendar
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { checkIsInternalAudit } from '../services/authService';
 import { getMergedSheetRows } from '../data/dataSyncManager';
+import { 
+  getTodayStartTimestamp, 
+  getEvidenceSubmissionsToday, 
+  EvidenceSubmissionRecord 
+} from '../services/evidenceNotificationService';
 
 interface NotificationBellProps {
   currentUser: UserProfile | null;
@@ -41,6 +49,7 @@ export interface FindingNotificationItem {
   dueDate: string;
   picSite: string;
   picHO: string;
+  buktiClosing: string;
   timestamp: number;
   timeAgo: string;
   isPendingIaReview: boolean;
@@ -56,7 +65,7 @@ export default function NotificationBell({
   onToast
 }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending-review' | 'new-entries'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending-review' | 'approved'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [lastReadTime, setLastReadTime] = useState<number>(() => {
     try {
@@ -79,12 +88,20 @@ export default function NotificationBell({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 1. PEMBATASAN HAK AKSES KHUSUS INTERNAL AUDIT / ADMINISTRATOR
-  // Hanya dirender jika user adalah Internal Audit (atau Auditor)
   const isInternalAudit = Boolean(
     currentUser?.isInternalAudit ||
     currentUser?.role === 'auditor' ||
     (currentUser?.nik && checkIsInternalAudit(currentUser.nik, currentUser.role, currentUser.department))
   );
+
+  // Format tanggal hari ini dalam bahasa Indonesia
+  const todayFormatted = useMemo(() => {
+    return new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(new Date());
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -101,7 +118,7 @@ export default function NotificationBell({
     };
   }, [isOpen]);
 
-  // Real-time listener for incoming finding statements and background sync
+  // Real-time listener for incoming evidence and finding submissions
   useEffect(() => {
     if (!isInternalAudit) return;
 
@@ -109,17 +126,19 @@ export default function NotificationBell({
       setVersion(v => v + 1);
     };
 
+    window.addEventListener('iarms_new_evidence_submitted', handleDataUpdate);
     window.addEventListener('afs_data_synced', handleDataUpdate);
     window.addEventListener('afs_project_links_updated', handleDataUpdate);
     window.addEventListener('iarms_new_finding_added', handleDataUpdate);
     window.addEventListener('iarms_permissions_changed', handleDataUpdate);
 
-    // Periodic check every 12s for newly synchronized data
+    // Periodic check every 10s for newly submitted evidence today
     const timer = setInterval(() => {
       setVersion(v => v + 1);
-    }, 12000);
+    }, 10000);
 
     return () => {
+      window.removeEventListener('iarms_new_evidence_submitted', handleDataUpdate);
       window.removeEventListener('afs_data_synced', handleDataUpdate);
       window.removeEventListener('afs_project_links_updated', handleDataUpdate);
       window.removeEventListener('iarms_new_finding_added', handleDataUpdate);
@@ -128,22 +147,94 @@ export default function NotificationBell({
     };
   }, [isInternalAudit]);
 
-  // Calculate Finding Notifications List
+  // 2. FILTER KETAT: HANYA MUNCULKAN NOTIFIKASI BUKTI TEMUAN YANG DIINPUT SETELAH TANGGAL HARI INI
+  // Abaikan seluruh notifikasi & temuan lama dari hari-hari sebelumnya
   const notifications = useMemo<FindingNotificationItem[]>(() => {
     if (!isInternalAudit) return [];
 
-    const allRows = getMergedSheetRows();
-    if (!Array.isArray(allRows) || allRows.length === 0) return [];
-
     const now = Date.now();
+    const todayStartTs = getTodayStartTimestamp();
 
-    // Map each row into notification item
-    const items: FindingNotificationItem[] = allRows.map((row: any, idx: number) => {
+    // Ambil bukti temuan yang tercatat diinput hari ini
+    const todaySubmissions = getEvidenceSubmissionsToday();
+    const allRows = getMergedSheetRows() || [];
+
+    const matchedItems: FindingNotificationItem[] = [];
+    const processedRowIds = new Set<number>();
+
+    // 1. Prioritaskan data bukti yang diinput hari ini melalui sistem
+    todaySubmissions.forEach((sub: EvidenceSubmissionRecord) => {
+      if (sub.timestamp < todayStartTs) return; // ABAIKAN JIKA SEBELUM HARI INI
+      if (!sub.dokumentasiClosing || !sub.dokumentasiClosing.trim()) return; // HANYA BUKTI TEMUAN
+
+      processedRowIds.add(sub.rowId);
+
+      const diffMin = Math.max(1, Math.round((now - sub.timestamp) / 60000));
+      let timeAgo = `${diffMin}m lalu`;
+      if (diffMin >= 60 && diffMin < 1440) {
+        timeAgo = `${Math.floor(diffMin / 60)}j lalu`;
+      } else if (diffMin >= 1440) {
+        timeAgo = `${Math.floor(diffMin / 1440)}h lalu`;
+      }
+
+      const isPending = !sub.reviewedIA || sub.reviewedIA === 'EMPTY' || sub.reviewedIA === 'WAITING' || sub.reviewedIA === '-';
+
+      matchedItems.push({
+        id: sub.id,
+        rowId: sub.rowId,
+        no: sub.no,
+        project: sub.project,
+        site: sub.site,
+        title: sub.title,
+        kategori: sub.kategori,
+        status: sub.status,
+        iaReview: sub.reviewedIA,
+        dueDate: '-',
+        picSite: sub.picSite || '',
+        picHO: sub.picHO || '',
+        buktiClosing: sub.dokumentasiClosing,
+        timestamp: sub.timestamp,
+        timeAgo,
+        isPendingIaReview: isPending,
+        isNewArrival: sub.timestamp > lastReadTime
+      });
+    });
+
+    // 2. Periksa dataset baris sheet aktif untuk bukti temuan dengan timestamp hari ini
+    allRows.forEach((row: any, idx: number) => {
       const rowId = row._rowId ?? (idx + 1);
+      if (processedRowIds.has(rowId)) return; // Sudah diproses
+
+      const buktiClosing = (row['DOKUMENTASI CLOSING'] || '').trim();
+      if (!buktiClosing) return; // Abaikan jika tidak ada bukti temuan / closing
+
+      // Ekstrak timestamp riil dari baris (HANYA tanggal hari ini ke atas)
+      let rowTs: number | null = null;
+      if (row._evidenceTimestamp) {
+        const parsed = new Date(row._evidenceTimestamp).getTime();
+        if (!isNaN(parsed) && parsed >= todayStartTs) rowTs = parsed;
+      } else if (row._inputTimestamp) {
+        const parsed = new Date(row._inputTimestamp).getTime();
+        if (!isNaN(parsed) && parsed >= todayStartTs) rowTs = parsed;
+      } else if (row.timestamp) {
+        const parsed = new Date(row.timestamp).getTime();
+        if (!isNaN(parsed) && parsed >= todayStartTs) rowTs = parsed;
+      } else if (row._syncedAt) {
+        const parsed = new Date(row._syncedAt).getTime();
+        if (!isNaN(parsed) && parsed >= todayStartTs) rowTs = parsed;
+      }
+
+      // STRICT GUARD: Jika tidak ada bukti diinput hari ini, ABAIKAN TOTAL
+      if (!rowTs || rowTs < todayStartTs) {
+        return;
+      }
+
+      processedRowIds.add(rowId);
+
       const no = String(row.NO || '').trim();
       const project = (row['PROJECT AUDIT'] || 'LAINNYA').trim();
       const site = (row.SITE || 'HEAD OFFICE').trim();
-      const title = (row['PROBLEM/FINDING'] || row['DETAIL TEMUAN'] || 'Temuan Audit Baru').trim();
+      const title = (row['PROBLEM/FINDING'] || row['DETAIL TEMUAN'] || 'Temuan Audit').trim();
       const kategori = (row.KATEGORI || 'MAJOR').trim().toUpperCase();
       const status = (row.STATUS || 'OPEN').trim().toUpperCase();
       const iaReview = (row['REVIEWED CLOSING FROM IA'] || '').trim().toUpperCase();
@@ -151,15 +242,9 @@ export default function NotificationBell({
       const picSite = row['PIC SITE'] || '';
       const picHO = row['PIC HO'] || '';
 
-      // Timestamp fallback: use explicit row timestamp or reverse index spread
-      const rowTs = row._syncedAt ? new Date(row._syncedAt).getTime() : 
-                    row.timestamp ? new Date(row.timestamp).getTime() : 
-                    (now - (allRows.length - idx) * 45000);
-
-      const isPendingIaReview = !iaReview || iaReview === 'EMPTY' || iaReview === 'WAITING' || iaReview === '-';
+      const isPending = !iaReview || iaReview === 'EMPTY' || iaReview === 'WAITING' || iaReview === '-';
       const isNewArrival = rowTs > lastReadTime;
 
-      // Friendly time display
       const diffMin = Math.max(1, Math.round((now - rowTs) / 60000));
       let timeAgo = `${diffMin}m lalu`;
       if (diffMin >= 60 && diffMin < 1440) {
@@ -168,8 +253,8 @@ export default function NotificationBell({
         timeAgo = `${Math.floor(diffMin / 1440)}h lalu`;
       }
 
-      return {
-        id: `notif-${rowId}-${no}`,
+      matchedItems.push({
+        id: `notif-${rowId}-${no}-${rowTs}`,
         rowId,
         no,
         project,
@@ -181,23 +266,24 @@ export default function NotificationBell({
         dueDate,
         picSite,
         picHO,
+        buktiClosing,
         timestamp: rowTs,
         timeAgo,
-        isPendingIaReview,
+        isPendingIaReview: isPending,
         isNewArrival
-      };
+      });
     });
 
-    // Filter out cleared notifications unless user explicitly clicks "Tampilkan Riwayat"
+    // Filter out cleared notifications if user clicked "Bersihkan Notifikasi"
     const activeItems = (clearedTime > 0 && !showHistory)
-      ? items.filter(i => i.timestamp > clearedTime)
-      : items;
+      ? matchedItems.filter(i => i.timestamp > clearedTime)
+      : matchedItems;
 
-    // Sort by: newest first (or pending IA review)
-    return activeItems.reverse();
+    // Urutkan dari yang paling baru diinput hari ini
+    return activeItems.sort((a, b) => b.timestamp - a.timestamp);
   }, [isInternalAudit, version, lastReadTime, clearedTime, showHistory]);
 
-  // Count unread / action-required notifications
+  // Hitung jumlah notifikasi bukti temuan baru yang belum dibaca hari ini
   const unreadCount = useMemo(() => {
     return notifications.filter(n => n.isNewArrival || n.isPendingIaReview).length;
   }, [notifications]);
@@ -206,7 +292,7 @@ export default function NotificationBell({
   const filteredNotifications = useMemo(() => {
     return notifications.filter(item => {
       if (activeFilter === 'pending-review' && !item.isPendingIaReview) return false;
-      if (activeFilter === 'new-entries' && !item.isNewArrival) return false;
+      if (activeFilter === 'approved' && item.isPendingIaReview) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -215,11 +301,12 @@ export default function NotificationBell({
           item.site.toLowerCase().includes(q) ||
           item.project.toLowerCase().includes(q) ||
           item.title.toLowerCase().includes(q) ||
+          item.buktiClosing.toLowerCase().includes(q) ||
           item.kategori.toLowerCase().includes(q);
         if (!match) return false;
       }
       return true;
-    }).slice(0, 30); // show top 30 items for smooth scrolling
+    });
   }, [notifications, activeFilter, searchQuery]);
 
   // Mark all as read
@@ -231,10 +318,10 @@ export default function NotificationBell({
     } catch {
       // ignore
     }
-    onToast?.('Seluruh notifikasi temuan telah ditandai sudah dibaca.', 'info');
+    onToast?.('Seluruh notifikasi bukti temuan hari ini telah ditandai sudah dibaca.', 'info');
   };
 
-  // Bersihkan notifikasi (clear all notifications until current timestamp)
+  // Bersihkan notifikasi
   const handleClearNotifications = () => {
     const now = Date.now();
     setClearedTime(now);
@@ -246,10 +333,10 @@ export default function NotificationBell({
     } catch {
       // ignore
     }
-    onToast?.('Daftar notifikasi temuan berhasil dibersihkan!', 'success');
+    onToast?.('Daftar notifikasi bukti temuan hari ini berhasil dibersihkan!', 'success');
   };
 
-  // Pulihkan / tampilkan kembali riwayat notifikasi
+  // Pulihkan / tampilkan kembali riwayat notifikasi hari ini
   const handleRestoreNotifications = () => {
     setClearedTime(0);
     setShowHistory(true);
@@ -258,7 +345,7 @@ export default function NotificationBell({
     } catch {
       // ignore
     }
-    onToast?.('Riwayat notifikasi temuan ditampilkan kembali.', 'info');
+    onToast?.('Riwayat notifikasi bukti temuan hari ini ditampilkan kembali.', 'info');
   };
 
   // Quick Action: Navigate and highlight finding in Finding Statement table
@@ -283,7 +370,7 @@ export default function NotificationBell({
       });
     }
 
-    // Also dispatch global event so any active view can capture and highlight
+    // Dispatch global event for instant navigation & row highlight
     window.dispatchEvent(new CustomEvent('iarms_navigate_finding', {
       detail: {
         no: item.no,
@@ -294,10 +381,10 @@ export default function NotificationBell({
       }
     }));
 
-    onToast?.(`Membuka temuan No. ${item.no} (${item.site} - ${item.project}) untuk verifikasi IA...`, 'success');
+    onToast?.(`Membuka bukti temuan No. ${item.no} (${item.site}) untuk verifikasi IA...`, 'success');
   };
 
-  // JIKA BUKAN INTERNAL AUDIT, JANGAN RENDER APAPUN (ROLE RESTRICTION)
+  // JIKA BUKAN INTERNAL AUDIT, JANGAN RENDER APAPUN
   if (!isInternalAudit) {
     return null;
   }
@@ -308,12 +395,7 @@ export default function NotificationBell({
       <button
         type="button"
         id="btn-ia-notifications"
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen && unreadCount > 0) {
-            // Optional: don't auto-clear right away, let user review or click "Tandai Sudah Dibaca"
-          }
-        }}
+        onClick={() => setIsOpen(!isOpen)}
         className={`relative p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
           isOpen
             ? 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/20'
@@ -321,7 +403,7 @@ export default function NotificationBell({
             ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100/90 shadow-2xs'
             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
         }`}
-        title={`Notifikasi Temuan AFS (${unreadCount} temuan baru / menunggu verifikasi IA)`}
+        title={`Notifikasi Bukti Temuan (${unreadCount} bukti baru hari ini)`}
       >
         {unreadCount > 0 ? (
           <BellRing className={`w-4 h-4 ${isOpen ? 'text-white' : 'text-amber-600 animate-bounce'}`} />
@@ -329,7 +411,7 @@ export default function NotificationBell({
           <Bell className="w-4 h-4" />
         )}
 
-        {/* Counter Badge */}
+        {/* Counter Badge: HANYA MUNCUL JIKA ADA BUKTI TEMUAN HARI INI */}
         {unreadCount > 0 && (
           <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-white">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-60"></span>
@@ -346,7 +428,7 @@ export default function NotificationBell({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.96 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute right-0 mt-2 w-80 sm:w-96 md:w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden flex flex-col max-h-[85vh]"
+            className="absolute right-0 mt-2 w-80 sm:w-96 md:w-[430px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden flex flex-col max-h-[85vh]"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white p-3.5 px-4 flex items-center justify-between border-b border-slate-700/60">
@@ -357,15 +439,16 @@ export default function NotificationBell({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <h3 className="font-bold text-xs text-white truncate">
-                      Monitoring Input Temuan AFS
+                      Monitoring Bukti Temuan (Hari Ini)
                     </h3>
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[9px] font-extrabold flex-shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      Real-Time
+                      Hari Ini
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 truncate">
-                    Khusus Internal Audit • Jobsite Finding Stream
+                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                    <Calendar className="w-2.5 h-2.5" />
+                    <span>Sejak {todayFormatted}</span>
                   </p>
                 </div>
               </div>
@@ -429,14 +512,14 @@ export default function NotificationBell({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('new-entries')}
+                  onClick={() => setActiveFilter('approved')}
                   className={`flex-1 py-1 px-2 rounded-lg transition-all text-center text-[11px] cursor-pointer ${
-                    activeFilter === 'new-entries'
-                      ? 'bg-white text-sky-800 shadow-2xs font-bold'
+                    activeFilter === 'approved'
+                      ? 'bg-white text-emerald-800 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Terbaru ({notifications.filter(n => n.isNewArrival).length})
+                  Disetujui ({notifications.filter(n => !n.isPendingIaReview).length})
                 </button>
               </div>
 
@@ -445,7 +528,7 @@ export default function NotificationBell({
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Cari No, Jobsite, Project, atau uraian temuan..."
+                  placeholder="Cari bukti temuan, No, Jobsite, atau uraian..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 placeholder:text-slate-400"
@@ -458,15 +541,17 @@ export default function NotificationBell({
               {filteredNotifications.length === 0 ? (
                 <div className="py-10 px-4 text-center space-y-2">
                   <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    <FileCheck className="w-5 h-5 text-emerald-500" />
                   </div>
                   <p className="text-xs font-bold text-slate-700">
-                    {clearedTime > 0 && !showHistory ? 'Notifikasi Telah Dibersihkan' : 'Tidak ada notifikasi temuan baru'}
+                    {clearedTime > 0 && !showHistory 
+                      ? 'Notifikasi Telah Dibersihkan' 
+                      : 'Belum Ada Bukti Temuan Baru Hari Ini'}
                   </p>
-                  <p className="text-[11px] text-slate-400 max-w-[260px] mx-auto">
+                  <p className="text-[11px] text-slate-500 max-w-[280px] mx-auto leading-relaxed">
                     {clearedTime > 0 && !showHistory
-                      ? 'Daftar notifikasi temuan telah dikosongkan. Temuan baru yang masuk dari jobsite akan otomatis muncul di sini.'
-                      : 'Seluruh temuan dari jobsite sudah ditinjau atau telah diperiksa oleh tim Internal Audit.'}
+                      ? 'Daftar notifikasi bukti temuan hari ini telah dikosongkan. Bukti baru yang masuk akan otomatis muncul di sini.'
+                      : `Hanya memantau bukti temuan yang diinput setelah tanggal hari ini (${todayFormatted}). Notifikasi lama lainnya diabaikan.`}
                   </p>
                   {clearedTime > 0 && !showHistory && (
                     <button
@@ -475,7 +560,7 @@ export default function NotificationBell({
                       className="mt-2.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-sky-700 text-xs font-bold rounded-xl shadow-2xs transition-all inline-flex items-center gap-1.5 cursor-pointer hover:border-sky-300"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Tampilkan Kembali Riwayat</span>
+                      <span>Tampilkan Kembali Riwayat Hari Ini</span>
                     </button>
                   )}
                 </div>
@@ -499,7 +584,7 @@ export default function NotificationBell({
                         </span>
 
                         {/* Project Name */}
-                        <span className="text-[10px] text-slate-500 truncate max-w-[130px]">
+                        <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
                           {item.project}
                         </span>
 
@@ -520,9 +605,24 @@ export default function NotificationBell({
                     </div>
 
                     {/* Problem Description */}
-                    <p className="text-xs font-semibold text-slate-800 line-clamp-2 mt-1 leading-snug group-hover:text-sky-700 transition-colors">
+                    <p className="text-xs font-semibold text-slate-800 line-clamp-1 mt-1 leading-snug group-hover:text-sky-700 transition-colors">
                       {item.title}
                     </p>
+
+                    {/* Bukti Temuan / Closing Proof Display */}
+                    {item.buktiClosing && (
+                      <div className="mt-1.5 p-2 bg-emerald-50/70 border border-emerald-200/80 rounded-lg flex items-start gap-1.5 text-[10.5px]">
+                        <Paperclip className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[9.5px] font-bold text-emerald-800 uppercase block">
+                            Bukti Temuan / Closing Diinput Hari Ini:
+                          </span>
+                          <p className="text-emerald-950 font-mono text-[10.5px] truncate">
+                            {item.buktiClosing}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Footer Info & Quick Jump Button */}
                     <div className="mt-2 flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10.5px]">
@@ -530,7 +630,7 @@ export default function NotificationBell({
                         {item.isPendingIaReview ? (
                           <span className="inline-flex items-center gap-1 text-amber-600 font-bold text-[10px]">
                             <AlertCircle className="w-3 h-3 text-amber-500" />
-                            Belum Direview IA
+                            Menunggu Verifikasi IA
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[10px]">
@@ -539,7 +639,7 @@ export default function NotificationBell({
                           </span>
                         )}
                         <span>•</span>
-                        <span className="truncate max-w-[110px] text-slate-400">
+                        <span className="truncate max-w-[100px] text-slate-400">
                           PIC: {item.picSite || item.picHO || '-'}
                         </span>
                       </div>
@@ -552,7 +652,7 @@ export default function NotificationBell({
                         }}
                         className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-800 font-bold text-[10.5px] hover:underline cursor-pointer flex-shrink-0"
                       >
-                        <span>Verifikasi</span>
+                        <span>Verifikasi Bukti</span>
                         <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
@@ -564,7 +664,7 @@ export default function NotificationBell({
             {/* Footer Summary & Actions */}
             <div className="p-2.5 px-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
               <span className="text-[11px] font-medium text-slate-600">
-                Total: <strong>{notifications.length}</strong> temuan {clearedTime > 0 && !showHistory ? '(Dibersihkan)' : 'termonitor'}
+                Bukti Masuk Hari Ini: <strong>{notifications.length}</strong>
               </span>
 
               <div className="flex items-center gap-2">
@@ -573,7 +673,7 @@ export default function NotificationBell({
                     type="button"
                     onClick={handleRestoreNotifications}
                     className="inline-flex items-center gap-1 text-[11px] text-sky-700 hover:text-sky-900 font-bold hover:underline cursor-pointer"
-                    title="Tampilkan kembali riwayat notifikasi sebelumnya"
+                    title="Tampilkan kembali riwayat notifikasi hari ini"
                   >
                     <RotateCcw className="w-3 h-3 text-sky-600" />
                     <span>Lihat Riwayat</span>
@@ -585,10 +685,10 @@ export default function NotificationBell({
                       id="btn-clear-notifications"
                       onClick={handleClearNotifications}
                       className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer group"
-                      title="Bersihkan seluruh notifikasi temuan saat ini"
+                      title="Bersihkan seluruh notifikasi temuan hari ini"
                     >
                       <Trash2 className="w-3 h-3 text-rose-500 group-hover:scale-110 transition-transform" />
-                      <span>Bersihkan Notifikasi</span>
+                      <span>Bersihkan</span>
                     </button>
                   )
                 )}
