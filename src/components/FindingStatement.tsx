@@ -30,8 +30,9 @@ import {
 } from 'lucide-react';
 import { AFSFindingRecord } from '../types';
 import rawSheetData from '../data/sheetData.json';
-import { getMergedSheetRows, getProjectLinkConfigs, saveEntireDataset } from '../data/dataSyncManager';
+import { getMergedSheetRows, getProjectLinkConfigs, saveEntireDataset, syncWithServer } from '../data/dataSyncManager';
 import { recordEvidenceSubmission } from '../services/evidenceNotificationService';
+import { saveFindingToGAS, deleteFindingFromGAS, updateIaReviewInGAS } from '../services/gasService';
 import { parseDepartments, getRecordDepartments, matchesDepartmentRecord } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress } from '../utils/statusHelper';
 
@@ -97,13 +98,51 @@ const processMergedRows = (rows: AFSFindingRecord[]): AFSFindingRecord[] => {
 export default function FindingStatement({ onToast, onNavigateToInputAFS, initialFilter }: FindingStatementProps) {
   // Data loaded from the parsed Google Sheet with Merged Cell Auto-Fill & Sync
   const [data, setData] = useState<AFSFindingRecord[]>(() => processMergedRows(getMergedSheetRows()));
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false);
+
+  // Manual & automatic live sync pull from Google Apps Script / Google Sheets
+  const handleManualLiveSync = async (silent = false) => {
+    setIsLiveSyncing(true);
+    try {
+      const ok = await syncWithServer();
+      if (ok) {
+        setData(processMergedRows(getMergedSheetRows()));
+        if (!silent) onToast('Data temuan audit berhasil disinkronkan langsung dari Google Sheets!', 'success');
+      } else {
+        if (!silent) onToast('Data sudah versi terbaru dari server Google Sheets.', 'info');
+      }
+    } catch (e) {
+      if (!silent) onToast('Gagal menyinkronkan data live Google Sheets', 'error');
+    } finally {
+      setIsLiveSyncing(false);
+    }
+  };
 
   React.useEffect(() => {
     const handleDataSynced = () => {
       setData(processMergedRows(getMergedSheetRows()));
     };
     window.addEventListener('afs_data_synced', handleDataSynced);
-    return () => window.removeEventListener('afs_data_synced', handleDataSynced);
+
+    // Initial pull on mount to fetch inputs made by other users/accounts
+    handleManualLiveSync(true);
+
+    // Pull when user refocuses window/tab
+    const handleFocus = () => {
+      handleManualLiveSync(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Periodic background pull every 25 seconds
+    const interval = setInterval(() => {
+      handleManualLiveSync(true);
+    }, 25000);
+
+    return () => {
+      window.removeEventListener('afs_data_synced', handleDataSynced);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, []);
   
   // Filter States
@@ -490,20 +529,27 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
     if (updatedRows.length > 0) {
       saveEntireDataset(updatedRows, `Review IA Row #${rowId}`);
       const targetItem = updatedRows.find(r => r._rowId === rowId);
-      if (targetItem && targetItem["DOKUMENTASI CLOSING"]) {
-        recordEvidenceSubmission({
-          rowId: targetItem._rowId,
-          no: targetItem.NO,
-          project: targetItem["PROJECT AUDIT"],
-          site: targetItem.SITE,
-          title: targetItem["PROBLEM/FINDING"] || targetItem["DETAIL TEMUAN"] || 'Temuan',
-          kategori: targetItem.KATEGORI,
-          status: targetItem.STATUS,
-          dokumentasiClosing: targetItem["DOKUMENTASI CLOSING"],
-          reviewedIA: value,
-          picSite: targetItem["PIC SITE"],
-          picHO: targetItem["PIC HO"]
+      if (targetItem) {
+        // Direct Push to Google Apps Script (Multi-User Live Sync)
+        updateIaReviewInGAS(targetItem.NO, value, targetItem.STATUS, targetItem._rowId).catch(err => {
+          console.warn('[GAS Sync] Failed to update IA review to Google Sheets:', err);
         });
+
+        if (targetItem["DOKUMENTASI CLOSING"]) {
+          recordEvidenceSubmission({
+            rowId: targetItem._rowId,
+            no: targetItem.NO,
+            project: targetItem["PROJECT AUDIT"],
+            site: targetItem.SITE,
+            title: targetItem["PROBLEM/FINDING"] || targetItem["DETAIL TEMUAN"] || 'Temuan',
+            kategori: targetItem.KATEGORI,
+            status: targetItem.STATUS,
+            dokumentasiClosing: targetItem["DOKUMENTASI CLOSING"],
+            reviewedIA: value,
+            picSite: targetItem["PIC SITE"],
+            picHO: targetItem["PIC HO"]
+          });
+        }
       }
     }
 
@@ -629,10 +675,19 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
   const handleDelete = (rowId: number) => {
     if (confirm('Apakah Anda yakin ingin menghapus data temuan ini?')) {
+      const targetItem = data.find(item => item._rowId === rowId);
       const next = data.filter(item => item._rowId !== rowId);
       setData(next);
       saveEntireDataset(next, `Hapus Temuan Row #${rowId}`);
-      onToast('Data temuan audit berhasil dihapus & dashboard disinkronkan', 'warning');
+
+      // Push delete directly to Google Apps Script
+      if (targetItem) {
+        deleteFindingFromGAS(targetItem.NO, targetItem._rowId).catch(err => {
+          console.warn('[GAS Sync] Failed to delete finding from Google Sheets:', err);
+        });
+      }
+
+      onToast('Data temuan audit berhasil dihapus & Google Sheets disinkronkan', 'warning');
     }
   };
 
@@ -640,9 +695,10 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
     e.preventDefault();
     if (editingItem) {
       // Edit existing
+      let updatedItemToSave: AFSFindingRecord | null = null;
       const next = data.map(item => {
         if (item._rowId === editingItem._rowId) {
-          return {
+          const updated: AFSFindingRecord = {
             ...item,
             NO: formNo,
             "PROJECT AUDIT": formProject,
@@ -661,6 +717,8 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
             "REVIEWED CLOSING FROM IA": formIaReview,
             NOTE: formNote
           };
+          updatedItemToSave = updated;
+          return updated;
         }
         return item;
       });
@@ -684,7 +742,15 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
       setData(next);
       saveEntireDataset(next, `Edit Temuan ${formNo}`);
-      onToast('Data temuan audit berhasil diperbarui & dashboard disinkronkan', 'success');
+
+      // Push update directly to Google Apps Script (Single Source of Truth)
+      if (updatedItemToSave) {
+        saveFindingToGAS(updatedItemToSave).catch(err => {
+          console.warn('[GAS Sync] Failed to save updated finding to Google Sheets:', err);
+        });
+      }
+
+      onToast('Data temuan audit berhasil diperbarui & Google Sheets disinkronkan', 'success');
     } else {
       // Create new
       const maxRowId = data.length > 0 ? Math.max(...data.map(d => d._rowId)) : 1;
@@ -727,7 +793,13 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
       const next = [newItem, ...data];
       setData(next);
       saveEntireDataset(next, `Tambah Temuan Baru ${formNo}`);
-      onToast('Temuan audit baru berhasil ditambahkan & dashboard disinkronkan', 'success');
+
+      // Push new finding directly to Google Apps Script
+      saveFindingToGAS(newItem).catch(err => {
+        console.warn('[GAS Sync] Failed to save new finding to Google Sheets:', err);
+      });
+
+      onToast('Temuan audit baru berhasil disimpan ke Google Sheets!', 'success');
     }
 
     setIsModalOpen(false);
@@ -811,8 +883,18 @@ export default function FindingStatement({ onToast, onNavigateToInputAFS, initia
 
         <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
           <button
+            onClick={() => handleManualLiveSync(false)}
+            disabled={isLiveSyncing}
+            className="px-3.5 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-xl transition-all flex items-center gap-1.5 shadow-sm border border-sky-200 cursor-pointer disabled:opacity-50"
+            title="Tarik data terbaru yang diinput oleh user lain langsung dari Google Sheets"
+          >
+            <RefreshCw className={`w-4 h-4 text-sky-600 ${isLiveSyncing ? 'animate-spin' : ''}`} />
+            <span>{isLiveSyncing ? 'Menyinkronkan...' : 'Segarkan Data Live'}</span>
+          </button>
+
+          <button
             onClick={handleExportCSV}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 shadow-sm border border-slate-200"
+            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 shadow-sm border border-slate-200 cursor-pointer"
           >
             <Download className="w-4 h-4 text-slate-600" />
             Export CSV

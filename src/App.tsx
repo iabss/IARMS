@@ -161,14 +161,12 @@ export default function App() {
       });
     });
 
-    // Interval every 5 minutes (300,000 ms)
+    // Multi-User Live Sync Interval every 25 seconds
     const interval = setInterval(() => {
-      autoSyncAllProjects().then((result) => {
-        if (result.syncedCount > 0) {
-          console.log(`[AutoSync Interval] Sync completed: ${result.totalRows} rows updated.`);
-        }
+      syncWithServer().then(() => {
+        autoSyncAllProjects().catch(() => {});
       });
-    }, 5 * 60 * 1000);
+    }, 25 * 1000);
 
     // Daily 09:00 Cut-Off Scheduler
     const stopCutoffScheduler = initDailyCutoffScheduler((msg, type) => {

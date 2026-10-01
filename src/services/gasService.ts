@@ -2,7 +2,7 @@ import { AFSFindingRecord } from '../types';
 import { ProjectLinkConfig } from '../data/dataSyncManager';
 
 // Default Google Apps Script Web App Deployment URL
-export const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
+export const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbzLmowu47-PCtKiSLmXDcTuEnEjnupdCWnQQIqMnYaEIP0jD2c5VOnCFrLX9-8EXmwc2w/exec";
 const STORAGE_KEY_GAS_URL = 'iarms_configured_gas_url_v1';
 
 /**
@@ -10,6 +10,13 @@ const STORAGE_KEY_GAS_URL = 'iarms_configured_gas_url_v1';
  */
 export function getGasEndpointUrl(): string {
   try {
+    // 1. Check environment variable (configured in Netlify Site Configuration)
+    const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim().startsWith('https://script.google.com/macros/s/')) {
+      return envUrl.trim();
+    }
+
+    // 2. Check localStorage custom configuration
     const custom = localStorage.getItem(STORAGE_KEY_GAS_URL);
     if (custom && custom.trim().startsWith('https://script.google.com/macros/s/')) {
       return custom.trim();
@@ -51,30 +58,39 @@ export function resetGasEndpointUrl(): void {
   } catch (e) {}
 }
 
+// Helper to detect if running on static hosting (Netlify, etc.)
+function isStaticHosting(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host.includes('netlify.app') || host.includes('vercel.app') || host.includes('pages.dev');
+}
+
 /**
  * Unified POST to Google Apps Script Web App with proxy and direct fallback
  */
 export async function postToGAS(payload: Record<string, any>): Promise<any> {
   const gasUrl = getGasEndpointUrl();
 
-  // 1. Try local server proxy first (avoids CORS issues in browser)
-  try {
-    const proxyRes = await fetch('/api/gas-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, _targetGasUrl: gasUrl })
-    });
-    if (proxyRes.ok) {
-      const data = await proxyRes.json();
-      if (data && data.success !== false) {
-        return data;
+  // If on Netlify or static host, execute direct client fetch immediately
+  if (!isStaticHosting()) {
+    try {
+      const proxyRes = await fetch('/api/gas-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, _targetGasUrl: gasUrl })
+      });
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        if (data && data.success !== false) {
+          return data;
+        }
       }
+    } catch (err) {
+      // Continue to direct fetch
     }
-  } catch (err) {
-    // Continue to direct fetch
   }
 
-  // 2. Direct fetch fallback to Google Apps Script
+  // Direct fetch to Google Apps Script (Standard for Netlify)
   try {
     const response = await fetch(gasUrl, {
       method: 'POST',
@@ -112,28 +128,30 @@ export async function fetchLiveFindingsFromGAS(): Promise<{
 }> {
   const gasUrl = getGasEndpointUrl();
 
-  // 1. Try server proxy route first
-  try {
-    const res = await fetch(`/api/gas-audit-data?targetUrl=${encodeURIComponent(gasUrl)}`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.success && Array.isArray(json.data?.rows) && json.data.rows.length > 0) {
-        return {
-          success: true,
-          rows: json.data.rows,
-          projects: json.data.projects || [],
-          count: json.data.rows.length,
-          timestamp: json.data.timestamp || new Date().toISOString(),
-          source: 'server_proxy'
-        };
+  // 1. Try server proxy route first (only if not on Netlify)
+  if (!isStaticHosting()) {
+    try {
+      const res = await fetch(`/api/gas-audit-data?targetUrl=${encodeURIComponent(gasUrl)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && Array.isArray(json.data?.rows) && json.data.rows.length > 0) {
+          return {
+            success: true,
+            rows: json.data.rows,
+            projects: json.data.projects || [],
+            count: json.data.rows.length,
+            timestamp: json.data.timestamp || new Date().toISOString(),
+            source: 'server_proxy'
+          };
+        }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 
   // 2. Direct GET from GAS
   try {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 9000) : null;
 
     const res = await fetch(gasUrl, {
       signal: controller?.signal

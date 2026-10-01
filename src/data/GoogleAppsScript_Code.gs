@@ -1,29 +1,37 @@
 /**
  * ==============================================================================
- * IARMS - GOOGLE APPS SCRIPT (GAS) BACKEND DATABASE ENGINE
+ * IARMS - GOOGLE APPS SCRIPT (GAS) BACKEND ENGINE UNTUK FRONTEND NETLIFY
  * ==============================================================================
- * Script ini bertindak sebagai Database Pusat (Single Source of Truth) untuk IARMS.
- * Semua input, update, hapus data, dan verifikasi AFS tersimpan permanen di baris Google Sheets.
+ * Script ini berfungsi sebagai backend API resmi & database bridge antara
+ * Frontend Netlify dengan Google Sheets (Single Source of Truth).
  * 
- * CARA DEPLOY / PASANG:
- * 1. Buka Google Sheets database Anda (atau buat Google Sheets baru).
- * 2. Klik menu "Ekstensi" (Extensions) > "Apps Script".
- * 3. Hapus semua kode default, lalu salin dan tempel (paste) seluruh isi file ini.
- * 4. Klik tombol "Deploy" (Terapkan) di pojok kanan atas > "Deployment baru" (New deployment).
- * 5. Pilih jenis deployment: "Aplikasi Web" (Web app).
- * 6. Pengaturan:
- *    - Deskripsi: IARMS Live Database Engine
- *    - Jalankan sebagai (Execute as): "Saya" (Me - akun Google Anda)
- *    - Siapa yang memiliki akses (Who has access): "Siapa saja" (Anyone) -> PENTING!
- * 7. Klik "Deploy" / "Terapkan", berikan izin akses (Authorize access).
- * 8. Salin URL Aplikasi Web (Web App URL) yang dihasilkan, lalu tempelkan ke pengaturan IARMS.
+ * FITUR UTAMA:
+ * 1. Menerima payload JSON dari frontend Netlify tanpa kendala CORS.
+ * 2. Menyimpan data temuan (AFS), review IA, bukti closing, dan data proyek.
+ * 3. Dilengkapi LockService untuk mencegah konflik saat banyak user submit bersamaan.
+ * 4. Otomatis membuat Sheet & Header jika spreadsheet masih kosong.
+ * 
+ * PANDUAN DEPLOYMENT (PENTING DIIKUTI DENGAN BENAR):
+ * 1. Buka Google Spreadsheet yang akan dijadikan database.
+ * 2. Klik menu: Ekstensi (Extensions) > Apps Script.
+ * 3. Hapus seluruh isi editor, lalu tempel (paste) seluruh kode ini.
+ * 4. Klik ikon "Simpan" (Save / Ctrl+S).
+ * 5. Klik tombol biru "Deploy" (Terapkan) di kanan atas > "Deployment baru" (New deployment).
+ * 6. Klik ikon gerigi (Select type) > Pilih "Aplikasi Web" (Web app).
+ * 7. Konfigurasi Wajib:
+ *    - Deskripsi: IARMS Netlify Backend Live
+ *    - Jalankan sebagai (Execute as): "Saya" (Me / akun Google Anda)
+ *    - Siapa yang memiliki akses (Who has access): "Siapa saja" (Anyone)  <-- MUTLAK HARUS ANYONE!
+ * 8. Klik "Deploy", lalu klik "Review Permissions" > Pilih akun Google Anda >
+ *    Klik "Advanced" > Klik "Go to ... (unsafe)" > Klik "Allow".
+ * 9. Salin "Web App URL" (URL berakhiran /exec) dan pasang di konfigurasi Netlify Anda.
  * ==============================================================================
  */
 
-// Nama Sheet Database Utama
+// Konfigurasi Nama Sheet
 var SHEET_FINDINGS = "Finding Statement";
 var SHEET_PROJECTS = "AFS_Projects";
-var SHEET_CONFIG = "IARMS_Config";
+var SHEET_LOGS = "Audit_Logs";
 
 // Header Standar Finding Statement (AFS)
 var HEADERS_FINDINGS = [
@@ -47,10 +55,11 @@ var HEADERS_FINDINGS = [
   "REVIEWED CLOSING FROM USER",
   "REVIEWED CLOSING FROM IA",
   "NOTE",
-  "KOLOM BANTU"
+  "KOLOM BANTU",
+  "UPDATED_AT"
 ];
 
-// Helper: Setup atau pastikan Sheet dan Header tersedia
+// Helper: Memastikan Sheet dan Header tersedia secara otomatis
 function getOrCreateSheet(sheetName, defaultHeaders) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
@@ -58,22 +67,48 @@ function getOrCreateSheet(sheetName, defaultHeaders) {
     sheet = ss.insertSheet(sheetName);
     if (defaultHeaders && defaultHeaders.length > 0) {
       sheet.appendRow(defaultHeaders);
-      sheet.getRange(1, 1, 1, defaultHeaders.length).setFontWeight("bold").setBackground("#1e293b").setFontColor("#ffffff");
+      sheet.getRange(1, 1, 1, defaultHeaders.length)
+           .setFontWeight("bold")
+           .setBackground("#0f172a")
+           .setFontColor("#f8fafc");
       sheet.setFrozenRows(1);
     }
   }
   return sheet;
 }
 
+// Helper: Membaca data baris secara aman tanpa melebihi batas memori range Google Apps Script
+function getSheetSafeData(sheet, maxCols) {
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return [];
+  var cols = maxCols ? Math.min(lastCol, maxCols) : Math.min(lastCol, HEADERS_FINDINGS.length);
+  return sheet.getRange(1, 1, lastRow, cols).getValues();
+}
+
 // ==============================================================================
-// 1. GET HANDLER: Mengambil data terbaru secara otomatis dari Google Sheets
+// 1. GET HANDLER: Mengambil data dari Google Sheets ke Netlify
 // ==============================================================================
 function doGet(e) {
   try {
+    var params = (e && e.parameter) ? e.parameter : {};
+    var action = params.action || "get_all";
+
+    // Ping check
+    if (action === "ping") {
+      return jsonResponse({
+        success: true,
+        message: "IARMS GAS Backend is online & ready!",
+        timestamp: new Date().toISOString()
+      });
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName(SHEET_FINDINGS) || ss.getSheets()[0];
     
-    var data = sheet.getDataRange().getValues();
+    // Gunakan getSheetSafeData untuk mencegah: "Requested data exceeds the maximum allowed size"
+    var data = getSheetSafeData(sheet, HEADERS_FINDINGS.length);
+
     if (data.length <= 1) {
       return jsonResponse({
         success: true,
@@ -87,6 +122,11 @@ function doGet(e) {
     var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
     var rows = [];
 
+    // Filter opsional via query params (misal: ?site=CDI atau ?status=OPEN)
+    var filterSite = params.site ? params.site.trim().toUpperCase() : null;
+    var filterStatus = params.status ? params.status.trim().toUpperCase() : null;
+    var filterProject = params.project ? params.project.trim().toUpperCase() : null;
+
     for (var r = 1; r < data.length; r++) {
       var rowValues = data[r];
       var rowObj = { _rowId: r };
@@ -99,13 +139,21 @@ function doGet(e) {
         rowObj[headerKey] = cellVal;
       }
 
-      // Standarisasi key jika belum lengkap
       if (hasContent) {
-        if (!rowObj["NO"]) rowObj["NO"] = String(rows.length + 1);
+        // Fallback nilai standar jika kolom kosong
+        if (!rowObj["NO"]) rowObj["NO"] = String(r);
         if (!rowObj["PROJECT AUDIT"]) rowObj["PROJECT AUDIT"] = "AUDIT";
         if (!rowObj["SITE"]) rowObj["SITE"] = "HEAD OFFICE";
         if (!rowObj["STATUS"]) rowObj["STATUS"] = "OPEN";
-        rows.push(rowObj);
+
+        // Cek filter jika ada
+        var matchSite = !filterSite || rowObj["SITE"].toUpperCase() === filterSite;
+        var matchStatus = !filterStatus || rowObj["STATUS"].toUpperCase() === filterStatus;
+        var matchProject = !filterProject || rowObj["PROJECT AUDIT"].toUpperCase() === filterProject;
+
+        if (matchSite && matchStatus && matchProject) {
+          rows.push(rowObj);
+        }
       }
     }
 
@@ -128,73 +176,109 @@ function doGet(e) {
 }
 
 // ==============================================================================
-// 2. POST HANDLER: Menerima aksi input, update, hapus, dan sinkronisasi
+// 2. POST HANDLER: Menerima JSON dari Frontend Netlify & Simpan ke Sheets
 // ==============================================================================
 function doPost(e) {
+  // Gunakan LockService agar aman saat multiple user submit bersamaan dari Netlify
   var lock = LockService.getScriptLock();
-  lock.tryLock(15000); // Cegah race condition saat input bersamaan
+  var hasLock = lock.tryLock(20000); // Tunggu hingga 20 detik jika ada proses lain
+
+  if (!hasLock) {
+    return jsonResponse({
+      success: false,
+      error: "Server Google Sheets sedang sibuk melayani permintaan lain. Silakan coba 2 detik lagi."
+    });
+  }
 
   try {
-    var raw = e && e.postData && e.postData.contents ? e.postData.contents : "{}";
-    var payload = JSON.parse(raw);
-    var action = payload.action || "save_finding";
+    var payload = {};
 
+    // 1. Parsing data JSON yang dikirim oleh Frontend Netlify
+    if (e && e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        // Jika format url-encoded atau teks biasa
+        payload = parseUrlEncoded(e.postData.contents);
+      }
+    } else if (e && e.parameter) {
+      payload = e.parameter;
+    }
+
+    var action = payload.action || "save_finding";
     var result = { success: true, action: action, timestamp: new Date().toISOString() };
 
+    // Router Aksi
     if (action === "get_all" || action === "read") {
-      return doGet(e);
-    } 
-    else if (action === "save_finding" || action === "add_finding" || action === "update_finding") {
+      result = doGet(e);
+      return result;
+    }
+    else if (action === "save_finding" || action === "add_finding" || action === "submit_finding" || action === "update_finding") {
       result = handleSaveFinding(payload);
-    } 
+    }
     else if (action === "delete_finding") {
       result = handleDeleteFinding(payload);
-    } 
+    }
     else if (action === "update_ia_review") {
       result = handleUpdateIaReview(payload);
-    } 
+    }
     else if (action === "update_closing_doc") {
       result = handleUpdateClosingDoc(payload);
-    } 
+    }
+    else if (action === "batch_save" || action === "sync_batch") {
+      result = handleBatchSave(payload);
+    }
     else if (action === "save_project") {
       result = handleSaveProject(payload);
-    } 
+    }
     else if (action === "delete_project") {
       result = handleDeleteProject(payload);
-    } 
+    }
     else if (action === "sync_projects_list") {
       result = handleSyncProjectsList(payload);
-    } 
-    else if (action === "sync_batch" || action === "batch_save") {
-      result = handleBatchSave(payload);
-    } 
+    }
+    else if (action === "ping") {
+      result = { success: true, message: "PONG! GAS Backend aktif menerima data dari Netlify." };
+    }
     else {
       result = { success: false, message: "Aksi tidak dikenali: " + action };
+    }
+
+    // Catat log aktivitas jika aksi berhasil
+    if (result.success) {
+      logActivity(action, payload);
     }
 
     return jsonResponse(result);
 
   } catch (err) {
-    return jsonResponse({ success: false, error: err.toString() });
+    return jsonResponse({
+      success: false,
+      error: err.toString(),
+      stack: err.stack ? err.stack.toString() : ""
+    });
   } finally {
     lock.releaseLock();
   }
 }
 
-// ------------------------------------------------------------------------------
-// Handlers Implementations
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 3. FUNGSI HANDLER DATA SHEET
+// ==============================================================================
 
+/**
+ * Menyimpan temuan baru atau memperbarui baris temuan yang sudah ada
+ */
 function handleSaveFinding(payload) {
   var sheet = getOrCreateSheet(SHEET_FINDINGS, HEADERS_FINDINGS);
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
-  
+  var data = getSheetSafeData(sheet, HEADERS_FINDINGS.length);
+  var headers = data.length > 0 ? data[0].map(function(h) { return String(h).trim().toUpperCase(); }) : HEADERS_FINDINGS;
+
   var targetNo = String(payload.NO || payload.no || "").trim();
   var targetRowId = payload._rowId ? Number(payload._rowId) : null;
   var foundRowIndex = -1;
 
-  // Cari baris jika update
+  // 1. Cari baris yang cocok berdasarkan Row ID atau Nomor Temuan
   if (targetRowId && targetRowId < data.length && targetRowId > 0) {
     foundRowIndex = targetRowId;
   } else if (targetNo) {
@@ -209,30 +293,63 @@ function handleSaveFinding(payload) {
     }
   }
 
-  // Buat array nilai baris sesuai urutan header
+  // Waktu pembaruan
+  var nowStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+7", "yyyy-MM-dd HH:mm:ss");
+
+  // 2. Susun baris nilai sesuai susunan header sheet
   var rowValues = [];
   for (var c = 0; c < headers.length; c++) {
     var key = headers[c];
-    var val = payload[key] !== undefined ? payload[key] : (payload[key.toLowerCase()] !== undefined ? payload[key.toLowerCase()] : "");
+    var val = "";
+
+    if (key === "UPDATED_AT") {
+      val = nowStr;
+    } else if (payload[key] !== undefined && payload[key] !== null) {
+      val = payload[key];
+    } else {
+      // Coba cari alternatif huruf kecil atau underscore
+      var cleanKey = key.toLowerCase().replace(/[\/\s-]/g, "_");
+      for (var prop in payload) {
+        if (prop.toLowerCase().replace(/[\/\s-]/g, "_") === cleanKey) {
+          val = payload[prop];
+          break;
+        }
+      }
+    }
     rowValues.push(val);
   }
 
   if (foundRowIndex > 0) {
-    // Update baris yang sudah ada
+    // UPDATE BARIS YANG SUDAH ADA
     sheet.getRange(foundRowIndex + 1, 1, 1, rowValues.length).setValues([rowValues]);
-    return { success: true, message: "Data temuan No. " + targetNo + " berhasil diperbarui di Google Sheets", rowId: foundRowIndex, NO: targetNo };
+    return {
+      success: true,
+      mode: "update",
+      message: "Data temuan No. " + targetNo + " berhasil diperbarui di baris #" + (foundRowIndex + 1),
+      rowId: foundRowIndex,
+      NO: targetNo
+    };
   } else {
-    // Tambah baris baru di bawah
+    // APPEND BARIS BARU DI BAWAH
     sheet.appendRow(rowValues);
-    var newRowId = sheet.getLastRow() - 1;
-    return { success: true, message: "Temuan baru No. " + targetNo + " berhasil disimpan ke Google Sheets", rowId: newRowId, NO: targetNo };
+    var newRowIndex = sheet.getLastRow() - 1;
+    return {
+      success: true,
+      mode: "create",
+      message: "Temuan baru No. " + targetNo + " berhasil disimpan ke Google Sheets",
+      rowId: newRowIndex,
+      NO: targetNo
+    };
   }
 }
 
+/**
+ * Menghapus baris temuan berdasarkan NO atau Row ID
+ */
 function handleDeleteFinding(payload) {
   var sheet = getOrCreateSheet(SHEET_FINDINGS, HEADERS_FINDINGS);
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+  var data = getSheetSafeData(sheet, HEADERS_FINDINGS.length);
+  var headers = data.length > 0 ? data[0].map(function(h) { return String(h).trim().toUpperCase(); }) : HEADERS_FINDINGS;
 
   var targetNo = String(payload.NO || payload.no || "").trim();
   var targetRowId = payload._rowId ? Number(payload._rowId) : null;
@@ -255,10 +372,13 @@ function handleDeleteFinding(payload) {
   return { success: false, message: "Temuan tidak ditemukan di Google Sheets untuk dihapus" };
 }
 
+/**
+ * Memperbarui hasil Review Closing dari Internal Audit (Approve / Reject)
+ */
 function handleUpdateIaReview(payload) {
   var sheet = getOrCreateSheet(SHEET_FINDINGS, HEADERS_FINDINGS);
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+  var data = getSheetSafeData(sheet, HEADERS_FINDINGS.length);
+  var headers = data.length > 0 ? data[0].map(function(h) { return String(h).trim().toUpperCase(); }) : HEADERS_FINDINGS;
 
   var targetNo = String(payload.NO || payload.no || "").trim();
   var targetRowId = payload._rowId ? Number(payload._rowId) : null;
@@ -267,80 +387,112 @@ function handleUpdateIaReview(payload) {
 
   var iaColIdx = headers.indexOf("REVIEWED CLOSING FROM IA");
   var statusColIdx = headers.indexOf("STATUS");
+  var updateColIdx = headers.indexOf("UPDATED_AT");
 
-  var rowIndexToUpdate = -1;
+  var rowIndex = -1;
   if (targetRowId && targetRowId < data.length && targetRowId > 0) {
-    rowIndexToUpdate = targetRowId;
+    rowIndex = targetRowId;
   } else if (targetNo) {
     var noColIdx = headers.indexOf("NO");
     for (var r = 1; r < data.length; r++) {
       if (String(data[r][noColIdx]).trim() === targetNo) {
-        rowIndexToUpdate = r;
+        rowIndex = r;
         break;
       }
     }
   }
 
-  if (rowIndexToUpdate > 0) {
-    if (iaColIdx !== -1) sheet.getRange(rowIndexToUpdate + 1, iaColIdx + 1).setValue(reviewVal);
-    if (statusColIdx !== -1) sheet.getRange(rowIndexToUpdate + 1, statusColIdx + 1).setValue(statusVal);
-    return { success: true, message: "Review IA berhasil disimpan ke Google Sheets", NO: targetNo, review: reviewVal, status: statusVal };
+  if (rowIndex > 0) {
+    if (iaColIdx !== -1) sheet.getRange(rowIndex + 1, iaColIdx + 1).setValue(reviewVal);
+    if (statusColIdx !== -1) sheet.getRange(rowIndex + 1, statusColIdx + 1).setValue(statusVal);
+    if (updateColIdx !== -1) {
+      sheet.getRange(rowIndex + 1, updateColIdx + 1).setValue(new Date().toISOString());
+    }
+    return {
+      success: true,
+      message: "Review IA berhasil disimpan (" + reviewVal + " -> Status: " + statusVal + ")",
+      NO: targetNo,
+      review: reviewVal,
+      status: statusVal
+    };
   }
 
   return { success: false, message: "Baris tidak ditemukan untuk update Review IA" };
 }
 
+/**
+ * Memperbarui tautan/file Dokumentasi Closing (Bukti Closing)
+ */
 function handleUpdateClosingDoc(payload) {
   var sheet = getOrCreateSheet(SHEET_FINDINGS, HEADERS_FINDINGS);
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+  var data = getSheetSafeData(sheet, HEADERS_FINDINGS.length);
+  var headers = data.length > 0 ? data[0].map(function(h) { return String(h).trim().toUpperCase(); }) : HEADERS_FINDINGS;
 
   var targetNo = String(payload.NO || payload.no || "").trim();
   var targetRowId = payload._rowId ? Number(payload._rowId) : null;
   var docVal = payload.doc || payload["DOKUMENTASI CLOSING"] || "";
 
   var docColIdx = headers.indexOf("DOKUMENTASI CLOSING");
-  var rowIndexToUpdate = -1;
+  var updateColIdx = headers.indexOf("UPDATED_AT");
+  var rowIndex = -1;
 
   if (targetRowId && targetRowId < data.length && targetRowId > 0) {
-    rowIndexToUpdate = targetRowId;
+    rowIndex = targetRowId;
   } else if (targetNo) {
     var noColIdx = headers.indexOf("NO");
     for (var r = 1; r < data.length; r++) {
       if (String(data[r][noColIdx]).trim() === targetNo) {
-        rowIndexToUpdate = r;
+        rowIndex = r;
         break;
       }
     }
   }
 
-  if (rowIndexToUpdate > 0 && docColIdx !== -1) {
-    sheet.getRange(rowIndexToUpdate + 1, docColIdx + 1).setValue(docVal);
-    return { success: true, message: "Dokumentasi closing berhasil disimpan ke Google Sheets", NO: targetNo };
+  if (rowIndex > 0 && docColIdx !== -1) {
+    sheet.getRange(rowIndex + 1, docColIdx + 1).setValue(docVal);
+    if (updateColIdx !== -1) {
+      sheet.getRange(rowIndex + 1, updateColIdx + 1).setValue(new Date().toISOString());
+    }
+    return {
+      success: true,
+      message: "Dokumentasi closing berhasil disimpan ke Google Sheets",
+      NO: targetNo
+    };
   }
 
   return { success: false, message: "Baris tidak ditemukan untuk update dokumentasi closing" };
 }
 
+/**
+ * Menyimpan seluruh dataset (Batch Synchronize)
+ */
 function handleBatchSave(payload) {
   var rows = payload.rows;
   if (!Array.isArray(rows) || rows.length === 0) {
-    return { success: false, message: "Daftar rows kosong" };
+    return { success: false, message: "Array rows kosong atau tidak valid" };
   }
 
   var sheet = getOrCreateSheet(SHEET_FINDINGS, HEADERS_FINDINGS);
-  // Simpan batch
   sheet.clearContents();
   sheet.appendRow(HEADERS_FINDINGS);
-  sheet.getRange(1, 1, 1, HEADERS_FINDINGS.length).setFontWeight("bold").setBackground("#1e293b").setFontColor("#ffffff");
+  sheet.getRange(1, 1, 1, HEADERS_FINDINGS.length)
+       .setFontWeight("bold")
+       .setBackground("#0f172a")
+       .setFontColor("#f8fafc");
 
   var matrix = [];
+  var nowStr = new Date().toISOString();
+
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     var rowValues = [];
     for (var c = 0; c < HEADERS_FINDINGS.length; c++) {
       var key = HEADERS_FINDINGS[c];
-      rowValues.push(r[key] !== undefined ? r[key] : "");
+      if (key === "UPDATED_AT") {
+        rowValues.push(nowStr);
+      } else {
+        rowValues.push(r[key] !== undefined ? r[key] : "");
+      }
     }
     matrix.push(rowValues);
   }
@@ -349,12 +501,17 @@ function handleBatchSave(payload) {
     sheet.getRange(2, 1, matrix.length, HEADERS_FINDINGS.length).setValues(matrix);
   }
 
-  return { success: true, count: matrix.length, message: "Batch save berhasil menyimpan " + matrix.length + " baris ke Google Sheets" };
+  return {
+    success: true,
+    count: matrix.length,
+    message: "Batch sync berhasil menyimpan " + matrix.length + " baris data ke Google Sheets"
+  };
 }
 
-// ------------------------------------------------------------------------------
-// Projects List Management in Google Sheets
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 4. MANAJEMEN DAFTAR PROYEK (AFS PROJECTS)
+// ==============================================================================
+
 function getProjectsList() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -368,12 +525,12 @@ function getProjectsList() {
       var r = data[i];
       if (r[0]) {
         list.push({
-          id: r[0],
-          projectName: r[1] || r[0],
-          siteName: r[2] || "HEAD OFFICE",
-          year: r[3] || "2026",
-          sheetUrl: r[4] || "",
-          status: r[5] || "synced",
+          id: String(r[0]),
+          projectName: String(r[1] || r[0]),
+          siteName: String(r[2] || "HEAD OFFICE"),
+          year: String(r[3] || "2026"),
+          sheetUrl: String(r[4] || ""),
+          status: String(r[5] || "synced"),
           rowCount: Number(r[6]) || 0
         });
       }
@@ -387,7 +544,7 @@ function getProjectsList() {
 function handleSaveProject(payload) {
   var sheet = getOrCreateSheet(SHEET_PROJECTS, ["ID", "PROJECT NAME", "SITE", "YEAR", "SHEET URL", "STATUS", "ROW COUNT"]);
   var data = sheet.getDataRange().getValues();
-  var pId = payload.id || (payload.projectName + "|" + (payload.siteName || "HO"));
+  var pId = String(payload.id || (payload.projectName + "|" + (payload.siteName || "HO")));
 
   var found = -1;
   for (var i = 1; i < data.length; i++) {
@@ -419,7 +576,7 @@ function handleSaveProject(payload) {
 function handleDeleteProject(payload) {
   var sheet = getOrCreateSheet(SHEET_PROJECTS, ["ID", "PROJECT NAME", "SITE", "YEAR", "SHEET URL", "STATUS", "ROW COUNT"]);
   var data = sheet.getDataRange().getValues();
-  var pId = payload.id || (payload.projectName + "|" + (payload.siteName || "HO"));
+  var pId = String(payload.id || (payload.projectName + "|" + (payload.siteName || "HO")));
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === pId) {
@@ -459,9 +616,41 @@ function handleSyncProjectsList(payload) {
   return { success: true, count: matrix.length, message: "Daftar project berhasil disinkronkan ke Google Sheets" };
 }
 
-// ------------------------------------------------------------------------------
-// JSON Response Helper dengan Header CORS Lengkap
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 5. HELPER UTILITY & LOGGING
+// ==============================================================================
+
+function logActivity(action, payload) {
+  try {
+    var sheet = getOrCreateSheet(SHEET_LOGS, ["TIMESTAMP", "ACTION", "TARGET_NO", "USER_EMAIL", "DETAILS"]);
+    sheet.appendRow([
+      new Date().toISOString(),
+      action,
+      payload.NO || payload.no || "-",
+      Session.getActiveUser().getEmail() || "Netlify User",
+      JSON.stringify(payload).substring(0, 500)
+    ]);
+  } catch (e) {
+    // Non-blocking
+  }
+}
+
+function parseUrlEncoded(str) {
+  var obj = {};
+  if (!str) return obj;
+  var pairs = str.split("&");
+  for (var i = 0; i < pairs.length; i++) {
+    var kv = pairs[i].split("=");
+    var k = decodeURIComponent(kv[0] || "");
+    var v = decodeURIComponent(kv[1] || "");
+    if (k) obj[k] = v;
+  }
+  return obj;
+}
+
+/**
+ * JSON Response Helper dengan format MIME yang tepat untuk browser & Netlify
+ */
 function jsonResponse(data) {
   var output = ContentService.createTextOutput(JSON.stringify(data));
   output.setMimeType(ContentService.MimeType.JSON);

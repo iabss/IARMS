@@ -3,6 +3,7 @@ import rawSheetData from './sheetData.json';
 import { extractFindingYear } from '../utils/statusHelper';
 import { syncAuditData, fetchCsvFromGoogleSheet } from '../services/api';
 import { parseAuditCsvClient } from '../utils/csvParser';
+import { syncBatchToGAS, syncProjectsListToGAS, fetchLiveFindingsFromGAS } from '../services/gasService';
 
 const STORAGE_KEY_ROWS = 'afs_synced_custom_rows_v2';
 const STORAGE_KEY_META = 'afs_synced_metadata_v2';
@@ -363,7 +364,12 @@ export function getMergedSheetRows(): AFSFindingRecord[] {
     if (deletedKeys.has(projName)) return false;
     if (deletedKeys.has(compositeKey)) return false;
 
-    // Filter out unlinked demo projects if user has configured custom project links
+    // If rows are custom synced / live from Google Sheets, keep all findings visible
+    if (custom !== null) {
+      return true;
+    }
+
+    // Only filter out unlinked demo projects if using raw initial fallback sheet
     if (allowedProjectNames && allowedProjectNames.size > 0) {
       if (!allowedProjectNames.has(projName)) return false;
     }
@@ -536,7 +542,7 @@ export function saveEntireDataset(rows: AFSFindingRecord[], actionDescription = 
 // In-memory cache for project link configs to guarantee zero data loss during session or quota limits
 let inMemoryProjectConfigs: ProjectLinkConfig[] | null = null;
 
-// Push client-side state to server backend so all shared/published instances receive updates
+// Push client-side state to server backend and Google Apps Script so all users and devices receive updates
 export async function pushStateToServer() {
   try {
     const projectConfigs = getProjectLinkConfigs();
@@ -545,34 +551,32 @@ export async function pushStateToServer() {
     const trendExclusions = Array.from(getTrendExcludedProjects());
     const snapshots = getAchievementSnapshots();
 
-    // 1. Post to /api/app-state
-    await fetch('/api/app-state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectConfigs,
-        customRows,
-        deletedKeys,
-        trendExclusions,
-        snapshots
-      })
-    });
+    // 1. Post to local server proxy if available (/api/app-state)
+    try {
+      fetch('/api/app-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectConfigs,
+          customRows,
+          deletedKeys,
+          trendExclusions,
+          snapshots
+        })
+      }).catch(() => {});
+    } catch (e) {}
 
-    // 2. Post directly to /api/afs-projects (Server Master & Cloudflare KV)
-    await fetch('/api/afs-projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        afs_projects: projectConfigs,
-        projects: projectConfigs
-      })
-    });
-
-    // 3. Background sync to Google Apps Script
-    syncAuditData({
-      action: "sync_projects_list",
-      projects: projectConfigs
-    }).catch(() => {});
+    // 2. Direct Sync to Google Apps Script (Mandatory for Netlify & Multi-User Live Sync!)
+    try {
+      if (customRows.length > 0) {
+        syncBatchToGAS(customRows).catch((err) => {
+          console.warn('[Sync] Warning syncing batch rows to GAS:', err);
+        });
+      }
+      if (projectConfigs.length > 0) {
+        syncProjectsListToGAS(projectConfigs).catch(() => {});
+      }
+    } catch (e) {}
   } catch (err) {
     // Non-blocking background push
   }
@@ -676,19 +680,37 @@ export function hydrateServerState(serverState: {
   }
 }
 
-// Hydrate state from server backend on initial mount (Server-First Priority)
+// Hydrate state from server backend and Google Apps Script on mount & periodic sync
 export async function syncWithServer(): Promise<boolean> {
+  // 1. Try local server proxy (/api/app-state) if available
   try {
     const res = await fetch('/api/app-state');
-    if (!res.ok) return false;
-    const json = await res.json();
-    if (!json.success || !json.state) return false;
-
-    hydrateServerState(json.state);
-    return true;
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.state) {
+        hydrateServerState(json.state);
+        return true;
+      }
+    }
   } catch (e) {
-    return false;
+    // Continue to Google Apps Script fallback
   }
+
+  // 2. Direct pull from Google Apps Script (Mandatory for Netlify & Multi-User Live Sync!)
+  try {
+    const gasData = await fetchLiveFindingsFromGAS();
+    if (gasData && gasData.success && Array.isArray(gasData.rows) && gasData.rows.length > 0) {
+      hydrateServerState({
+        customRows: gasData.rows,
+        projectConfigs: gasData.projects || []
+      });
+      return true;
+    }
+  } catch (err) {
+    console.warn('[Sync] Warning fetching live findings from Google Apps Script:', err);
+  }
+
+  return false;
 }
 
 // Helper to safely write critical configs to localStorage with quota protection

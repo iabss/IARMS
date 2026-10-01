@@ -800,7 +800,7 @@ app.post('/api/sync-all-server', async (req, res) => {
 });
 
 // Google Apps Script Proxy Endpoints (Avoid CORS & handle fallback gracefully)
-const DEFAULT_GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
+const DEFAULT_GAS_BACKEND_URL = "https://script.google.com/macros/s/AKfycbzLmowu47-PCtKiSLmXDcTuEnEjnupdCWnQQIqMnYaEIP0jD2c5VOnCFrLX9-8EXmwc2w/exec";
 
 app.get('/api/gas-audit-data', async (req, res) => {
   try {

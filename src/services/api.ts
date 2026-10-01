@@ -1,6 +1,7 @@
 import { DEFAULT_DEV_AFS_PROJECTS } from '../data/defaultAfsProjects';
+import { getGasEndpointUrl } from './gasService';
 
-export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEhSdIzLsxKzT5tJZcGQxQ6fBfClESfOhDUE2aji54I1Y44qJVpE0q1o6763zSHhNuAw/exec";
+export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLmowu47-PCtKiSLmXDcTuEnEjnupdCWnQQIqMnYaEIP0jD2c5VOnCFrLX9-8EXmwc2w/exec";
 
 export async function fetchAuditData(): Promise<any> {
   // 1. Try local server proxy endpoint first (avoids CORS & browser network fetch exceptions)
@@ -21,7 +22,8 @@ export async function fetchAuditData(): Promise<any> {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
 
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
+    const targetUrl = getGasEndpointUrl();
+    const response = await fetch(targetUrl, {
       signal: controller?.signal
     });
 
