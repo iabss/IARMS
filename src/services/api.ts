@@ -1,5 +1,5 @@
 import { DEFAULT_DEV_AFS_PROJECTS } from '../data/defaultAfsProjects';
-import { getGasEndpointUrl } from './gasService';
+import { getGasEndpointUrl, isStaticHosting } from './gasService';
 
 export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLmowu47-PCtKiSLmXDcTuEnEjnupdCWnQQIqMnYaEIP0jD2c5VOnCFrLX9-8EXmwc2w/exec";
 
@@ -117,47 +117,42 @@ export async function deleteProjectFromBackend(item: {
   let serverWarning = "";
 
   // 1. Centralized server delete (Node Express / Cloudflare Workers / KV)
-  try {
-    const res = await fetch('/api/delete-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+  if (!isStaticHosting()) {
+    try {
+      const res = await fetch('/api/delete-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    if (!res.ok) {
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const errJson = await res.json();
-        if (errJson?.error) errMsg = errJson.error;
-      } catch {}
-      
-      const lower = errMsg.toLowerCase();
-      if (lower.includes('limit') || lower.includes('quota') || lower.includes('exceeded')) {
-        kvLimitExceeded = true;
-        serverWarning = errMsg;
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Static hosting (Netlify) - no Node server running, continue gracefully
+          console.info('Endpoint /api/delete-project 404, proceeding client-side & GAS.');
+        } else {
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const errJson = await res.json();
+            if (errJson?.error) errMsg = errJson.error;
+          } catch {}
+          
+          const lower = errMsg.toLowerCase();
+          if (lower.includes('limit') || lower.includes('quota') || lower.includes('exceeded')) {
+            kvLimitExceeded = true;
+            serverWarning = errMsg;
+          }
+        }
       } else {
-        throw new Error(errMsg);
-      }
-    } else {
-      const data = await res.json().catch(() => null);
-      if (data) {
-        if (data.kvLimitExceeded || (data.warning && data.warning.toLowerCase().includes('limit'))) {
-          kvLimitExceeded = true;
-          serverWarning = data.warning || data.message;
-        }
-        if (data.success === false && !kvLimitExceeded) {
-          throw new Error(data.error || 'Server menolak penghapusan project');
+        const data = await res.json().catch(() => null);
+        if (data) {
+          if (data.kvLimitExceeded || (data.warning && data.warning.toLowerCase().includes('limit'))) {
+            kvLimitExceeded = true;
+            serverWarning = data.warning || data.message;
+          }
         }
       }
-    }
-  } catch (err: any) {
-    const msg = (err?.message || String(err)).toLowerCase();
-    if (msg.includes('limit') || msg.includes('quota') || msg.includes('exceeded')) {
-      kvLimitExceeded = true;
-      serverWarning = err?.message || 'KV put() limit exceeded for the day';
-    } else {
-      console.error("Gagal hapus project dari server backend /api/delete-project:", err);
-      throw new Error(err?.message || "Gagal menghapus project dari server");
+    } catch (err: any) {
+      console.warn("Gagal panggil server /api/delete-project (fallback ke client & GAS):", err?.message || err);
     }
   }
 
@@ -926,6 +921,22 @@ export async function fetchAfsProjectsFromServer(): Promise<any[]> {
  * for all users across devices.
  */
 export async function fetchAndSeedAfsProjects(): Promise<{ projects: any[]; wasSeeded: boolean }> {
+  // Check local saved projects first to protect user-input projects from being wiped
+  const localSaved = (() => {
+    try {
+      const raw = localStorage.getItem('iarms_project_links_v1') || localStorage.getItem('afs_projects') || localStorage.getItem('afsProjects');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return null;
+  })();
+
+  if (isStaticHosting() && localSaved && localSaved.length > 0) {
+    return { projects: localSaved, wasSeeded: false };
+  }
+
   // 1. Direct Server / Cloudflare KV call (GET /api/afs-projects)
   try {
     const res = await fetch('/api/afs-projects');
@@ -944,24 +955,32 @@ export async function fetchAndSeedAfsProjects(): Promise<{ projects: any[]; wasS
   try {
     const backendResult = await fetchProjectsFromBackend();
     if (backendResult?.projects && backendResult.projects.length > 0) {
-      // Simpan project yang ditemukan ke Cloudflare KV
-      await saveAfsProjectsToServer(backendResult.projects).catch(() => {});
+      // Simpan project yang ditemukan ke Cloudflare KV jika ada server
+      if (!isStaticHosting()) {
+        await saveAfsProjectsToServer(backendResult.projects).catch(() => {});
+      }
       return { projects: backendResult.projects, wasSeeded: false };
     }
   } catch (e) {}
 
-  // 3. Database / Cloudflare KV masih kosong! Gunakan 11 Project AFS dev sebagai default data
-  console.log('Cloudflare KV / Database kosong. Melakukan inisialisasi dengan 11 Project AFS dev...');
-  try {
-    // Kirimkan (POST) ke KV agar tersimpan secara permanen untuk semua user
-    await fetch('/api/afs-projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ afs_projects: DEFAULT_DEV_AFS_PROJECTS })
-    });
-    saveAfsProjectsToServer(DEFAULT_DEV_AFS_PROJECTS).catch(() => {});
-  } catch (err) {
-    console.warn('Gagal melakukan seed 11 project ke Cloudflare KV:', err);
+  // 3. If user already has local saved projects, prioritize keeping them!
+  if (localSaved && localSaved.length > 0) {
+    return { projects: localSaved, wasSeeded: false };
+  }
+
+  // 4. Truly empty storage: seed with defaults
+  console.log('Database kosong. Melakukan inisialisasi awal dengan Project AFS dev...');
+  if (!isStaticHosting()) {
+    try {
+      await fetch('/api/afs-projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ afs_projects: DEFAULT_DEV_AFS_PROJECTS })
+      });
+      saveAfsProjectsToServer(DEFAULT_DEV_AFS_PROJECTS).catch(() => {});
+    } catch (err) {
+      console.warn('Gagal melakukan seed 11 project ke Cloudflare KV:', err);
+    }
   }
 
   return { projects: DEFAULT_DEV_AFS_PROJECTS, wasSeeded: true };

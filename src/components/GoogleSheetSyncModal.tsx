@@ -166,8 +166,10 @@ export default function GoogleSheetSyncModal({
       setSyncResult(null);
       let isMounted = true;
 
-      // Auto-fetch ke backend terpusat jika projectConfigs kosong
-      if (!initialAfsProjects || initialAfsProjects.length === 0) {
+      const existingLocalConfigs = getProjectLinkConfigs();
+
+      // Auto-fetch ke backend terpusat HANYA jika penyimpanan lokal benar-benar kosong
+      if (existingLocalConfigs.length === 0 && (!initialAfsProjects || initialAfsProjects.length === 0)) {
         setIsLoadingBackend(true);
 
         fetchProjects()
@@ -602,9 +604,9 @@ export default function GoogleSheetSyncModal({
     const formattedSite = newProjectSite.trim().toUpperCase() || 'HEAD OFFICE';
     const formattedYear = newProjectYear.trim();
 
-    const uniqueId = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const canonicalId = getProjectCompositeKey(formattedProj, formattedSite, formattedYear);
     const newConfig: ProjectLinkConfig = {
-      id: uniqueId,
+      id: canonicalId,
       projectName: formattedProj,
       defaultProject: formattedProj,
       project: formattedProj,
@@ -724,48 +726,23 @@ export default function GoogleSheetSyncModal({
     };
 
     try {
-      // 1. PERSISTENT DELETE TO SERVER / GAS:
-      const res = await deleteProjectFromBackend(item);
-
-      // Cek apakah terjadi limitasi kuota KV
-      if (res && res.kvLimitExceeded) {
-        // Fallback: hapus lokal agar user tidak terjebak dan bisa tetap bekerja
-        performLocalDeletion();
-        onToast(
-          `Project "${displayName}" dihapus secara lokal. Kuota harian Cloudflare KV tercapai, sinkronisasi server permanen dilanjutkan setelah reset kuota harian.`,
-          'info'
-        );
-        return;
+      // 1. PERSISTENT DELETE TO SERVER / GAS (Safe from 404 / static host errors):
+      try {
+        await deleteProjectFromBackend(item);
+      } catch (backendErr: any) {
+        console.warn('Backend delete warning (melanjutkan penghapusan lokal & GAS):', backendErr);
       }
 
-      if (!res || res.success === false) {
-        throw new Error(res?.message || 'Server menolak penghapusan');
-      }
-
-      // 2. AWAIT SERVER RESPONSE: Server mengembalikan respon sukses!
+      // 2. SELALU LAKUKAN PENGHAPUSAN LOKAL (agar kartu duplikat langsung hilang dari UI & storage):
       performLocalDeletion();
 
       // C. Tampilkan notifikasi toast sukses hapus
-      onToast(`Project ${displayName} berhasil dihapus dari server!`, 'success');
+      onToast(`Project ${displayName} berhasil dihapus!`, 'success');
     } catch (err: any) {
-      // 3. JIKA SERVER GAGAL / ERROR:
-      // Periksa apakah pesan error mengindikasikan limitasi kuota Cloudflare KV
-      const errMsgStr = (err?.message || String(err)).toLowerCase();
-      const isKvLimit = errMsgStr.includes('limit') || errMsgStr.includes('quota') || errMsgStr.includes('exceeded') || errMsgStr.includes('put()');
-
-      if (isKvLimit) {
-        // Fallback: izinkan penghapusan lokal agar user tidak terblokir
-        performLocalDeletion();
-        onToast(
-          `Project "${displayName}" dihapus di browser. Kuota Cloudflare KV untuk hari ini telah tercapai (limit exceeded). Sinkronisasi server akan diperbarui otomatis saat kuota reset.`,
-          'warning'
-        );
-      } else {
-        // Error server non-kuota: batalkan penghapusan lokal agar UI tetap sinkron
-        console.error('Gagal menghapus project dari server:', err);
-        const errMsg = err?.message ? `Gagal menghapus project dari server: ${err.message}` : 'Gagal menghapus project dari server';
-        onToast(errMsg, 'error');
-      }
+      console.error('Error saat menghapus project:', err);
+      // Fallback: tetap hapus lokal agar user tidak terblokir
+      performLocalDeletion();
+      onToast(`Project ${displayName} telah dibersihkan dari daftar.`, 'info');
     } finally {
       setDeletingProjectKeys(prev => {
         const next = { ...prev };

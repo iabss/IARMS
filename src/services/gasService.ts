@@ -59,7 +59,7 @@ export function resetGasEndpointUrl(): void {
 }
 
 // Helper to detect if running on static hosting (Netlify, etc.)
-function isStaticHosting(): boolean {
+export function isStaticHosting(): boolean {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
   return host.includes('netlify.app') || host.includes('vercel.app') || host.includes('pages.dev');
@@ -116,6 +116,100 @@ export async function postToGAS(payload: Record<string, any>): Promise<any> {
 }
 
 /**
+ * Normalizer cerdas untuk memastikan data dengan format header/kolom yang berbeda
+ * tetap dapat terbaca dan diproses dengan sempurna oleh IARMS.
+ */
+export function normalizeFindingRecord(raw: any, index: number = 0): AFSFindingRecord {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      _rowId: index + 1,
+      NO: String(index + 1),
+      'PROJECT AUDIT': 'AUDIT',
+      SITE: 'HEAD OFFICE',
+      'PROBLEM/FINDING': '',
+      STATUS: 'OPEN'
+    };
+  }
+
+  // Helper untuk mengecek banyak alias kolom sekaligus (case-insensitive & spasi/tanda baca fleksibel)
+  const get = (aliases: string[]): string => {
+    for (const a of aliases) {
+      if (raw[a] !== undefined && raw[a] !== null && String(raw[a]).trim() !== '') {
+        return String(raw[a]).trim();
+      }
+    }
+    const rawKeys = Object.keys(raw);
+    for (const a of aliases) {
+      const cleanAlias = a.toLowerCase().replace(/[\/\s-_]/g, '');
+      const matchedKey = rawKeys.find(k => k.toLowerCase().replace(/[\/\s-_]/g, '') === cleanAlias);
+      if (matchedKey && raw[matchedKey] !== undefined && raw[matchedKey] !== null && String(raw[matchedKey]).trim() !== '') {
+        return String(raw[matchedKey]).trim();
+      }
+    }
+    return '';
+  };
+
+  // Normalisasi Status agar kompatibel dengan ragam penulisan status
+  const rawStatus = get(['STATUS', 'STATUS TEMUAN', 'STATUS AUDIT', 'STATUS AKHIR', 'STATUS CLOSING', 'STATUS ITEM', 'STATUS TINDAK LANJUT', 'HASIL REVIEW']).toUpperCase();
+  let status = 'OPEN';
+  if (
+    rawStatus.includes('CLOSE') || 
+    rawStatus.includes('SELESAI') || 
+    rawStatus.includes('DONE') || 
+    rawStatus.includes('100%') || 
+    rawStatus.includes('TERPENUHI') ||
+    rawStatus === 'CLOSED' ||
+    rawStatus === 'C'
+  ) {
+    status = 'CLOSE';
+  } else if (
+    rawStatus.includes('PROGRESS') || 
+    rawStatus.includes('PROSES') || 
+    rawStatus.includes('PARTIAL') ||
+    rawStatus.includes('ON GOING') ||
+    rawStatus.includes('ON-GOING')
+  ) {
+    status = 'PROGRESS';
+  } else {
+    status = 'OPEN';
+  }
+
+  // Normalisasi Periode / Tahun
+  let finalYear = get(['PERIODE AUDIT', 'PERIODE', 'TAHUN', 'YEAR', 'TANGGAL AUDIT', 'TAHUN PELAKSANAAN']);
+  if (!finalYear) {
+    const docText = `${get(['DOKUMENTASI TEMUAN', 'BUKTI TEMUAN'])} ${get(['DUE DATE', 'TARGET'])} ${get(['PROBLEM/FINDING', 'TEMUAN'])}`;
+    const match = docText.match(/\b(202[0-9])\b/);
+    finalYear = match ? match[1] : '2026';
+  }
+
+  return {
+    _rowId: raw._rowId !== undefined ? Number(raw._rowId) : (index + 1),
+    NO: get(['NO', 'NO.', '#', 'NUM', 'NOMOR', 'ITEM']) || String(index + 1),
+    'PROJECT AUDIT': get(['PROJECT AUDIT', 'PROJECT', 'NAMA PROJECT', 'SEKTOR', 'AUDIT PROGRAM', 'PENUGASAN']) || 'AUDIT',
+    SITE: get(['SITE', 'JOB SITE', 'LOKASI', 'CABANG', 'LOCATION']) || 'HEAD OFFICE',
+    'PERIODE AUDIT': finalYear,
+    DEPARTMENT: get(['DEPARTMENT', 'DEPT', 'DEPARTEMEN', 'DIVISI', 'UNIT', 'BAGIAN', 'AUDITEE']),
+    'PROBLEM/FINDING': get(['PROBLEM/FINDING', 'PROBLEM', 'FINDING', 'TEMUAN', 'RINGKASAN TEMUAN', 'URAIAN TEMUAN', 'KONDISI', 'CONDITION', 'JUDUL TEMUAN', 'POKOK TEMUAN']) || 'Temuan Audit',
+    'DETAIL TEMUAN': get(['DETAIL TEMUAN', 'DETAIL', 'PENJELASAN', 'DESKRIPSI', 'DESKRIPSI TEMUAN', 'FAKTA']),
+    'DOKUMENTASI TEMUAN': get(['DOKUMENTASI TEMUAN', 'DOKUMENTASI', 'EVIDENCE', 'BUKTI TEMUAN', 'LAMPIRAN TEMUAN']),
+    KRITERIA: get(['KRITERIA', 'CRITERIA', 'DASAR ATURAN', 'SOP', 'REGULASI']) || 'SOP',
+    KATEGORI: get(['KATEGORI', 'SEVERITY', 'RISK LEVEL', 'TINGKAT RISIKO', 'KLASIFIKASI']) || 'MINOR',
+    REKOMENDASI: get(['REKOMENDASI', 'ACTION PLAN', 'TINDAK LANJUT', 'SARAN PERBAIKAN', 'RECOMMENDATION', 'ACTION']),
+    STATUS: status,
+    'PIC SITE': get(['PIC SITE', 'PIC LOKASI', 'AUDITEE SITE', 'PIC']),
+    'PIC HO': get(['PIC HO', 'PIC PUSAT', 'AUDITEE HO']),
+    'DUE DATE': get(['DUE DATE', 'TARGET CLOSING', 'TANGGAL DUE', 'TARGET DATE', 'TANGGAL JATUH TEMPO', 'BATAS WAKTU']),
+    REMARKS: get(['REMARKS', 'KETERANGAN', 'STATUS DUE', 'CATATAN STATUS']),
+    'DOKUMENTASI CLOSING': get(['DOKUMENTASI CLOSING', 'BUKTI CLOSING', 'BUKTI TINDAK LANJUT', 'LAMPIRAN CLOSING']),
+    'REVIEWED CLOSING FROM USER': get(['REVIEWED CLOSING FROM USER', 'REVIEW USER', 'FEEDBACK USER']),
+    'REVIEWED CLOSING FROM IA': get(['REVIEWED CLOSING FROM IA', 'REVIEW IA', 'VERIFIKASI IA']),
+    NOTE: get(['NOTE', 'CATATAN', 'KETERANGAN TAMBAHAN']),
+    'KOLOM BANTU': get(['KOLOM BANTU', 'KOLOM_BANTU', 'BANTU']),
+    UPDATED_AT: get(['UPDATED_AT', 'UPDATED AT', 'LAST_MODIFIED']) || raw.UPDATED_AT
+  };
+}
+
+/**
  * Unified GET to pull live findings from Google Sheets via Google Apps Script
  */
 export async function fetchLiveFindingsFromGAS(): Promise<{
@@ -135,11 +229,12 @@ export async function fetchLiveFindingsFromGAS(): Promise<{
       if (res.ok) {
         const json = await res.json();
         if (json && json.success && Array.isArray(json.data?.rows) && json.data.rows.length > 0) {
+          const normalizedRows = json.data.rows.map((r: any, idx: number) => normalizeFindingRecord(r, idx));
           return {
             success: true,
-            rows: json.data.rows,
+            rows: normalizedRows,
             projects: json.data.projects || [],
-            count: json.data.rows.length,
+            count: normalizedRows.length,
             timestamp: json.data.timestamp || new Date().toISOString(),
             source: 'server_proxy'
           };
@@ -164,11 +259,12 @@ export async function fetchLiveFindingsFromGAS(): Promise<{
       if (text && !text.trim().startsWith('<')) {
         const json = JSON.parse(text);
         if (json && Array.isArray(json.rows) && json.rows.length > 0) {
+          const normalizedRows = json.rows.map((r: any, idx: number) => normalizeFindingRecord(r, idx));
           return {
             success: true,
-            rows: json.rows,
+            rows: normalizedRows,
             projects: json.projects || [],
-            count: json.rows.length,
+            count: normalizedRows.length,
             timestamp: json.timestamp || new Date().toISOString(),
             source: 'gas'
           };
@@ -185,11 +281,12 @@ export async function fetchLiveFindingsFromGAS(): Promise<{
     if (res.ok) {
       const json = await res.json();
       if (json && json.state && Array.isArray(json.state.customRows) && json.state.customRows.length > 0) {
+        const normalizedRows = json.state.customRows.map((r: any, idx: number) => normalizeFindingRecord(r, idx));
         return {
           success: true,
-          rows: json.state.customRows,
+          rows: normalizedRows,
           projects: json.state.projectConfigs || [],
-          count: json.state.customRows.length,
+          count: normalizedRows.length,
           timestamp: json.state.lastUpdated,
           source: 'fallback'
         };

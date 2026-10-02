@@ -40,6 +40,8 @@ export interface AFSFindingRecord {
   NO: string;
   "PROJECT AUDIT": string;
   SITE: string;
+  DEPARTMENT?: string;
+  "PERIODE AUDIT"?: string;
   "PROBLEM/FINDING"?: string;
   "DETAIL TEMUAN"?: string;
   "DOKUMENTASI TEMUAN"?: string;
@@ -55,6 +57,9 @@ export interface AFSFindingRecord {
   "REVIEWED CLOSING FROM USER"?: string;
   "REVIEWED CLOSING FROM IA"?: string;
   NOTE?: string;
+  "KOLOM BANTU"?: string;
+  UPDATED_AT?: string;
+  [key: string]: any;
 }
 
 export interface ToastMessage {

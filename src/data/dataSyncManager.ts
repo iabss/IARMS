@@ -174,15 +174,19 @@ export function deleteProjectPermanently(projectName: string, siteName?: string,
     const fullName = targetSite && targetSite !== 'HEAD OFFICE' ? `${targetSite} - ${targetProj}` : targetProj;
 
     // 1. Mark in deleted project keys & trend exclusions
-    addDeletedProjectKey(targetKey, targetProj);
-    addTrendExcludedProject(targetProj);
+    addDeletedProjectKey(targetKey);
+    // Only mark pure project name as deleted if no specific site/year was targeted
+    if (!targetSite && !targetYear) {
+      addDeletedProjectKey(targetProj);
+      addTrendExcludedProject(targetProj);
+    }
     addTrendExcludedProject(targetKey);
     addTrendExcludedProject(fullName);
 
     // 2. Remove from project configs
     deleteProjectLinkConfig(targetProj, targetSite, targetYear);
 
-    // 3. Remove custom rows
+    // 3. Remove custom rows specifically matching this target project/site/year
     const customRows = getCustomSyncedRows() || [];
     const remainingRows = customRows.filter(r => {
       const rName = (r['PROJECT AUDIT'] || '').trim().toUpperCase();
@@ -190,8 +194,9 @@ export function deleteProjectPermanently(projectName: string, siteName?: string,
       const rYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
       const rKey = getProjectCompositeKey(rName, rSite, rYear);
 
-      if (rName === targetProj || rKey === targetKey) return false;
-      if (fullName === `${rSite} - ${rName}`) return false;
+      if (rKey === targetKey) return false;
+      if (!targetSite && !targetYear && rName === targetProj) return false;
+      if (fullName === `${rSite} - ${rName}` && (!targetYear || rYear === targetYear)) return false;
       return true;
     });
 
@@ -242,28 +247,33 @@ export function deduplicateRows(rows: AFSFindingRecord[]): AFSFindingRecord[] {
   return result;
 }
 
-// Deduplicate project link configs by id or unique sheetUrl / composite key
+// Deduplicate project link configs by canonical composite key (Project + Site + Year)
 export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): ProjectLinkConfig[] {
   if (!Array.isArray(configs)) return [];
   
   const map = new Map<string, ProjectLinkConfig>();
 
   for (const c of configs) {
-    if (!c || !c.projectName) continue;
-    const projName = c.projectName.trim().toUpperCase();
-    const siteName = (c.siteName || 'HEAD OFFICE').trim().toUpperCase();
+    if (!c) continue;
+    const projName = (c.projectName || c.defaultProject || c.project || '').trim().toUpperCase();
+    if (!projName) continue;
+    const siteName = (c.siteName || c.site || 'HEAD OFFICE').trim().toUpperCase();
     const yearVal = c.year ? String(c.year).trim() : undefined;
-    // Prefer distinct id if provided, else unique sheetUrl, else composite key
-    const key = c.id || (c.sheetUrl && c.sheetUrl.trim() ? `${projName}|${siteName}|${yearVal || ''}|${c.sheetUrl.trim()}` : getProjectCompositeKey(projName, siteName, yearVal));
 
-    const existing = map.get(key);
+    // Canonical composite key identifies the project uniquely across the whole system
+    const canonicalKey = getProjectCompositeKey(projName, siteName, yearVal);
+
+    const existing = map.get(canonicalKey);
 
     if (!existing) {
-      map.set(key, {
+      map.set(canonicalKey, {
         ...c,
-        id: c.id || key,
+        id: canonicalKey,
         projectName: projName,
+        defaultProject: projName,
+        project: projName,
         siteName: siteName,
+        site: siteName,
         year: yearVal,
       });
     } else {
@@ -273,12 +283,15 @@ export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): Project
       const latestSyncedAt = c.lastSyncedAt || existing.lastSyncedAt;
       const bestStatus = (c.status === 'synced' || existing.status === 'synced') ? 'synced' : (c.status || existing.status || 'pending');
 
-      map.set(key, {
+      map.set(canonicalKey, {
         ...existing,
         ...c,
-        id: c.id || existing.id || key,
+        id: canonicalKey,
         projectName: projName,
+        defaultProject: projName,
+        project: projName,
         siteName: siteName,
+        site: siteName,
         year: yearVal !== undefined ? yearVal : existing.year,
         sheetUrl: preferNewUrl,
         rowCount: maxCount,
@@ -466,6 +479,7 @@ export function saveSyncedRows(
 
     // Update project link config status FIRST before writing heavy rows data
     saveProjectLinkConfig({
+      id: tKey,
       projectName: targetProject.toUpperCase(),
       siteName: targetSite,
       year: targetYear,
@@ -1072,7 +1086,7 @@ export function cleanupDuplicates(): { removedRows: number; removedConfigs: numb
         const siteName = (r['SITE'] || '').trim().toUpperCase();
         const yearVal = String(r['PERIODE AUDIT'] || r['TAHUN'] || r['YEAR'] || '').trim();
         const compositeKey = getProjectCompositeKey(projName, siteName, yearVal);
-        return !deletedKeys.has(projName) && !deletedKeys.has(compositeKey);
+        return !deletedKeys.has(compositeKey);
       });
       const dedupedRows = deduplicateRows(filteredByDeleted);
       removedRows = customRows.length - dedupedRows.length;
@@ -1085,8 +1099,8 @@ export function cleanupDuplicates(): { removedRows: number; removedConfigs: numb
       const projName = (c.projectName || '').trim().toUpperCase();
       const siteName = (c.siteName || '').trim().toUpperCase();
       const yearVal = c.year ? String(c.year).trim() : '';
-      const compositeKey = c.id || getProjectCompositeKey(projName, siteName, yearVal);
-      return !deletedKeys.has(projName) && !deletedKeys.has(compositeKey);
+      const compositeKey = getProjectCompositeKey(projName, siteName, yearVal);
+      return !deletedKeys.has(compositeKey);
     });
     const dedupedConfigs = deduplicateProjectConfigs(filteredConfigs);
     removedConfigs = rawConfigs.length - dedupedConfigs.length;
