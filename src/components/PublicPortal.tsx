@@ -22,11 +22,12 @@ import {
   Layers, 
   ShieldCheck, 
   FileSpreadsheet,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import { AFSFindingRecord, PublicAuditItem } from '../types';
 import rawSheetData from '../data/sheetData.json';
-import { getMergedSheetRows, getProjectLinkConfigs } from '../data/dataSyncManager';
+import { getMergedSheetRows, getProjectLinkConfigs, syncWithServer, autoSyncAllProjects } from '../data/dataSyncManager';
 import { isDepartment, parseDepartments } from '../utils/deptHelper';
 import { isStatusClosed, isStatusOpen, isStatusProgress, extractFindingYear } from '../utils/statusHelper';
 
@@ -95,6 +96,27 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
       window.removeEventListener('afs_sync_status_changed', handleSyncStatus);
     };
   }, []);
+
+  const handleManualRefresh = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    onToast('Sedang memuat & menyinkronkan data terbaru dari database Google Sheets...', 'info');
+    try {
+      await syncWithServer();
+      const res = await autoSyncAllProjects();
+      setSyncedVersion(v => v + 1);
+      if (res && res.totalRows > 0) {
+        onToast(`Semua data berhasil diperbarui (${res.totalRows} temuan live)!`, 'success');
+      } else {
+        onToast('Data berhasil diperbarui dari database!', 'success');
+      }
+    } catch (e: any) {
+      console.warn('Manual refresh warning:', e);
+      onToast('Pemeriksaan database selesai.', 'info');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const allRows = useMemo(() => {
     return getMergedSheetRows();
@@ -771,14 +793,26 @@ export default function PublicPortal({ onToast, onNavigateToAFS }: PublicPortalP
             </h1>
             <div className="shrink-0">
               {isSyncing ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 text-xs font-extrabold transition-all shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                  <span>syncr<span className="text-yellow-400 font-black">o</span>nizing</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-yellow-400 text-yellow-950 border border-yellow-300 text-xs font-black transition-all shadow-md animate-pulse cursor-wait select-none"
+                  title="Sedang memuat & menyinkronkan data terbaru dari database Google Sheets..."
+                >
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-yellow-950 flex-shrink-0" />
+                  <span>Loading Data Database...</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-extrabold transition-all">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  syncronized
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleManualRefresh}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleManualRefresh(); }}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400 text-xs font-black transition-all shadow-md cursor-pointer hover:shadow-lg active:scale-95 select-none"
+                  title="Semua data sudah terupdate di sisi user. Klik untuk sinkronisasi ulang live dari database."
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                  <span>Data Sudah Terupdate</span>
                 </span>
               )}
             </div>

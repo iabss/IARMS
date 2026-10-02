@@ -790,6 +790,35 @@ export function parseGasProjectsResponse(json: any): any[] {
     }
   }
 
+  // Case 3: If no projects extracted yet, derive directly from live json.rows
+  if (projectMap.size === 0 && Array.isArray(json.rows) && json.rows.length > 0) {
+    for (const r of json.rows) {
+      const proj = (r['PROJECT AUDIT'] || r['PROJECT'] || 'AUDIT').trim().toUpperCase();
+      const site = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
+      const year = String(r['PERIODE AUDIT'] || r['TAHUN'] || '2026').trim();
+      const key = `${proj}|${site}${year ? `|${year}` : ''}`;
+      if (!deletedSet.has(key) && !deletedSet.has(proj)) {
+        if (!projectMap.has(key)) {
+          projectMap.set(key, {
+            id: key,
+            projectName: proj,
+            project: proj,
+            defaultProject: proj,
+            siteName: site,
+            site: site,
+            year: year || undefined,
+            sheetUrl: '',
+            lastSyncedAt: new Date().toISOString(),
+            status: 'synced',
+            rowCount: 1
+          });
+        } else {
+          projectMap.get(key).rowCount += 1;
+        }
+      }
+    }
+  }
+
   return Array.from(projectMap.values());
 }
 

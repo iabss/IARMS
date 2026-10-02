@@ -85,6 +85,36 @@ export default function GoogleSheetSyncModal({
     if (initialAfsProjects && initialAfsProjects.length > 0) return initialAfsProjects;
     const local = getProjectLinkConfigs();
     if (local.length > 0) return local;
+
+    // Derive from synced rows if available
+    const rows = getMergedSheetRows();
+    if (rows.length > 0) {
+      const derivedMap = new Map<string, ProjectLinkConfig>();
+      rows.forEach(r => {
+        const pName = (r['PROJECT AUDIT'] || 'AUDIT').trim().toUpperCase();
+        const pSite = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
+        const pYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || '2026').trim();
+        const key = getProjectCompositeKey(pName, pSite, pYear);
+        if (!derivedMap.has(key)) {
+          derivedMap.set(key, {
+            id: key,
+            projectName: pName,
+            defaultProject: pName,
+            project: pName,
+            siteName: pSite,
+            site: pSite,
+            year: pYear,
+            status: 'synced',
+            rowCount: 1
+          });
+        } else {
+          const entry = derivedMap.get(key)!;
+          entry.rowCount = (entry.rowCount || 0) + 1;
+        }
+      });
+      if (derivedMap.size > 0) return Array.from(derivedMap.values());
+    }
+
     return DEFAULT_DEV_AFS_PROJECTS;
   });
 

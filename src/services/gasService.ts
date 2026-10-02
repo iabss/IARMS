@@ -260,10 +260,40 @@ export async function fetchLiveFindingsFromGAS(): Promise<{
         const json = JSON.parse(text);
         if (json && Array.isArray(json.rows) && json.rows.length > 0) {
           const normalizedRows = json.rows.map((r: any, idx: number) => normalizeFindingRecord(r, idx));
+
+          // Auto-derive project configurations directly from live rows if projects list is empty
+          let projects = Array.isArray(json.projects) && json.projects.length > 0 ? json.projects : [];
+          if (projects.length === 0 && normalizedRows.length > 0) {
+            const projectMap = new Map<string, any>();
+            normalizedRows.forEach((r: any) => {
+              const pName = (r['PROJECT AUDIT'] || 'AUDIT').trim().toUpperCase();
+              const pSite = (r['SITE'] || 'HEAD OFFICE').trim().toUpperCase();
+              const pYear = String(r['PERIODE AUDIT'] || r['TAHUN'] || '2026').trim();
+              const key = `${pName}|${pSite}${pYear ? `|${pYear}` : ''}`;
+              if (!projectMap.has(key)) {
+                projectMap.set(key, {
+                  id: key,
+                  projectName: pName,
+                  defaultProject: pName,
+                  project: pName,
+                  siteName: pSite,
+                  site: pSite,
+                  year: pYear,
+                  status: 'synced',
+                  rowCount: 1,
+                  sheetUrl: ''
+                });
+              } else {
+                projectMap.get(key).rowCount += 1;
+              }
+            });
+            projects = Array.from(projectMap.values());
+          }
+
           return {
             success: true,
             rows: normalizedRows,
-            projects: json.projects || [],
+            projects: projects,
             count: normalizedRows.length,
             timestamp: json.timestamp || new Date().toISOString(),
             source: 'gas'

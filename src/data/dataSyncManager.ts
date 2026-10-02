@@ -696,35 +696,42 @@ export function hydrateServerState(serverState: {
 
 // Hydrate state from server backend and Google Apps Script on mount & periodic sync
 export async function syncWithServer(): Promise<boolean> {
-  // 1. Try local server proxy (/api/app-state) if available
+  window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: true } }));
   try {
-    const res = await fetch('/api/app-state');
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.success && json.state) {
-        hydrateServerState(json.state);
+    // 1. Try local server proxy (/api/app-state) if available
+    try {
+      const res = await fetch('/api/app-state');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && json.state) {
+          hydrateServerState(json.state);
+          window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: false } }));
+          return true;
+        }
+      }
+    } catch (e) {
+      // Continue to Google Apps Script fallback
+    }
+
+    // 2. Direct pull from Google Apps Script (Mandatory for Netlify & Multi-User Live Sync!)
+    try {
+      const gasData = await fetchLiveFindingsFromGAS();
+      if (gasData && gasData.success && Array.isArray(gasData.rows) && gasData.rows.length > 0) {
+        hydrateServerState({
+          customRows: gasData.rows,
+          projectConfigs: gasData.projects || []
+        });
+        window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: false } }));
         return true;
       }
+    } catch (err) {
+      console.warn('[Sync] Warning fetching live findings from Google Apps Script:', err);
     }
-  } catch (e) {
-    // Continue to Google Apps Script fallback
-  }
 
-  // 2. Direct pull from Google Apps Script (Mandatory for Netlify & Multi-User Live Sync!)
-  try {
-    const gasData = await fetchLiveFindingsFromGAS();
-    if (gasData && gasData.success && Array.isArray(gasData.rows) && gasData.rows.length > 0) {
-      hydrateServerState({
-        customRows: gasData.rows,
-        projectConfigs: gasData.projects || []
-      });
-      return true;
-    }
-  } catch (err) {
-    console.warn('[Sync] Warning fetching live findings from Google Apps Script:', err);
+    return false;
+  } finally {
+    window.dispatchEvent(new CustomEvent('afs_sync_status_changed', { detail: { isSyncing: false } }));
   }
-
-  return false;
 }
 
 // Helper to safely write critical configs to localStorage with quota protection
