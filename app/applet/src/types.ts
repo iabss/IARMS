@@ -68,6 +68,14 @@ export interface ToastMessage {
   type: "info" | "success" | "warning" | "error";
 }
 
+export interface SyncMetadata {
+  lastSyncTimestamp: string | null;
+  syncedProject: string;
+  sourceType: "url" | "paste" | "file" | "initial" | "manual" | "server";
+  totalSyncedRows: number;
+  sheetUrl?: string;
+}
+
 export interface AchievementSnapshot {
   id: string;
   timestamp: string;
@@ -90,12 +98,4 @@ export interface AchievementSnapshot {
     siteRate: number;
     hoRate: number;
   }[];
-}
-
-export interface SyncMetadata {
-  lastSyncTimestamp: string | null;
-  syncedProject: string;
-  sourceType: 'url' | 'paste' | 'file' | 'initial' | 'manual' | 'server';
-  totalSyncedRows: number;
-  sheetUrl?: string;
 }
