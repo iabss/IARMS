@@ -53,16 +53,16 @@
       "site": "JKT"
     },
     {
-      "id": "AUDIT OPERASIONAL|IP BAYAN|2026",
-      "projectName": "AUDIT OPERASIONAL",
+      "id": "AUDIT CLOSING PROJECT|IP BAYAN|2026",
+      "projectName": "AUDIT CLOSING PROJECT",
       "siteName": "IP BAYAN",
       "year": "2026",
       "sheetUrl": "",
       "rowCount": 166,
       "status": "synced",
       "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "AUDIT OPERASIONAL",
-      "project": "AUDIT OPERASIONAL",
+      "defaultProject": "AUDIT CLOSING PROJECT",
+      "project": "AUDIT CLOSING PROJECT",
       "site": "IP BAYAN"
     },
     {
@@ -155,71 +155,6 @@
       "defaultProject": "AUDIT INVESTIGASI",
       "project": "AUDIT INVESTIGASI",
       "site": "CDI"
-    },
-    {
-      "id": "CLOSING PROJECT|HEAD OFFICE|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "HEAD OFFICE",
-      "year": "2026",
-      "sheetUrl": "",
-      "rowCount": 43,
-      "status": "pending",
-      "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "HEAD OFFICE"
-    },
-    {
-      "id": "CLOSING PROJECT|AUDITA|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "AUDITA",
-      "year": "2026",
-      "sheetUrl": "",
-      "rowCount": 43,
-      "status": "pending",
-      "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "AUDITA"
-    },
-    {
-      "id": "CLOSING PROJECT|AUDITOPERASION|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "AUDITOPERASION",
-      "year": "2026",
-      "sheetUrl": "",
-      "rowCount": 43,
-      "status": "pending",
-      "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "AUDITOPERASION"
-    },
-    {
-      "id": "CLOSING PROJECT|AUDITAA|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "AUDITAA",
-      "year": "2026",
-      "sheetUrl": "",
-      "rowCount": 43,
-      "status": "pending",
-      "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "AUDITAA"
-    },
-    {
-      "id": "CLOSING PROJECT|AUDIT|2026",
-      "projectName": "CLOSING PROJECT",
-      "siteName": "AUDIT",
-      "year": "2026",
-      "sheetUrl": "",
-      "rowCount": 43,
-      "status": "pending",
-      "lastSyncedAt": "2026-10-03T05:44:29.560Z",
-      "defaultProject": "CLOSING PROJECT",
-      "project": "CLOSING PROJECT",
-      "site": "AUDIT"
     },
     {
       "id": "AUDIT OPERASIONAL|PALARAN|2026",
@@ -8740,7 +8675,7 @@
     {
       "_rowId": 271,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8765,7 +8700,7 @@
     {
       "_rowId": 272,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8790,7 +8725,7 @@
     {
       "_rowId": 273,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8815,7 +8750,7 @@
     {
       "_rowId": 274,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8840,7 +8775,7 @@
     {
       "_rowId": 275,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8865,7 +8800,7 @@
     {
       "_rowId": 276,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8890,7 +8825,7 @@
     {
       "_rowId": 277,
       "NO": "1",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8915,7 +8850,7 @@
     {
       "_rowId": 278,
       "NO": "2",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8940,7 +8875,7 @@
     {
       "_rowId": 279,
       "NO": "2",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8965,7 +8900,7 @@
     {
       "_rowId": 280,
       "NO": "2",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -8990,7 +8925,7 @@
     {
       "_rowId": 281,
       "NO": "3",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9015,7 +8950,7 @@
     {
       "_rowId": 282,
       "NO": "3",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9040,7 +8975,7 @@
     {
       "_rowId": 283,
       "NO": "3",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9065,7 +9000,7 @@
     {
       "_rowId": 284,
       "NO": "3",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9090,7 +9025,7 @@
     {
       "_rowId": 285,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9115,7 +9050,7 @@
     {
       "_rowId": 286,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9140,7 +9075,7 @@
     {
       "_rowId": 287,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9165,7 +9100,7 @@
     {
       "_rowId": 288,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9190,7 +9125,7 @@
     {
       "_rowId": 289,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9215,7 +9150,7 @@
     {
       "_rowId": 290,
       "NO": "4",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9240,7 +9175,7 @@
     {
       "_rowId": 291,
       "NO": "5",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9265,7 +9200,7 @@
     {
       "_rowId": 292,
       "NO": "5",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9290,7 +9225,7 @@
     {
       "_rowId": 293,
       "NO": "5",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9315,7 +9250,7 @@
     {
       "_rowId": 294,
       "NO": "6",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9340,7 +9275,7 @@
     {
       "_rowId": 295,
       "NO": "6",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9365,7 +9300,7 @@
     {
       "_rowId": 296,
       "NO": "6",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9390,7 +9325,7 @@
     {
       "_rowId": 297,
       "NO": "7",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9415,7 +9350,7 @@
     {
       "_rowId": 298,
       "NO": "7",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9440,7 +9375,7 @@
     {
       "_rowId": 299,
       "NO": "7",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9465,7 +9400,7 @@
     {
       "_rowId": 300,
       "NO": "7",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9490,7 +9425,7 @@
     {
       "_rowId": 301,
       "NO": "8",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9515,7 +9450,7 @@
     {
       "_rowId": 302,
       "NO": "8",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9540,7 +9475,7 @@
     {
       "_rowId": 303,
       "NO": "8",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9565,7 +9500,7 @@
     {
       "_rowId": 304,
       "NO": "8",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9590,7 +9525,7 @@
     {
       "_rowId": 305,
       "NO": "8",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9615,7 +9550,7 @@
     {
       "_rowId": 306,
       "NO": "9",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9640,7 +9575,7 @@
     {
       "_rowId": 307,
       "NO": "9",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9665,7 +9600,7 @@
     {
       "_rowId": 308,
       "NO": "9",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9690,7 +9625,7 @@
     {
       "_rowId": 309,
       "NO": "9",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9715,7 +9650,7 @@
     {
       "_rowId": 310,
       "NO": "9",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9740,7 +9675,7 @@
     {
       "_rowId": 311,
       "NO": "10",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9765,7 +9700,7 @@
     {
       "_rowId": 312,
       "NO": "10",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9790,7 +9725,7 @@
     {
       "_rowId": 313,
       "NO": "10",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9815,7 +9750,7 @@
     {
       "_rowId": 314,
       "NO": "10",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9840,7 +9775,7 @@
     {
       "_rowId": 315,
       "NO": "10",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9865,7 +9800,7 @@
     {
       "_rowId": 316,
       "NO": "11",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9890,7 +9825,7 @@
     {
       "_rowId": 317,
       "NO": "11",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9915,7 +9850,7 @@
     {
       "_rowId": 318,
       "NO": "11",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9940,7 +9875,7 @@
     {
       "_rowId": 319,
       "NO": "11",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9965,7 +9900,7 @@
     {
       "_rowId": 320,
       "NO": "12",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -9990,7 +9925,7 @@
     {
       "_rowId": 321,
       "NO": "12",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10015,7 +9950,7 @@
     {
       "_rowId": 322,
       "NO": "12",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10040,7 +9975,7 @@
     {
       "_rowId": 323,
       "NO": "12",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10065,7 +10000,7 @@
     {
       "_rowId": 324,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10090,7 +10025,7 @@
     {
       "_rowId": 325,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10115,7 +10050,7 @@
     {
       "_rowId": 326,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10140,7 +10075,7 @@
     {
       "_rowId": 327,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10165,7 +10100,7 @@
     {
       "_rowId": 328,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10190,7 +10125,7 @@
     {
       "_rowId": 329,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10215,7 +10150,7 @@
     {
       "_rowId": 330,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10240,7 +10175,7 @@
     {
       "_rowId": 331,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10265,7 +10200,7 @@
     {
       "_rowId": 332,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10290,7 +10225,7 @@
     {
       "_rowId": 333,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10315,7 +10250,7 @@
     {
       "_rowId": 334,
       "NO": "13",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10340,7 +10275,7 @@
     {
       "_rowId": 335,
       "NO": "14",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10365,7 +10300,7 @@
     {
       "_rowId": 336,
       "NO": "14",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10390,7 +10325,7 @@
     {
       "_rowId": 337,
       "NO": "14",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10415,7 +10350,7 @@
     {
       "_rowId": 338,
       "NO": "14",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10440,7 +10375,7 @@
     {
       "_rowId": 339,
       "NO": "15",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10465,7 +10400,7 @@
     {
       "_rowId": 340,
       "NO": "15",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10490,7 +10425,7 @@
     {
       "_rowId": 341,
       "NO": "15",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10515,7 +10450,7 @@
     {
       "_rowId": 342,
       "NO": "16",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10540,7 +10475,7 @@
     {
       "_rowId": 343,
       "NO": "16",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10565,7 +10500,7 @@
     {
       "_rowId": 344,
       "NO": "16",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10590,7 +10525,7 @@
     {
       "_rowId": 345,
       "NO": "16",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10615,7 +10550,7 @@
     {
       "_rowId": 346,
       "NO": "16",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10640,7 +10575,7 @@
     {
       "_rowId": 347,
       "NO": "17",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10665,7 +10600,7 @@
     {
       "_rowId": 348,
       "NO": "17",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10690,7 +10625,7 @@
     {
       "_rowId": 349,
       "NO": "18",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10715,7 +10650,7 @@
     {
       "_rowId": 350,
       "NO": "18",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10740,7 +10675,7 @@
     {
       "_rowId": 351,
       "NO": "18",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10765,7 +10700,7 @@
     {
       "_rowId": 352,
       "NO": "18",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10790,7 +10725,7 @@
     {
       "_rowId": 353,
       "NO": "19",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10815,7 +10750,7 @@
     {
       "_rowId": 354,
       "NO": "20",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10840,7 +10775,7 @@
     {
       "_rowId": 355,
       "NO": "20",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10865,7 +10800,7 @@
     {
       "_rowId": 356,
       "NO": "20",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10890,7 +10825,7 @@
     {
       "_rowId": 357,
       "NO": "20",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10915,7 +10850,7 @@
     {
       "_rowId": 358,
       "NO": "20",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10940,7 +10875,7 @@
     {
       "_rowId": 359,
       "NO": "21",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10965,7 +10900,7 @@
     {
       "_rowId": 360,
       "NO": "21",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -10990,7 +10925,7 @@
     {
       "_rowId": 361,
       "NO": "21",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11015,7 +10950,7 @@
     {
       "_rowId": 362,
       "NO": "21",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11040,7 +10975,7 @@
     {
       "_rowId": 363,
       "NO": "21",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11065,7 +11000,7 @@
     {
       "_rowId": 364,
       "NO": "22",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11090,7 +11025,7 @@
     {
       "_rowId": 365,
       "NO": "22",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11115,7 +11050,7 @@
     {
       "_rowId": 366,
       "NO": "22",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11140,7 +11075,7 @@
     {
       "_rowId": 367,
       "NO": "22",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11165,7 +11100,7 @@
     {
       "_rowId": 368,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11190,7 +11125,7 @@
     {
       "_rowId": 369,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11215,7 +11150,7 @@
     {
       "_rowId": 370,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11240,7 +11175,7 @@
     {
       "_rowId": 371,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11265,7 +11200,7 @@
     {
       "_rowId": 372,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11290,7 +11225,7 @@
     {
       "_rowId": 373,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11315,7 +11250,7 @@
     {
       "_rowId": 374,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11340,7 +11275,7 @@
     {
       "_rowId": 375,
       "NO": "23",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11365,7 +11300,7 @@
     {
       "_rowId": 376,
       "NO": "25",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11390,7 +11325,7 @@
     {
       "_rowId": 377,
       "NO": "25",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11415,7 +11350,7 @@
     {
       "_rowId": 378,
       "NO": "25",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11440,7 +11375,7 @@
     {
       "_rowId": 379,
       "NO": "25",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11465,7 +11400,7 @@
     {
       "_rowId": 380,
       "NO": "25",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11490,7 +11425,7 @@
     {
       "_rowId": 381,
       "NO": "26",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11515,7 +11450,7 @@
     {
       "_rowId": 382,
       "NO": "26",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11540,7 +11475,7 @@
     {
       "_rowId": 383,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11565,7 +11500,7 @@
     {
       "_rowId": 384,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11590,7 +11525,7 @@
     {
       "_rowId": 385,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11615,7 +11550,7 @@
     {
       "_rowId": 386,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11640,7 +11575,7 @@
     {
       "_rowId": 387,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11665,7 +11600,7 @@
     {
       "_rowId": 388,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11690,7 +11625,7 @@
     {
       "_rowId": 389,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11715,7 +11650,7 @@
     {
       "_rowId": 390,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11740,7 +11675,7 @@
     {
       "_rowId": 391,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11765,7 +11700,7 @@
     {
       "_rowId": 392,
       "NO": "27",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11790,7 +11725,7 @@
     {
       "_rowId": 393,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11815,7 +11750,7 @@
     {
       "_rowId": 394,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11840,7 +11775,7 @@
     {
       "_rowId": 395,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11865,7 +11800,7 @@
     {
       "_rowId": 396,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11890,7 +11825,7 @@
     {
       "_rowId": 397,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11915,7 +11850,7 @@
     {
       "_rowId": 398,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11940,7 +11875,7 @@
     {
       "_rowId": 399,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11965,7 +11900,7 @@
     {
       "_rowId": 400,
       "NO": "28",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -11990,7 +11925,7 @@
     {
       "_rowId": 401,
       "NO": "29",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12015,7 +11950,7 @@
     {
       "_rowId": 402,
       "NO": "29",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12040,7 +11975,7 @@
     {
       "_rowId": 403,
       "NO": "29",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12065,7 +12000,7 @@
     {
       "_rowId": 404,
       "NO": "29",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12090,7 +12025,7 @@
     {
       "_rowId": 405,
       "NO": "29",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12115,7 +12050,7 @@
     {
       "_rowId": 406,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12140,7 +12075,7 @@
     {
       "_rowId": 407,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12165,7 +12100,7 @@
     {
       "_rowId": 408,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12190,7 +12125,7 @@
     {
       "_rowId": 409,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12215,7 +12150,7 @@
     {
       "_rowId": 410,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12240,7 +12175,7 @@
     {
       "_rowId": 411,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12265,7 +12200,7 @@
     {
       "_rowId": 412,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12290,7 +12225,7 @@
     {
       "_rowId": 413,
       "NO": "30",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12315,7 +12250,7 @@
     {
       "_rowId": 414,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12340,7 +12275,7 @@
     {
       "_rowId": 415,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12365,7 +12300,7 @@
     {
       "_rowId": 416,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12390,7 +12325,7 @@
     {
       "_rowId": 417,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12415,7 +12350,7 @@
     {
       "_rowId": 418,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12440,7 +12375,7 @@
     {
       "_rowId": 419,
       "NO": "31",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12465,7 +12400,7 @@
     {
       "_rowId": 420,
       "NO": "32",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12490,7 +12425,7 @@
     {
       "_rowId": 421,
       "NO": "32",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12515,7 +12450,7 @@
     {
       "_rowId": 422,
       "NO": "32",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12540,7 +12475,7 @@
     {
       "_rowId": 423,
       "NO": "32",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12565,7 +12500,7 @@
     {
       "_rowId": 424,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12590,7 +12525,7 @@
     {
       "_rowId": 425,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12615,7 +12550,7 @@
     {
       "_rowId": 426,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12640,7 +12575,7 @@
     {
       "_rowId": 427,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12665,7 +12600,7 @@
     {
       "_rowId": 428,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12690,7 +12625,7 @@
     {
       "_rowId": 429,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12715,7 +12650,7 @@
     {
       "_rowId": 430,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12740,7 +12675,7 @@
     {
       "_rowId": 431,
       "NO": "33",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12765,7 +12700,7 @@
     {
       "_rowId": 432,
       "NO": "34",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12790,7 +12725,7 @@
     {
       "_rowId": 433,
       "NO": "35",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12815,7 +12750,7 @@
     {
       "_rowId": 434,
       "NO": "36",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12840,7 +12775,7 @@
     {
       "_rowId": 435,
       "NO": "37",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -12865,7 +12800,7 @@
     {
       "_rowId": 436,
       "NO": "38",
-      "PROJECT AUDIT": "AUDIT OPERASIONAL",
+      "PROJECT AUDIT": "AUDIT CLOSING PROJECT",
       "SITE": "IP BAYAN",
       "PERIODE AUDIT": "2026",
       "DEPARTMENT": "",
@@ -29650,6 +29585,6 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-05T07:14:21.942Z",
+  "lastUpdated": "2026-10-06T09:18:01.977Z",
   "riskRegisterItems": []
 }
