@@ -60,9 +60,18 @@ export async function syncBatchFindings(rows: AFSFindingRecord[]): Promise<any> 
 }
 
 // ==========================================
-// 2. PROJECT OPERATIONS (Direct GAS)
+// 2. PROJECT OPERATIONS (Backend Database & Direct GAS)
 // ==========================================
 export async function saveProject(project: ProjectLinkConfig): Promise<any> {
+  try {
+    await fetch("/api/save-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(project)
+    });
+  } catch (err) {
+    console.warn("Backend save project warning:", err);
+  }
   return postDirectToGAS({ 
     action: "sync_sheet_url", 
     project: project.defaultProject || project.project || project.projectName,
@@ -73,14 +82,48 @@ export async function saveProject(project: ProjectLinkConfig): Promise<any> {
 }
 
 export async function deleteProject(project: { id?: string; project?: string; site?: string; year?: string }): Promise<any> {
+  try {
+    await fetch("/api/delete-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(project)
+    });
+  } catch (err) {
+    console.warn("Backend delete project warning:", err);
+  }
   return postDirectToGAS({ action: "delete_project", ...project });
 }
 
 export async function syncProjectsList(projects: ProjectLinkConfig[]): Promise<any> {
+  try {
+    await fetch("/api/afs-projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(projects)
+    });
+  } catch (err) {
+    console.warn("Backend sync projects warning:", err);
+  }
   return postDirectToGAS({ action: "sync_projects_list", projects });
 }
 
 export async function fetchProjectsFromBackend(): Promise<{ projects: any[]; customRows?: any[]; deletedKeys?: string[] }> {
+  try {
+    const res = await fetch("/api/afs-projects");
+    if (res.ok) {
+      const data = await res.json();
+      const projects = data.afs_projects || data.projects || [];
+      if (Array.isArray(projects) && projects.length > 0) {
+        return {
+          projects,
+          customRows: [],
+          deletedKeys: []
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("Error fetching projects from local backend:", e);
+  }
   try {
     const gasData = await fetchLiveFindingsFromGAS();
     if (gasData && gasData.success) {
@@ -99,11 +142,13 @@ export async function fetchProjectsFromBackend(): Promise<{ projects: any[]; cus
 // ==========================================
 // 3. RISK REGISTER OPERATIONS (Direct GAS)
 // ==========================================
-export const RISK_REGISTER_SHEET_URL = "https://docs.google.com/spreadsheets/d/1i_UnpKnVYrG0PxKGTWXV0bgu7zGficLh/edit?gid=1293981214#gid=1293981214";
+export const MAIN_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1JSugcnXqujmxcyDhlF1IwIefDdtPxkRC/edit";
+export const RISK_REGISTER_SHEET_URL = MAIN_SPREADSHEET_URL;
 
 export async function saveRiskRegister(risk: any): Promise<any> {
   return postDirectToGAS({
     action: "save_risk_register",
+    sheetUrl: MAIN_SPREADSHEET_URL,
     ...risk
   });
 }
@@ -111,6 +156,7 @@ export async function saveRiskRegister(risk: any): Promise<any> {
 export async function deleteRiskRegister(riskNumber: string): Promise<any> {
   return postDirectToGAS({
     action: "delete_risk_register",
+    sheetUrl: MAIN_SPREADSHEET_URL,
     riskNumber
   });
 }

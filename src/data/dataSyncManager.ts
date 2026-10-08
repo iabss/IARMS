@@ -24,7 +24,19 @@ export function deduplicateProjectConfigs(configs: ProjectLinkConfig[]): Project
   const map = new Map<string, ProjectLinkConfig>();
   configs.forEach(c => {
     const k = c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year);
-    map.set(k, { ...c, id: k });
+    const existing = map.get(k);
+    if (!existing) {
+      map.set(k, { ...c, id: k });
+    } else {
+      const mergedUrl = (c.sheetUrl && c.sheetUrl.trim()) ? c.sheetUrl.trim() : (existing.sheetUrl || "");
+      map.set(k, {
+        ...existing,
+        ...c,
+        id: k,
+        sheetUrl: mergedUrl,
+        status: mergedUrl ? "synced" : (c.status || existing.status || "pending")
+      });
+    }
   });
   return Array.from(map.values());
 }
@@ -45,7 +57,8 @@ export function getProjectLinkConfigs(): ProjectLinkConfig[] {
 }
 
 export function overrideProjectLinkConfigs(configs: ProjectLinkConfig[]): void {
-  const deduped = deduplicateProjectConfigs(configs);
+  const existing = getProjectLinkConfigs();
+  const deduped = deduplicateProjectConfigs([...existing, ...configs]);
   inMemoryProjectConfigs = deduped;
   try {
     localStorage.setItem(STORAGE_KEY_PROJECT_LINKS, JSON.stringify(deduped));
@@ -59,8 +72,17 @@ export function saveProjectLinkConfig(config: ProjectLinkConfig): void {
   const current = getProjectLinkConfigs();
   const k = config.id || getProjectCompositeKey(config.projectName, config.siteName, config.year);
   const updated = current.filter(c => (c.id || getProjectCompositeKey(c.projectName, c.siteName, c.year)) !== k);
-  updated.push({ ...config, id: k });
+  const newConfig = { ...config, id: k };
+  updated.push(newConfig);
   overrideProjectLinkConfigs(updated);
+
+  try {
+    fetch("/api/save-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newConfig)
+    }).catch(e => console.warn("Background save project error:", e));
+  } catch {}
 }
 
 export function deleteProjectLinkConfig(configId: string): void {
@@ -228,6 +250,19 @@ export function createAchievementSnapshot(
 
 export async function syncWithServer(): Promise<boolean> {
   try {
+    try {
+      const res = await fetch("/api/afs-projects");
+      if (res.ok) {
+        const data = await res.json();
+        const serverProjects = data.afs_projects || data.projects;
+        if (Array.isArray(serverProjects) && serverProjects.length > 0) {
+          overrideProjectLinkConfigs(serverProjects);
+        }
+      }
+    } catch (e) {
+      console.warn("[syncWithServer] Backend fetch warning:", e);
+    }
+
     const gasData = await fetchLiveFindingsFromGAS();
     if (gasData && gasData.success && Array.isArray(gasData.rows) && gasData.rows.length > 0) {
       saveSyncedRows(gasData.rows, "GAS_LIVE", "sync");
