@@ -104,9 +104,7 @@ export const RISK_REGISTER_SHEET_URL = "https://docs.google.com/spreadsheets/d/1
 export async function saveRiskRegister(risk: any): Promise<any> {
   return postDirectToGAS({
     action: "save_risk_register",
-    sheetUrl: RISK_REGISTER_SHEET_URL,
-    ...risk,
-    risk
+    ...risk
   });
 }
 
