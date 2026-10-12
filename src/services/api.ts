@@ -235,3 +235,35 @@ export async function fetchCsvFromGoogleSheet(url: string): Promise<string> {
   if (!res.ok) throw new Error("Gagal mengambil CSV");
   return await res.text();
 }
+
+
+// ==========================================
+// 4. UNIFIED APP-STATE PERSISTENCE (All Menus & Local Storage)
+// ==========================================
+export async function fetchServerAppState(): Promise<{ success: boolean; state?: any; error?: string }> {
+  try {
+    const res = await fetch("/api/app-state");
+    if (res.ok) {
+      return await res.json();
+    }
+    return { success: false, error: `HTTP ${res.status}` };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+export async function saveServerAppState(payload: Record<string, any>): Promise<{ success: boolean; state?: any; error?: string }> {
+  try {
+    const res = await fetch("/api/app-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return { success: false, error: `HTTP ${res.status}` };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
