@@ -25,6 +25,7 @@ export function normalizeDepartment(name: string): string {
   if (u === "HR" || u === "HRD" || u === "HC") return "HR";
   if (u === "GA") return "GA";
   if (u === "PR" || u === "PR-PAYMENT" || u === "PRPAYMENT") return "PRPAYMENT";
+  if (u === "DC" || u === "DATA CENTER" || u.startsWith("DATA CENTER ") || u.startsWith("DC ") || u === "DATACENTER") return "DATA CENTER";
   if (u === "ALL DEPARTEMEN") return "ALL DEPARTEMEN";
 
   return u;

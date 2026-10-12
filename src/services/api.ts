@@ -18,6 +18,18 @@ export const GOOGLE_SCRIPT_URL = DEFAULT_GAS_ENDPOINT;
  * Bypasses local backend entirely so it works flawlessly on static hosting (Netlify, Pages, etc.)
  */
 export async function postDirectToGAS(payload: any): Promise<any> {
+  try {
+    const res = await fetch("/api/gas-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch {}
+
   const url = getGasEndpointUrl();
   try {
     const res = await fetch(url, {
@@ -146,6 +158,13 @@ export const MAIN_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1JSu
 export const RISK_REGISTER_SHEET_URL = MAIN_SPREADSHEET_URL;
 
 export async function saveRiskRegister(risk: any): Promise<any> {
+  try {
+    fetch("/api/risk-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(risk)
+    }).catch(e => console.warn("Backend risk register sync:", e));
+  } catch {}
   return postDirectToGAS({
     action: "save_risk_register",
     sheetUrl: MAIN_SPREADSHEET_URL,
@@ -154,6 +173,11 @@ export async function saveRiskRegister(risk: any): Promise<any> {
 }
 
 export async function deleteRiskRegister(riskNumber: string): Promise<any> {
+  try {
+    fetch(`/api/risk-register/${encodeURIComponent(riskNumber)}`, {
+      method: "DELETE"
+    }).catch(e => console.warn("Backend risk register delete:", e));
+  } catch {}
   return postDirectToGAS({
     action: "delete_risk_register",
     sheetUrl: MAIN_SPREADSHEET_URL,
