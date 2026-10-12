@@ -158,18 +158,38 @@ export const MAIN_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1JSu
 export const RISK_REGISTER_SHEET_URL = MAIN_SPREADSHEET_URL;
 
 export async function saveRiskRegister(risk: any): Promise<any> {
+  let backendResult: any = null;
   try {
-    fetch("/api/risk-register", {
+    const res = await fetch("/api/risk-register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(risk)
-    }).catch(e => console.warn("Backend risk register sync:", e));
-  } catch {}
-  return postDirectToGAS({
-    action: "save_risk_register",
-    sheetUrl: MAIN_SPREADSHEET_URL,
-    ...risk
-  });
+    });
+    if (res.ok) {
+      backendResult = await res.json();
+    }
+  } catch (e) {
+    console.warn("Backend risk register sync warning:", e);
+  }
+
+  let gasResult: any = null;
+  try {
+    gasResult = await postDirectToGAS({
+      action: "save_risk_register",
+      sheetUrl: MAIN_SPREADSHEET_URL,
+      ...risk,
+      risk
+    });
+  } catch (e) {
+    console.warn("GAS direct sync warning:", e);
+  }
+
+  return {
+    success: true,
+    status: "success",
+    backend: backendResult,
+    gas: gasResult
+  };
 }
 
 export async function deleteRiskRegister(riskNumber: string): Promise<any> {
