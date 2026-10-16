@@ -253,8 +253,7 @@ app.get("/api/afs-projects", (req, res) => {
       const pSite = (c.siteName || c.site || "HEAD OFFICE").trim().toUpperCase();
       const pYear = c.year ? String(c.year).trim() : "";
       const pKey = (c.id || `${pName}|${pSite}${pYear ? `|${pYear}` : ""}`).toUpperCase();
-      const pKeyNoYear = `${pName}|${pSite}`.toUpperCase();
-      if (deletedKeys.has(pKey) || deletedKeys.has(pName) || deletedKeys.has(pKeyNoYear) || (c.id && deletedKeys.has(c.id.toUpperCase()))) return false;
+      if (deletedKeys.has(pKey) || (c.id && deletedKeys.has(c.id.toUpperCase()))) return false;
       return true;
     });
 
@@ -472,39 +471,29 @@ app.post("/api/save-project", (req, res) => {
 
     if (targetKey && !deletedKeys.includes(targetKey)) deletedKeys.push(targetKey);
     if (id && !deletedKeys.includes(id)) deletedKeys.push(id);
-    if (targetName) {
-      if (targetSite) {
-        const pairKey = `${targetName}|${targetSite}`;
-        if (!deletedKeys.includes(pairKey)) deletedKeys.push(pairKey);
-      }
-      if (!targetSite || targetSite === "HEAD OFFICE") {
-        if (!deletedKeys.includes(targetName)) deletedKeys.push(targetName);
-      }
-    }
 
     configs = configs.filter(c => {
-      if (id && c.id && c.id === id) return false;
+      if (id && c.id && String(c.id).trim().toUpperCase() === String(id).trim().toUpperCase()) return false;
       const cName = (c.projectName || c.defaultProject || c.project || "").trim().toUpperCase();
       const cSite = (c.siteName || c.site || "HEAD OFFICE").trim().toUpperCase();
       const cYear = c.year ? String(c.year).trim() : "";
-      const cKey = c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ""}`;
-      if (cKey === targetKey) return false;
-      if (targetName && cName === targetName) {
-        if (!targetSite || cSite === targetSite) {
-          if (!targetYear || cYear === targetYear) return false;
-        }
+      const cKey = (c.id || `${cName}|${cSite}${cYear ? `|${cYear}` : ""}`).toUpperCase();
+      if (targetKey && cKey === targetKey.toUpperCase()) return false;
+      if (id && cKey === String(id).trim().toUpperCase()) return false;
+      if (targetName && targetSite) {
+        if (cName === targetName && cSite === targetSite && (targetYear ? cYear === targetYear : !cYear)) return false;
       }
       return true;
     });
 
     customRows = customRows.filter(r => {
       const rProj = (r["PROJECT AUDIT"] || "").trim().toUpperCase();
-      const rSite = (r["SITE"] || "").trim().toUpperCase();
+      const rSite = (r["SITE"] || "HEAD OFFICE").trim().toUpperCase();
       const rYear = String(r["PERIODE AUDIT"] || r["TAHUN"] || r["YEAR"] || "").trim();
       if (targetName && rProj === targetName) {
-        if (!targetSite || rSite === targetSite) {
-          if (!targetYear || rYear === targetYear) return false;
-        }
+        const siteMatch = targetSite ? rSite === targetSite : (rSite === "HEAD OFFICE" || !rSite);
+        const yearMatch = targetYear ? rYear === targetYear : (!rYear || rYear === "2026");
+        if (siteMatch && yearMatch) return false;
       }
       return true;
     });
