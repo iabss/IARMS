@@ -261,6 +261,7 @@ app.get("/api/afs-projects", (req, res) => {
       success: true,
       afs_projects: filtered,
       projects: filtered,
+      customRows: current.customRows || [],
       deletedKeys: Array.from(deletedKeys),
       total: filtered.length,
       isEmpty: filtered.length === 0,
@@ -336,6 +337,7 @@ app.post("/api/afs-projects", (req, res) => {
       success: true,
       afs_projects: updated.projectConfigs,
       projects: updated.projectConfigs,
+      customRows: updated.customRows || [],
       total: updated.projectConfigs?.length || 0,
       state: updated
     });
