@@ -580,6 +580,13 @@ Harap kembalikan respon HANYA dalam format JSON valid tanpa markdown, dengan str
   ]
 }`;const response=await ai.models.generateContent({model:"gemini-3.8-flash",contents:promptText,config:{responseMimeType:"application/json",temperature:.2}});const responseText=response.text||"";let parsed={};try{parsed=JSON.parse(responseText)}catch{const match=responseText.match(/\{[\s\S]*\}/);if(match){parsed=JSON.parse(match[0])}}return res.json({success:true,enrichedItems:parsed.enrichedItems||[],source:"gemini-3.8-flash"})}catch(err){console.error("Error in AI prioritization endpoint:",err);return res.json({success:false,error:err.message,enrichedItems:[]})}});app.get("/health", (req, res) => res.json({ status: "ok" }));
 
+process.on("uncaughtException", (err) => {
+  console.error("[Process] Uncaught Exception:", err);
+});
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Process] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
   const hasDist = fs.existsSync(path.join(distPath, "index.html"));
@@ -614,8 +621,17 @@ async function startServer() {
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
-  server.on("error", (err) => {
+  server.on("error", (err: any) => {
     console.error("Server listen error:", err);
+    if (err && err.code === "EADDRINUSE") {
+      console.warn(`Port ${PORT} in use, retrying in 1.5s...`);
+      setTimeout(() => {
+        try {
+          server.close();
+        } catch {}
+        app.listen(PORT, "0.0.0.0");
+      }, 1500);
+    }
   });
 }
 __name(startServer, "startServer");
