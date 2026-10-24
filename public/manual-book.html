@@ -248,8 +248,8 @@
       background: var(--slate-50);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 16px 20px;
-      margin: 14px 0;
+      padding: 18px 22px;
+      margin: 16px 0;
     }
 
     .step-badge {
@@ -261,6 +261,34 @@
       padding: 2px 8px;
       border-radius: 4px;
       margin-bottom: 8px;
+    }
+
+    /* Image Figure Styling */
+    figure.ui-screenshot {
+      margin: 20px 0 28px 0;
+      text-align: center;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      page-break-inside: avoid;
+    }
+
+    figure.ui-screenshot img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      display: block;
+      margin: 0 auto 10px auto;
+    }
+
+    figure.ui-screenshot figcaption {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--slate-600);
+      margin-top: 6px;
     }
 
     /* Footer */
@@ -280,7 +308,7 @@
       body {
         background: white;
         color: black;
-        font-size: 12pt;
+        font-size: 11pt;
       }
 
       .top-bar {
@@ -299,7 +327,7 @@
         page-break-before: always;
       }
 
-      .step-box, .callout, table {
+      .step-box, .callout, table, figure.ui-screenshot {
         page-break-inside: avoid;
       }
 
@@ -310,6 +338,17 @@
       a {
         text-decoration: none;
         color: inherit;
+      }
+
+      figure.ui-screenshot {
+        border: 1px solid #ccc;
+        box-shadow: none;
+        padding: 8px;
+      }
+
+      figure.ui-screenshot img {
+        max-height: 380px;
+        object-fit: contain;
       }
     }
   </style>
@@ -350,6 +389,12 @@
       <strong>IARMS (Internal Audit Risk Management Systems)</strong> adalah platform web korporat terintegrasi yang dirancang khusus untuk memfasilitasi seluruh siklus operasional audit internal, pemantauan tindak lanjut temuan (*Audit Finding Statement / AFS*), manajemen risiko perusahaan (*Risk Register*), serta evaluasi kepatuhan sistem manajemen ISO.
     </p>
 
+    <!-- FIGURE 1: Dashboard UI -->
+    <figure class="ui-screenshot">
+      <img src="/assets/images/iarms_dashboard_ui.jpg" alt="Tampilan Antarmuka Dashboard IARMS" />
+      <figcaption>Gambar 1: Tampilan Utama Dashboard Achievement IARMS dengan Metrik Temuan, Status Kepatuhan, dan Grafik Capaian per Site</figcaption>
+    </figure>
+
     <div class="callout">
       <strong>Tujuan Utama Sistem:</strong> Meningkatkan transparansi penyelesaian temuan audit, meniadakan redundansi spreadsheet manual, memastikan akuntabilitas PIC di masing-masing Site/Departemen, dan menyajikan data eksekutif secara <em>real-time</em> kepada Manajemen.
     </div>
@@ -384,8 +429,16 @@
       </tbody>
     </table>
 
+    <div class="page-break"></div>
+
     <!-- Account Management -->
     <h2>3. Manajemen Akun (Pendaftaran, Login, & Profil)</h2>
+
+    <!-- FIGURE 2: Login & Register Modal -->
+    <figure class="ui-screenshot">
+      <img src="/assets/images/iarms_login_register.jpg" alt="Formulir Masuk dan Pendaftaran Akun IARMS" />
+      <figcaption>Gambar 2: Jendela Dialog Masuk Akun dan Pendaftaran Pengguna Baru Berbasis NIK dan Departemen</figcaption>
+    </figure>
     
     <div class="step-box">
       <span class="step-badge">Langkah A</span>
@@ -424,10 +477,17 @@
       <p>Klik nama/avatar profil Anda di sudut kanan atas, pilih <strong>"Profil Saya"</strong> atau <strong>"Ganti Kata Sandi"</strong>. Masukkan kata sandi lama, masukkan kata sandi baru, lalu klik <strong>"Simpan Perubahan"</strong>.</p>
     </div>
 
-    <!-- Input Finding Statement -->
     <div class="page-break"></div>
+
+    <!-- Input Finding Statement -->
     <h2>4. Panduan Input & Sinkronisasi Temuan Audit</h2>
     <p>Terdapat tiga cara untuk memasukkan data temuan audit ke dalam sistem IARMS:</p>
+
+    <!-- FIGURE 3: Sync Project UI -->
+    <figure class="ui-screenshot">
+      <img src="/assets/images/iarms_sync_project_ui.jpg" alt="Tampilan Sinkronisasi Project Spreadsheet AFS" />
+      <figcaption>Gambar 3: Halaman Kelola Project & Sinkronisasi Link Google Spreadsheet AFS dengan Status Temuan Ter-Sync</figcaption>
+    </figure>
 
     <div class="step-box">
       <span class="step-badge">METODE 1</span>
@@ -473,9 +533,17 @@
       <p>Pada tab <strong>"Input Finding Statement"</strong>, pilih tab <strong>"Impor File / Spreadsheet"</strong>, seret berkas <code>.xlsx</code> atau <code>.csv</code> Anda, periksa pratinjau kolom, lalu klik <strong>"Konfirmasi & Impor ke Database"</strong>.</p>
     </div>
 
+    <div class="page-break"></div>
+
     <!-- Workflow Follow Up -->
     <h2>5. Alur Tindak Lanjut & Closing Temuan</h2>
-    <p>Diagram alur verifikasi penyelesaian temuan antara Auditee dan Auditor Internal:</p>
+    <p>Diagram alur dan tabel verifikasi penyelesaian temuan antara Auditee dan Auditor Internal:</p>
+
+    <!-- FIGURE 4: Finding Statement Table & Closing Action -->
+    <figure class="ui-screenshot">
+      <img src="/assets/images/iarms_finding_statement_ui.jpg" alt="Tabel Finding Statement dan Tindak Lanjut Closing" />
+      <figcaption>Gambar 4: Database Tabel Finding Statement Dilengkapi Filter Status (Open, Pending Review, Close) dan Tombol Aksi Tindak Lanjut</figcaption>
+    </figure>
 
     <table>
       <thead>
@@ -512,8 +580,9 @@
       </tbody>
     </table>
 
-    <!-- Core Modules -->
     <div class="page-break"></div>
+
+    <!-- Core Modules -->
     <h2>6. Panduan Modul & Fitur Utama</h2>
 
     <h3>A. Dashboard Achievement (Capaian Audit)</h3>
