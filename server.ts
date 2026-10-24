@@ -578,7 +578,14 @@ Harap kembalikan respon HANYA dalam format JSON valid tanpa markdown, dengan str
       "keyMitigationAction": "<tindakan mitigasi taktis prioritas>"
     }
   ]
-}`;const response=await ai.models.generateContent({model:"gemini-3.8-flash",contents:promptText,config:{responseMimeType:"application/json",temperature:.2}});const responseText=response.text||"";let parsed={};try{parsed=JSON.parse(responseText)}catch{const match=responseText.match(/\{[\s\S]*\}/);if(match){parsed=JSON.parse(match[0])}}return res.json({success:true,enrichedItems:parsed.enrichedItems||[],source:"gemini-3.8-flash"})}catch(err){console.error("Error in AI prioritization endpoint:",err);return res.json({success:false,error:err.message,enrichedItems:[]})}});app.get("/health", (req, res) => res.json({ status: "ok" }));
+}`;const response=await ai.models.generateContent({model:"gemini-3.8-flash",contents:promptText,config:{responseMimeType:"application/json",temperature:.2}});const responseText=response.text||"";let parsed={};try{parsed=JSON.parse(responseText)}catch{const match=responseText.match(/\{[\s\S]*\}/);if(match){parsed=JSON.parse(match[0])}}return res.json({success:true,enrichedItems:parsed.enrichedItems||[],source:"gemini-3.8-flash"})}catch(err){console.error("Error in AI prioritization endpoint:",err);return res.json({success:false,error:err.message,enrichedItems:[]})}});app.get(["/manual-book", "/manual-book.html"], (req, res) => {
+  const manualPath = path.join(process.cwd(), "public", "manual-book.html");
+  if (fs.existsSync(manualPath)) {
+    return res.sendFile(manualPath);
+  }
+  return res.status(404).send("Manual book not found");
+});
+app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 process.on("uncaughtException", (err) => {
   console.error("[Process] Uncaught Exception:", err);

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buku Panduan Pengguna (Manual Book) - IARMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --primary-light: #e0f2fe;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--slate-800);
+      background-color: #f8fafc;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    /* Fixed Top Bar (Screen Only) */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .top-bar-title {
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--slate-800);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-doc {
+      background: #0284c7;
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: #0284c7;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+    }
+
+    .btn-outline {
+      background: white;
+      color: var(--slate-700);
+      border-color: var(--border);
+    }
+
+    .btn-outline:hover {
+      background: var(--slate-100);
+      color: var(--slate-800);
+    }
+
+    /* Document Layout */
+    .doc-container {
+      max-width: 900px;
+      margin: 32px auto;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 56px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Cover / Header Section */
+    .doc-header {
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .logo-area h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .logo-area h1 span {
+      color: #0284c7;
+    }
+
+    .logo-area p {
+      font-size: 13px;
+      color: var(--slate-600);
+      font-weight: 500;
+    }
+
+    .meta-box {
+      text-align: right;
+      font-size: 11px;
+      color: var(--slate-600);
+      line-height: 1.5;
+    }
+
+    .meta-box strong {
+      color: var(--slate-800);
+    }
+
+    /* Typography */
+    h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 36px 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 20px 0 10px 0;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--slate-700);
+    }
+
+    ul, ol {
+      margin: 10px 0 16px 24px;
+      color: var(--slate-700);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Callout & Notes */
+    .callout {
+      background: var(--primary-light);
+      border-left: 4px solid var(--primary);
+      padding: 14px 18px;
+      border-radius: 0 10px 10px 0;
+      margin: 18px 0;
+      font-size: 13px;
+      color: #0369a1;
+    }
+
+    .callout strong {
+      color: #075985;
+    }
+
+    .callout-warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .callout-warning strong {
+      color: #78350f;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 24px 0;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--slate-50);
+      color: var(--slate-800);
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    /* Workflow Step Box */
+    .step-box {
+      background: var(--slate-50);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 14px 0;
+    }
+
+    .step-badge {
+      display: inline-block;
+      background: #0284c7;
+      color: white;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--slate-600);
+    }
+
+    /* PRINT SPECIFIC STYLES */
+    @media print {
+      body {
+        background: white;
+        color: black;
+        font-size: 12pt;
+      }
+
+      .top-bar {
+        display: none !important;
+      }
+
+      .doc-container {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+
+      .step-box, .callout, table {
+        page-break-inside: avoid;
+      }
+
+      h2 {
+        page-break-after: avoid;
+      }
+
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Screen Action Bar -->
+  <div class="top-bar">
+    <div class="top-bar-title">
+      <span class="badge-doc">Buku Panduan Resmi</span>
+      <span>IARMS Manual Book & User Guide</span>
+    </div>
+    <div class="btn-group">
+      <a href="/" class="btn btn-outline">⬅️ Kembali ke Aplikasi IARMS</a>
+      <button onclick="window.print()" class="btn btn-primary">🖨️ Cetak / Simpan sebagai PDF (Ctrl + P)</button>
+    </div>
+  </div>
+
+  <div class="doc-container">
+
+    <!-- Document Header -->
+    <div class="doc-header">
+      <div class="logo-area">
+        <h1>IARMS <span>Manual Book</span></h1>
+        <p>Internal Audit & Risk Management Systems — Enterprise Operations Manual</p>
+      </div>
+      <div class="meta-box">
+        <div><strong>Dokumen:</strong> SOP-IA-MAN-01</div>
+        <div><strong>Versi:</strong> 1.0 (Enterprise Release)</div>
+        <div><strong>Pembaruan:</strong> Oktober 2026</div>
+        <div><strong>Otoritas:</strong> Divisi Internal Audit</div>
+      </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>1. Tentang Sistem IARMS</h2>
+    <p>
+      <strong>IARMS (Internal Audit Risk Management Systems)</strong> adalah platform web korporat terintegrasi yang dirancang khusus untuk memfasilitasi seluruh siklus operasional audit internal, pemantauan tindak lanjut temuan (*Audit Finding Statement / AFS*), manajemen risiko perusahaan (*Risk Register*), serta evaluasi kepatuhan sistem manajemen ISO.
+    </p>
+
+    <div class="callout">
+      <strong>Tujuan Utama Sistem:</strong> Meningkatkan transparansi penyelesaian temuan audit, meniadakan redundansi spreadsheet manual, memastikan akuntabilitas PIC di masing-masing Site/Departemen, dan menyajikan data eksekutif secara <em>real-time</em> kepada Manajemen.
+    </div>
+
+    <!-- User Roles -->
+    <h2>2. Peran Pengguna & Tingkat Hak Akses</h2>
+    <p>Sistem membagi pengguna ke dalam 4 peran utama dengan wewenang yang terdefinisi jelas:</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 25%;">Peran (Role)</th>
+          <th>Tanggung Jawab & Hak Akses</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Lead Auditor / Internal Audit</strong></td>
+          <td>Akses penuh: membuat project audit, sinkronisasi Google Sheets AFS, mengedit temuan, meninjau bukti perbaikan, menyetujui closing (*Approval*), serta mengelola Master Karyawan dan Risk Register.</td>
+        </tr>
+        <tr>
+          <td><strong>Auditee / PIC (Site & HO)</strong></td>
+          <td>Akses tindak lanjut: melihat daftar temuan yang dibebankan ke departemennya, memperbarui progres perbaikan, dan melampirkan tautan/dokumen bukti perbaikan (*evidence closing*).</td>
+        </tr>
+        <tr>
+          <td><strong>Manajemen / Eksekutif</strong></td>
+          <td>Akses pemantauan: melihat dasbor capaian agregat (*close rate %*), matriks risiko utama (*risk matrix*), tren penyelesaian per kuartal, dan rekomendasi audit prioritas tinggi.</td>
+        </tr>
+        <tr>
+          <td><strong>Akses Publik</strong></td>
+          <td>Akses ringkasan: memantau capaian audit publik tanpa izin melihat kertas kerja audit sensitif (*KKA*) atau mengubah data master.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Account Management -->
+    <h2>3. Manajemen Akun (Pendaftaran, Login, & Profil)</h2>
+    
+    <div class="step-box">
+      <span class="step-badge">Langkah A</span>
+      <h3>Pendaftaran Akun Baru (Register)</h3>
+      <ol>
+        <li>Buka aplikasi IARMS pada peramban web (browser) Anda.</li>
+        <li>Pada bilah navigasi kanan atas, klik tombol <strong>"Halaman Masuk (Login / Register)"</strong>.</li>
+        <li>Pilih tab <strong>"Daftar Akun Baru"</strong>.</li>
+        <li>Lengkapi formulir pendaftaran:
+          <ul>
+            <li><strong>Nama Lengkap:</strong> Masukkan nama lengkap beserta gelar.</li>
+            <li><strong>Nomor Induk Karyawan (NIK):</strong> Masukkan NIK resmi Anda di perusahaan.</li>
+            <li><strong>Departemen & Site:</strong> Pilih departemen serta unit kerja/lokasi penempatan (misal: <em>Plant - Site Palaran</em> atau <em>Accounting - Head Office</em>).</li>
+            <li><strong>Email / Username:</strong> Masukkan alamat email korporat aktif.</li>
+            <li><strong>Kata Sandi (Password):</strong> Buat kata sandi minimal 6 karakter.</li>
+          </ul>
+        </li>
+        <li>Klik tombol <strong>"Daftar Sekarang"</strong>. Akun akan langsung aktif dan terhubung ke role yang sesuai.</li>
+      </ol>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">Langkah B</span>
+      <h3>Masuk Akun (Login)</h3>
+      <ol>
+        <li>Buka menu masuk di sudut kanan atas.</li>
+        <li>Pastikan Anda berada di tab <strong>"Masuk Akun"</strong>.</li>
+        <li>Masukkan <strong>Email / Username</strong> dan <strong>Kata Sandi</strong> yang telah terdaftar.</li>
+        <li>Klik <strong>"Masuk ke IARMS"</strong>. Inisial dan nama akun Anda akan muncul di bilah atas.</li>
+      </ol>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">Langkah C</span>
+      <h3>Mengubah Profil & Kata Sandi</h3>
+      <p>Klik nama/avatar profil Anda di sudut kanan atas, pilih <strong>"Profil Saya"</strong> atau <strong>"Ganti Kata Sandi"</strong>. Masukkan kata sandi lama, masukkan kata sandi baru, lalu klik <strong>"Simpan Perubahan"</strong>.</p>
+    </div>
+
+    <!-- Input Finding Statement -->
+    <div class="page-break"></div>
+    <h2>4. Panduan Input & Sinkronisasi Temuan Audit</h2>
+    <p>Terdapat tiga cara untuk memasukkan data temuan audit ke dalam sistem IARMS:</p>
+
+    <div class="step-box">
+      <span class="step-badge">METODE 1</span>
+      <h3>Sinkronisasi Link Google Spreadsheet AFS (Direkomendasikan)</h3>
+      <p>Metode ini menyinkronkan lembar kerja Google Sheets AFS tim auditor ke database server secara otomatis:</p>
+      <ol>
+        <li>Klik menu samping <strong>"Input Finding Statement"</strong>.</li>
+        <li>Pada daftar project, pilih kartu project yang sesuai (contoh: <em>AUDIT OPERASIONAL IT - HEAD OFFICE - 2026</em>).</li>
+        <li>Tempelkan link Google Spreadsheet AFS pada kolom <strong>"Link Google Sheet AFS"</strong>.</li>
+        <li>Pastikan pengaturan akses pada Google Sheet telah diatur minimal <em>"Anyone with the link can view" (Siapa saja yang memiliki link dapat melihat)</em>.</li>
+        <li>Klik tombol <strong>"Sync Project Ini"</strong>.</li>
+        <li>Sistem akan mengunduh, memetakan, dan menyimpan temuan ke database. Status akan berubah menjadi hijau bertuliskan <strong>"✓ [X] Temuan Ter-Sync"</strong>.</li>
+      </ol>
+      <div class="callout">
+        <strong>Untuk Project Baru:</strong> Klik tombol <strong>"+ Tambah Project Audit Baru"</strong> di bagian atas tabel, isi Nama Project, Site, Tahun, dan tempelkan link Google Sheet, lalu klik <strong>"Simpan & Sinkronkan"</strong>.
+      </div>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">METODE 2</span>
+      <h3>Input Temuan Manual Langsung (Direct Form)</h3>
+      <ol>
+        <li>Buka menu <strong>"Finding Statement"</strong> atau klik tombol <strong>"+ Tambah Temuan Baru"</strong>.</li>
+        <li>Isi parameter utama temuan:
+          <ul>
+            <li><strong>Project & Site:</strong> Tentukan penugasan audit dan lokasi site terkait.</li>
+            <li><strong>Kondisi / Problem Finding:</strong> Uraikan fakta ketidaksesuaian yang ditemukan di lapangan.</li>
+            <li><strong>Detail & Bukti Temuan:</strong> Keterangan rinci kondisi temuan.</li>
+            <li><strong>Kriteria / SOP:</strong> Kebijakan, SOP, atau regulasi yang menjadi acuan ketidaksesuaian.</li>
+            <li><strong>Kategori:</strong> Tentukan tingkat keparahan (<em>MAJOR</em>, <em>MODERATE</em>, atau <em>MINOR</em>).</li>
+            <li><strong>Rekomendasi Audit:</strong> Tindakan perbaikan yang disarankan auditor.</li>
+            <li><strong>PIC Site & PIC HO:</strong> Departemen penanggung jawab penyelesaian.</li>
+            <li><strong>Due Date:</strong> Batas waktu penyelesaian yang disepakati.</li>
+          </ul>
+        </li>
+        <li>Klik <strong>"Simpan Temuan"</strong>.</li>
+      </ol>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">METODE 3</span>
+      <h3>Impor Berkas Excel / CSV Langsung</h3>
+      <p>Pada tab <strong>"Input Finding Statement"</strong>, pilih tab <strong>"Impor File / Spreadsheet"</strong>, seret berkas <code>.xlsx</code> atau <code>.csv</code> Anda, periksa pratinjau kolom, lalu klik <strong>"Konfirmasi & Impor ke Database"</strong>.</p>
+    </div>
+
+    <!-- Workflow Follow Up -->
+    <h2>5. Alur Tindak Lanjut & Closing Temuan</h2>
+    <p>Diagram alur verifikasi penyelesaian temuan antara Auditee dan Auditor Internal:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%;">Tahapan</th>
+          <th style="width: 25%;">Pelaksana</th>
+          <th>Deskripsi Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. OPEN</strong></td>
+          <td>Internal Audit</td>
+          <td>Temuan diterbitkan dengan target Due Date dan rekomendasi tindakan perbaikan.</td>
+        </tr>
+        <tr>
+          <td><strong>2. IN PROGRESS</strong></td>
+          <td>Auditee / PIC</td>
+          <td>PIC melakukan perbaikan di lapangan, membuat SOP/BA perbaikan, dan menyiapkan bukti dokumen pendukung.</td>
+        </tr>
+        <tr>
+          <td><strong>3. SUBMIT CLOSING</strong></td>
+          <td>Auditee / PIC</td>
+          <td>PIC membuka modul <em>Finding Statement</em>, klik <strong>"Tindak Lanjut / Closing"</strong>, mengisi uraian perbaikan, dan melampirkan tautan Google Drive bukti closing. Status berubah menjadi <em>PENDING IA REVIEW</em>.</td>
+        </tr>
+        <tr>
+          <td><strong>4. IA VERIFICATION</strong></td>
+          <td>Internal Audit</td>
+          <td>Auditor meninjau bukti:
+            <br>• Jika memadai: Klik <strong>"APPROVE / CLOSE"</strong> (Status resmi menjadi <em>CLOSE</em>).
+            <br>• Jika belum lengkap: Klik <strong>"REVISE / NEED FOLLOW UP"</strong> disertai catatan kekurangan.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Core Modules -->
+    <div class="page-break"></div>
+    <h2>6. Panduan Modul & Fitur Utama</h2>
+
+    <h3>A. Dashboard Achievement (Capaian Audit)</h3>
+    <p>Menyajikan metrik utama KPI kepatuhan audit perusahaan secara menyeluruh:</p>
+    <ul>
+      <li><strong>Statistik Ringkas:</strong> Total Temuan, Temuan Open, Temuan In Progress, dan Temuan Close.</li>
+      <li><strong>Tingkat Ketercapaian (Close Rate %):</strong> Persentase rasio penyelesaian temuan per site dan per unit bisnis.</li>
+      <li><strong>Tabel Rekapitulasi Proyek:</strong> Rincian temuan per site yang dapat diurutkan berdasarkan prioritas dan tahun pelaksanaan.</li>
+    </ul>
+
+    <h3>B. Finding Statement (Database Temuan)</h3>
+    <p>Pusat database seluruh temuan audit. Dilengkapi filter pencarian multi-kriteria (Site, Kategori Major/Moderate/Minor, Status Open/Close, dan PIC). Terdapat tombol <strong>Ekspor Excel</strong> dan <strong>Ekspor PDF</strong> untuk kebutuhan rapat koordinasi dan pelaporan resmi.</p>
+
+    <h3>C. Trend Achievement & Achievement by Department</h3>
+    <p>Visualisasi analitik grafik batang dan diagram garis yang memperlihatkan tren closing temuan antar-kuartal serta evaluasi performa kepatuhan masing-masing departemen.</p>
+
+    <h3>D. Kertas Kerja Audit (KKA) & Checklist ISO</h3>
+    <p>Modul kerja auditor untuk melaksanakan audit lapangan berbasis klausul standar ISO 9001 (Mutu), ISO 14001 (Lingkungan), dan ISO 45001 (K3), mencakup pencatatan bukti uji petik dan verifikasi kepatuhan.</p>
+
+    <h3>E. Risk Register & Risk Management (ERM)</h3>
+    <p>Daftar inventarisasi risiko komprehensif. Menghitung tingkat risiko secara otomatis melalui perkalian <em>Likelihood × Impact</em>, pemetaan matriks risiko (5x5 Heatmap), dan pemantauan rencana mitigasi (*Treatment Plan*).</p>
+
+    <h3>F. Daily Cutoff & Backup Database</h3>
+    <p>Fitur keamanan data untuk mencadangkan database secara berkala ke dalam berkas JSON atau spreadsheet eksternal sebagai arsip permanen.</p>
+
+    <!-- FAQ -->
+    <h2>7. Pertanyaan yang Sering Diajukan (FAQ)</h2>
+    <p><strong>Q: Apakah data tersimpan aman jika browser ditutup atau komputer mati?</strong><br>
+    <strong>A:</strong> Ya. Seluruh data yang disimpan atau disinkronkan langsung tersimpan di file database server <code>server_app_state.json</code> dan di-cache pada memori lokal peramban.</p>
+
+    <p><strong>Q: Bagaimana cara menyimpan dokumen ini ke bentuk file PDF di komputer?</strong><br>
+    <strong>A:</strong> Klik tombol biru <strong>"🖨️ Cetak / Simpan sebagai PDF"</strong> di bilah atas layar, atau tekan tombol kombinasi <code>Ctrl + P</code> (pada Windows) atau <code>Cmd + P</code> (pada Mac), lalu pada menu printer pilih opsi <strong>"Save as PDF" (Simpan sebagai PDF)</strong>.</p>
+
+    <!-- Document Sign Off -->
+    <div class="doc-footer">
+      <div>© 2026 Internal Audit & Risk Management Systems (IARMS). All Rights Reserved.</div>
+      <div>Dicetak dari: IARMS Knowledge Base & Operational Guidelines</div>
+    </div>
+
+  </div>
+
+</body>
+</html>
