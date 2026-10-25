@@ -570,6 +570,88 @@
         box-shadow: none;
       }
     }
+  
+    /* Live Text Editing Styles */
+    .btn-edit-active {
+      background: #0284c7 !important;
+      color: white !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25);
+    }
+
+    .edit-mode-active [contenteditable="true"] {
+      outline: 1.5px dashed #93c5fd !important;
+      border-radius: 4px;
+      transition: background-color 0.15s, outline-color 0.15s;
+      cursor: text;
+    }
+
+    .edit-mode-active [contenteditable="true"]:hover {
+      background-color: rgba(224, 242, 254, 0.45) !important;
+      outline: 1.5px solid #0284c7 !important;
+    }
+
+    .edit-mode-active [contenteditable="true"]:focus {
+      background-color: #ffffff !important;
+      outline: 2px solid #0284c7 !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
+    }
+
+    .format-toolbar {
+      display: none;
+      position: sticky;
+      top: 57px;
+      z-index: 90;
+      background: #0f172a;
+      color: white;
+      padding: 6px 16px;
+      border-radius: 0 0 12px 12px;
+      margin: 0 auto;
+      max-width: 960px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .format-toolbar.show {
+      display: flex;
+    }
+
+    .fmt-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .fmt-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .fmt-btn:hover {
+      background: #0284c7;
+      border-color: #0284c7;
+    }
+
+    @media print {
+      .format-toolbar, #btn-toggle-edit, #btn-save-manual, #btn-reset-manual, #save-status-indicator {
+        display: none !important;
+      }
+      [contenteditable="true"] {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -580,13 +662,33 @@
       <span class="badge-doc">Buku Panduan Resmi</span>
       <span>IARMS Manual Book & User Guide</span>
     </div>
-    <div class="btn-group">
-      <a href="/" class="btn btn-outline">⬅️ Kembali ke Aplikasi IARMS</a>
-      <button onclick="window.print()" class="btn btn-primary">🖨️ Cetak / Simpan sebagai PDF (Ctrl + P)</button>
+    <div class="btn-group" style="align-items: center;">
+      <span id="save-status-indicator" style="font-size: 11px; color: #16a34a; font-weight: 700; display: none;">✓ Tersimpan</span>
+      <button id="btn-toggle-edit" onclick="toggleEditMode()" class="btn btn-outline" style="border-color: #0284c7; color: #0284c7;">✏️ Mode Edit Teks</button>
+      <button id="btn-save-manual" onclick="manualSave()" class="btn btn-outline" style="display:none; color: #16a34a; border-color: #86efac;">💾 Simpan</button>
+      <button id="btn-reset-manual" onclick="resetToDefault()" class="btn btn-outline" style="display:none; color: #ef4444; border-color: #fca5a5;">↺ Reset Teks Asli</button>
+      <a href="/" class="btn btn-outline">⬅️ Kembali</a>
+      <button onclick="window.print()" class="btn btn-primary">🖨️ Cetak / Simpan PDF</button>
     </div>
   </div>
 
-  <div class="doc-container">
+  <!-- Floating Text Formatting Toolbar (Shown only in Edit Mode) -->
+  <div id="format-toolbar" class="format-toolbar">
+    <div class="fmt-group">
+      <span style="color: #94a3b8; font-weight: 600; font-size: 11px; margin-right: 4px;">FORMAT TEKS:</span>
+      <button type="button" class="fmt-btn" onclick="formatDoc(bold)" title="Tebal (Ctrl+B)"><strong>B</strong></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(italic)" title="Miring (Ctrl+I)"><em>I</em></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(underline)" title="Garis Bawah (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(strikeThrough)" title="Coret"><s>S</s></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(insertUnorderedList)" title="Daftar Poin (Bullet List)">• Poin</button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(insertOrderedList)" title="Daftar Nomor (Number List)">1. Nomor</button>
+    </div>
+    <div style="font-size: 11px; color: #94a3b8;">
+      💡 <em>Klik pada kalimat mana saja untuk mengedit, menambah, atau menghapus teks.</em>
+    </div>
+  </div>
+
+  <div class="doc-container" id="manual-doc-body">
 
     <!-- Document Header -->
     <div class="doc-header">
@@ -1059,6 +1161,130 @@
     </div>
 
   </div>
+
+
+  <script>
+    const STORAGE_KEY = "iarms_manual_book_custom_v1";
+    let isEditing = false;
+    let autoSaveTimeout = null;
+
+    // Load saved content from localStorage on startup
+    window.addEventListener("DOMContentLoaded", () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && saved.trim()) {
+          const docBody = document.getElementById("manual-doc-body");
+          if (docBody) {
+            docBody.innerHTML = saved;
+            showSaveIndicator("✓ Memuat versi kustom Anda");
+          }
+        }
+      } catch(e) {
+        console.warn("Could not load custom manual content:", e);
+      }
+    });
+
+    function toggleEditMode() {
+      isEditing = !isEditing;
+      const body = document.body;
+      const toggleBtn = document.getElementById("btn-toggle-edit");
+      const saveBtn = document.getElementById("btn-save-manual");
+      const resetBtn = document.getElementById("btn-reset-manual");
+      const toolbar = document.getElementById("format-toolbar");
+      const docBody = document.getElementById("manual-doc-body");
+
+      if (isEditing) {
+        body.classList.add("edit-mode-active");
+        toggleBtn.classList.add("btn-edit-active");
+        toggleBtn.innerHTML = "✓ Selesai Edit";
+        saveBtn.style.display = "inline-flex";
+        resetBtn.style.display = "inline-flex";
+        toolbar.classList.add("show");
+
+        // Make elements inside manual-doc-body editable
+        makeElementsEditable(true);
+
+        showSaveIndicator("✏️ Mode Edit Aktif - Klik teks untuk mengetik");
+      } else {
+        body.classList.remove("edit-mode-active");
+        toggleBtn.classList.remove("btn-edit-active");
+        toggleBtn.innerHTML = "✏️ Mode Edit Teks";
+        saveBtn.style.display = "none";
+        resetBtn.style.display = "none";
+        toolbar.classList.remove("show");
+
+        makeElementsEditable(false);
+        saveContent();
+        showSaveIndicator("✓ Seluruh perubahan tersimpan");
+      }
+    }
+
+    function makeElementsEditable(editable) {
+      const docBody = document.getElementById("manual-doc-body");
+      if (!docBody) return;
+      const targets = docBody.querySelectorAll("h1, h2, h3, p, li, td, th, .callout, figcaption, .caption-box, .meta-box div, .kpi-label, .kpi-value, .p-tag");
+      targets.forEach(el => {
+        el.contentEditable = editable ? "true" : "false";
+        if (editable) {
+          el.removeEventListener("input", handleContentInput);
+          el.addEventListener("input", handleContentInput);
+        } else {
+          el.removeEventListener("input", handleContentInput);
+        }
+      });
+    }
+
+    function handleContentInput() {
+      showSaveIndicator("Menyimpan perubahan...");
+      if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        saveContent();
+        showSaveIndicator("✓ Tersimpan otomatis di browser");
+      }, 800);
+    }
+
+    function saveContent() {
+      try {
+        const docBody = document.getElementById("manual-doc-body");
+        if (docBody) {
+          // Temporarily ensure contentEditable does not pollute attributes
+          localStorage.setItem(STORAGE_KEY, docBody.innerHTML);
+        }
+      } catch(e) {
+        console.error("Gagal menyimpan ke localStorage:", e);
+      }
+    }
+
+    function manualSave() {
+      saveContent();
+      showSaveIndicator("✓ Perubahan berhasil disimpan!");
+    }
+
+    function resetToDefault() {
+      const ok = window.confirm("Apakah Anda yakin ingin mengembalikan seluruh teks ke versi standar resmi IARMS?\n\nSemua kalimat yang Anda ubah atau tambahkan akan di-reset.");
+      if (ok) {
+        localStorage.removeItem(STORAGE_KEY);
+        window.location.reload();
+      }
+    }
+
+    function formatDoc(cmd, val = null) {
+      document.execCommand(cmd, false, val);
+      handleContentInput();
+    }
+
+    function showSaveIndicator(msg) {
+      const indicator = document.getElementById("save-status-indicator");
+      if (indicator) {
+        indicator.textContent = msg;
+        indicator.style.display = "inline";
+        clearTimeout(indicator._timer);
+        indicator._timer = setTimeout(() => {
+          if (!isEditing) indicator.style.display = "none";
+        }, 4000);
+      }
+    }
+  </script>
 
 </body>
 </html>
