@@ -1146,8 +1146,131 @@
       </tbody>
     </table>
 
+    <!-- ACHIEVEMENT DEPARTMENT INTERACTIVE MODULE -->
+    <div class="page-break"></div>
+    <h2>6. Modul Achievement Department & Fitur Interaktif Buka Temuan OPEN</h2>
+    <p>
+      Modul <strong>Achievement Department</strong> menyajikan rekapitulasi performa tingkat penyelesaian temuan audit (*close rate*) per departemen atau unit kerja (misal: <em>IT, Plant, Finance, Logistik, HRD, GA, Mining, SHE</em>). Modul ini dilengkapi fitur <strong>Drill-Down Interaktif</strong> untuk mempercepat penelusuran temuan yang masih membutuhkan aksi perbaikan.
+    </p>
+
+    <!-- REALISTIC MOCKUP: ACHIEVEMENT DEPARTMENT TABLE WITH CLICKABLE OPEN -->
+    <div class="app-mockup">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">https://iarms.company.com/achievement-department</div>
+      </div>
+      <div style="padding: 16px; background: white;">
+        
+        <!-- Header & Quick Filters -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-weight: 800; font-size: 14px; color: #0f172a;">Tingkat Capaian Audit per Departemen</span>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Klik pada angka kolom untuk langsung melihat rincian temuan di Resume AFS</div>
+          </div>
+          <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 3px; border-radius: 8px; font-size: 11px;">
+            <span style="background: #0284c7; color: white; padding: 3px 10px; border-radius: 6px; font-weight: 700;">PIC HO</span>
+            <span style="color: #64748b; padding: 3px 10px; font-weight: 600;">PIC Site</span>
+            <span style="color: #64748b; padding: 3px 10px; font-weight: 600;">Semua PIC</span>
+          </div>
+        </div>
+
+        <!-- Interactive Table Mockup -->
+        <table style="margin: 0; font-size: 11.5px;">
+          <thead>
+            <tr>
+              <th style="width: 30px; text-align: center;">No</th>
+              <th>Departemen / Unit Kerja</th>
+              <th style="text-align: center;">Total</th>
+              <th style="text-align: center;">Closed</th>
+              <th style="text-align: center; background: #fee2e2; color: #991b1b;">OPEN (Klik) 🔴</th>
+              <th style="text-align: center;">Progress</th>
+              <th style="text-align: center;">Overdue</th>
+              <th style="text-align: center;">Capaian (%)</th>
+              <th style="text-align: center;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background: #fff;">
+              <td style="text-align: center; font-weight: bold;">1</td>
+              <td><strong>IT & SISTEM INFORMASI</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">115</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">88</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 20 temuan OPEN IT di Resume AFS">
+                👉 20
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">7</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">3</td>
+              <td style="text-align: center; font-weight: 800; color: #16a34a;">76,5%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+            <tr style="background: #fafbfc;">
+              <td style="text-align: center; font-weight: bold;">2</td>
+              <td><strong>PLANT & ALAT BERAT</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">240</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">182</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 42 temuan OPEN Plant di Resume AFS">
+                👉 42
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">16</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">8</td>
+              <td style="text-align: center; font-weight: 800; color: #16a34a;">75,8%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+            <tr style="background: #fff;">
+              <td style="text-align: center; font-weight: bold;">3</td>
+              <td><strong>LOGISTIK & WAREHOUSE</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">165</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">110</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 38 temuan OPEN Logistik di Resume AFS">
+                👉 38
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">17</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">5</td>
+              <td style="text-align: center; font-weight: 800; color: #d97706;">66,7%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="caption-box">
+        Gambar 5: Tampilan Tabel Achievement Department dengan Kolom OPEN Interaktif yang Dapat Diklik Langsung untuk Membuka Temuan Terkait
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Cara Kerja Fitur Interaktif "Klik Temuan OPEN":</strong>
+      <ul style="margin: 6px 0 6px 18px;">
+        <li><strong>Klik Langsung pada Angka OPEN:</strong> Cukup klik angka berwarna merah pada kolom <code>OPEN</code> di baris departemen yang Anda inginkan (misal: klik angka <code>20</code> pada baris IT).</li>
+        <li><strong>Otomatis Pindah ke Resume AFS:</strong> Sistem IARMS seketika mengarahkan Anda ke halaman <strong>Resume Audit Finding Statement (AFS)</strong> dengan filter yang telah terpasang otomatis: <em>Departemen: IT</em> dan <em>Status: OPEN</em>.</li>
+        <li><strong>Langsung Siap Tindak Lanjut:</strong> PIC departemen atau auditor tidak perlu mencari atau memfilter manual satu per satu, seluruh temuan yang masih terbuka langsung muncul di layar untuk segera ditindaklanjuti.</li>
+      </ul>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">PANDUAN PRAKTIS</span>
+      <h3>3 Cara Membuka Temuan Departemen dari Modul Ini:</h3>
+      <ol>
+        <li><strong>Metode 1 (Paling Cepat): Klik Angka di Kolom OPEN (Merah)</strong><br>
+          Klik angka pada kolom <strong>OPEN</strong> untuk langsung menampilkan semua temuan departemen tersebut yang statusnya masih <code>OPEN</code>.
+        </li>
+        <li><strong>Metode 2: Klik Tombol "Detail" pada Baris Departemen</strong><br>
+          Klik tombol <strong>"Detail"</strong> di sisi kanan tabel untuk membuka jendela pop-up. Di dalam pop-up terdapat ringkasan kartu dan tombol merah: <strong>"Buka Temuan OPEN [Nama Departemen]"</strong>.
+        </li>
+        <li><strong>Metode 3: Penelusuran Berdasarkan Status Lainnya</strong><br>
+          Selain kolom OPEN, Anda juga dapat mengklik angka pada kolom <strong>Closed</strong> (hijau), <strong>Progress</strong> (kuning), <strong>Overdue</strong> (ungu), atau <strong>Total</strong> (biru) untuk membuka temuan sesuai kategori status yang diinginkan.
+        </li>
+      </ol>
+    </div>
+
     <!-- FAQ -->
-    <h2>6. Pertanyaan yang Sering Diajukan (FAQ)</h2>
+    <h2>7. Pertanyaan yang Sering Diajukan (FAQ)</h2>
     <p><strong>Q: Apakah data tersimpan aman jika browser ditutup atau komputer mati?</strong><br>
     <strong>A:</strong> Ya. Seluruh data yang disimpan atau disinkronkan langsung tersimpan di file database server <code>server_app_state.json</code> dan di-cache pada memori lokal peramban.</p>
 
@@ -1164,7 +1287,7 @@
 
 
   <script>
-    const STORAGE_KEY = "iarms_manual_book_custom_v1";
+    const STORAGE_KEY = "iarms_manual_book_custom_v2";
     let isEditing = false;
     let autoSaveTimeout = null;
 
