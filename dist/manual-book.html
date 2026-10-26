@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buku Panduan Pengguna (Manual Book) - IARMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --primary-light: #e0f2fe;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--slate-800);
+      background-color: #f1f5f9;
+      line-height: 1.65;
+      font-size: 13.5px;
+    }
+
+    /* Fixed Top Bar (Screen Only) */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .top-bar-title {
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--slate-800);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-doc {
+      background: #0284c7;
+      color: white;
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: #0284c7;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+    }
+
+    .btn-outline {
+      background: white;
+      color: var(--slate-700);
+      border-color: var(--border);
+    }
+
+    .btn-outline:hover {
+      background: var(--slate-100);
+      color: var(--slate-800);
+    }
+
+    /* Document Layout */
+    .doc-container {
+      max-width: 960px;
+      margin: 28px auto 48px auto;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 56px;
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Cover / Header Section */
+    .doc-header {
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .logo-area h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .logo-area h1 span {
+      color: #0284c7;
+    }
+
+    .logo-area p {
+      font-size: 13px;
+      color: var(--slate-600);
+      font-weight: 500;
+    }
+
+    .meta-box {
+      text-align: right;
+      font-size: 11px;
+      color: var(--slate-600);
+      line-height: 1.6;
+    }
+
+    .meta-box strong {
+      color: var(--slate-800);
+    }
+
+    /* Typography */
+    h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 36px 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 22px 0 10px 0;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--slate-700);
+    }
+
+    ul, ol {
+      margin: 10px 0 16px 24px;
+      color: var(--slate-700);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Callout & Notes */
+    .callout {
+      background: var(--primary-light);
+      border-left: 4px solid var(--primary);
+      padding: 14px 18px;
+      border-radius: 0 10px 10px 0;
+      margin: 18px 0;
+      font-size: 13px;
+      color: #0369a1;
+    }
+
+    .callout strong {
+      color: #075985;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 24px 0;
+      font-size: 12.5px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--slate-50);
+      color: var(--slate-800);
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    /* Step Box */
+    .step-box {
+      background: var(--slate-50);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin: 16px 0;
+    }
+
+    .step-badge {
+      display: inline-block;
+      background: #0284c7;
+      color: white;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* REALISTIC VECTOR UI WINDOW COMPONENT */
+    .app-mockup {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 20px 0 28px 0;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      page-break-inside: avoid;
+    }
+
+    .mockup-window-header {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .window-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .window-url {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 3px 12px;
+      font-size: 11px;
+      color: #64748b;
+      flex-grow: 1;
+      max-width: 480px;
+    }
+
+    .mockup-body {
+      background: #f8fafc;
+      display: flex;
+      min-height: 280px;
+    }
+
+    /* Sidebar Mockup */
+    .mockup-sidebar {
+      width: 240px;
+      background: #ffffff;
+      border-right: 1px solid #e2e8f0;
+      padding: 14px 12px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0284c7;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f1f5f9;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin: 10px 0 6px 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-menu-item.active {
+      background: #e0f2fe;
+      color: #0284c7;
+      font-weight: 700;
+    }
+
+    /* Content Area Mockup */
+    .mockup-content {
+      flex-grow: 1;
+      padding: 16px 20px;
+      background: #f8fafc;
+      overflow-x: auto;
+    }
+
+    .content-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 16px;
+    }
+
+    .topbar-badge-user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .avatar-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+    }
+
+    /* KPI Metric Cards Mockup */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .kpi-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .kpi-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .kpi-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-amber { background: #fef3c7; color: #b45309; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+    .badge-blue { background: #e0f2fe; color: #0369a1; }
+
+    /* Project Card Mockup */
+    .project-card-mockup {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .project-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .p-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .p-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .p-tag-name { background: #e0f2fe; color: #0369a1; }
+    .p-tag-site { background: #f1f5f9; color: #334155; }
+    .p-tag-year { background: #f1f5f9; color: #64748b; }
+    .p-tag-sync { background: #dcfce7; color: #166534; }
+
+    .card-inputs-grid {
+      display: grid;
+      grid-template-columns: 140px 90px 1fr auto;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .mockup-input {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .mockup-btn-sync {
+      background: #0284c7;
+      color: white;
+      font-weight: 700;
+      font-size: 11.5px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .caption-box {
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      text-align: center;
+    }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--slate-600);
+    }
+
+    /* PRINT SPECIFIC STYLES */
+    @media print {
+      body {
+        background: white;
+        color: black;
+        font-size: 11pt;
+      }
+
+      .top-bar {
+        display: none !important;
+      }
+
+      .doc-container {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+
+      .step-box, .callout, table, .app-mockup {
+        page-break-inside: avoid;
+      }
+
+      h2 {
+        page-break-after: avoid;
+      }
+
+      .app-mockup {
+        border: 1px solid #cbd5e1;
+        box-shadow: none;
+      }
+    }
+  
+    /* Live Text Editing Styles */
+    .btn-edit-active {
+      background: #0284c7 !important;
+      color: white !important;
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25);
+    }
+
+    .edit-mode-active [contenteditable="true"] {
+      outline: 1.5px dashed #93c5fd !important;
+      border-radius: 4px;
+      transition: background-color 0.15s, outline-color 0.15s;
+      cursor: text;
+    }
+
+    .edit-mode-active [contenteditable="true"]:hover {
+      background-color: rgba(224, 242, 254, 0.45) !important;
+      outline: 1.5px solid #0284c7 !important;
+    }
+
+    .edit-mode-active [contenteditable="true"]:focus {
+      background-color: #ffffff !important;
+      outline: 2px solid #0284c7 !important;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
+    }
+
+    .format-toolbar {
+      display: none;
+      position: sticky;
+      top: 57px;
+      z-index: 90;
+      background: #0f172a;
+      color: white;
+      padding: 6px 16px;
+      border-radius: 0 0 12px 12px;
+      margin: 0 auto;
+      max-width: 960px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .format-toolbar.show {
+      display: flex;
+    }
+
+    .fmt-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .fmt-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .fmt-btn:hover {
+      background: #0284c7;
+      border-color: #0284c7;
+    }
+
+    @media print {
+      .format-toolbar, #btn-toggle-edit, #btn-save-manual, #btn-reset-manual, #save-status-indicator {
+        display: none !important;
+      }
+      [contenteditable="true"] {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Floating Screen Action Bar -->
+  <div class="top-bar">
+    <div class="top-bar-title">
+      <span class="badge-doc">Buku Panduan Resmi</span>
+      <span>IARMS Manual Book & User Guide</span>
+    </div>
+    <div class="btn-group" style="align-items: center;">
+      <span id="save-status-indicator" style="font-size: 11px; color: #16a34a; font-weight: 700; display: none;">✓ Tersimpan</span>
+      <button id="btn-toggle-edit" onclick="toggleEditMode()" class="btn btn-outline" style="border-color: #0284c7; color: #0284c7;">✏️ Mode Edit Teks</button>
+      <button id="btn-save-manual" onclick="manualSave()" class="btn btn-outline" style="display:none; color: #16a34a; border-color: #86efac;">💾 Simpan</button>
+      <button id="btn-reset-manual" onclick="resetToDefault()" class="btn btn-outline" style="display:none; color: #ef4444; border-color: #fca5a5;">↺ Reset Teks Asli</button>
+      <a href="/" class="btn btn-outline">⬅️ Kembali</a>
+      <button onclick="window.print()" class="btn btn-primary">🖨️ Cetak / Simpan PDF</button>
+    </div>
+  </div>
+
+  <!-- Floating Text Formatting Toolbar (Shown only in Edit Mode) -->
+  <div id="format-toolbar" class="format-toolbar">
+    <div class="fmt-group">
+      <span style="color: #94a3b8; font-weight: 600; font-size: 11px; margin-right: 4px;">FORMAT TEKS:</span>
+      <button type="button" class="fmt-btn" onclick="formatDoc(bold)" title="Tebal (Ctrl+B)"><strong>B</strong></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(italic)" title="Miring (Ctrl+I)"><em>I</em></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(underline)" title="Garis Bawah (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(strikeThrough)" title="Coret"><s>S</s></button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(insertUnorderedList)" title="Daftar Poin (Bullet List)">• Poin</button>
+      <button type="button" class="fmt-btn" onclick="formatDoc(insertOrderedList)" title="Daftar Nomor (Number List)">1. Nomor</button>
+    </div>
+    <div style="font-size: 11px; color: #94a3b8;">
+      💡 <em>Klik pada kalimat mana saja untuk mengedit, menambah, atau menghapus teks.</em>
+    </div>
+  </div>
+
+  <div class="doc-container" id="manual-doc-body">
+
+    <!-- Document Header -->
+    <div class="doc-header">
+      <div class="logo-area">
+        <h1>IARMS <span>Manual Book</span></h1>
+        <p>Internal Audit & Risk Management Systems — Enterprise Operations Manual</p>
+      </div>
+      <div class="meta-box">
+        <div><strong>Dokumen:</strong> SOP-IA-MAN-01</div>
+        <div><strong>Versi:</strong> 1.0 (Enterprise Release)</div>
+        <div><strong>Pembaruan:</strong> Oktober 2026</div>
+        <div><strong>Otoritas:</strong> Divisi Internal Audit</div>
+      </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>1. Tentang Sistem IARMS</h2>
+    <p>
+      <strong>IARMS (Internal Audit Risk Management Systems)</strong> adalah platform web korporat terintegrasi yang dirancang khusus untuk mengelola seluruh siklus penugasan audit internal, pemantauan tindak lanjut temuan (*Audit Finding Statement / AFS*), manajemen risiko perusahaan (*Risk Register*), serta kepatuhan sistem manajemen ISO.
+    </p>
+
+    <!-- REALISTIC MOCKUP 1: SIDEBAR STRUCTURE -->
+    <div class="app-mockup">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">https://iarms.company.com/dashboard-achievement</div>
+      </div>
+      <div class="mockup-body">
+        <!-- Exact IARMS Sidebar -->
+        <div class="mockup-sidebar">
+          <div class="sidebar-brand">🏢 IARMS AUDIT</div>
+          
+          <div class="sidebar-section-title">Monitoring & Dashboard</div>
+          <div class="sidebar-menu-item active">📊 Dashboard Achievement</div>
+          <div class="sidebar-menu-item">📈 Trend Achievement</div>
+          <div class="sidebar-menu-item">🏢 Achievement Department</div>
+
+          <div class="sidebar-section-title">Temuan & Tindak Lanjut</div>
+          <div class="sidebar-menu-item">📋 Resume AFS</div>
+          <div class="sidebar-menu-item">⭐ Rekomendasi Prioritas</div>
+
+          <div class="sidebar-section-title">Audit Execution</div>
+          <div class="sidebar-menu-item">📥 Input Finding Statement</div>
+          <div class="sidebar-menu-item">📱 Mobile Field Audit</div>
+
+          <div class="sidebar-section-title">Audit Management System</div>
+          <div class="sidebar-menu-item">📑 Kertas Kerja Audit (KKA)</div>
+          <div class="sidebar-menu-item">🛡️ Checklist ISO (9001/14001)</div>
+
+          <div class="sidebar-section-title">Risk Management</div>
+          <div class="sidebar-menu-item">🎯 Risk Management (ERM)</div>
+          <div class="sidebar-menu-item">📊 Risk Register</div>
+          <div class="sidebar-menu-item">🗺️ Company Risk Matrix</div>
+        </div>
+
+        <!-- Exact IARMS Content Preview -->
+        <div class="mockup-content">
+          <div class="content-topbar">
+            <span style="font-weight: 800; font-size: 13px; color: #0f172a;">Dashboard Achievement Closing Audit</span>
+            <div class="topbar-badge-user">
+              <span class="avatar-circle">IA</span>
+              <span>Lead Auditor (Internal Audit)</span>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-label">TOTAL TEMUAN</div>
+              <div class="kpi-value">1.696</div>
+              <span class="kpi-badge badge-blue">Seluruh Site</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">STATUS OPEN</div>
+              <div class="kpi-value">446</div>
+              <span class="kpi-badge badge-red">Perlu Aksi</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">IN PROGRESS</div>
+              <div class="kpi-value">124</div>
+              <span class="kpi-badge badge-amber">Tindak Lanjut</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">CLOSE RATE</div>
+              <div class="kpi-value" style="color: #16a34a;">73,7%</div>
+              <span class="kpi-badge badge-green">1.126 Selesai</span>
+            </div>
+          </div>
+
+          <!-- Site Achievement Table Mockup -->
+          <table style="margin: 0; font-size: 11px;">
+            <thead>
+              <tr>
+                <th>Site / Lokasi</th>
+                <th>Total Temuan</th>
+                <th>Open</th>
+                <th>Progress</th>
+                <th>Close</th>
+                <th>Capaian (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>HEAD OFFICE (HO)</strong></td>
+                <td>327</td>
+                <td>42</td>
+                <td>18</td>
+                <td>267</td>
+                <td><strong style="color: #16a34a;">81,6%</strong></td>
+              </tr>
+              <tr>
+                <td><strong>SITE PALARAN</strong></td>
+                <td>615</td>
+                <td>148</td>
+                <td>42</td>
+                <td>425</td>
+                <td><strong style="color: #16a34a;">69,1%</strong></td>
+              </tr>
+              <tr>
+                <td><strong>SITE MAS</strong></td>
+                <td>412</td>
+                <td>116</td>
+                <td>34</td>
+                <td>262</td>
+                <td><strong style="color: #16a34a;">63,5%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="caption-box">
+        Gambar 1: Struktur Navigasi Menu Resmi IARMS & Tampilan Dasbor Capaian (Dashboard Achievement)
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Keterangan Menu:</strong> Panel menu di sisi kiri dibagi menjadi 7 kategori utama: <em>Monitoring & Dashboard</em>, <em>Temuan & Tindak Lanjut</em>, <em>Audit Execution</em>, <em>Audit Management System</em>, <em>Risk Management</em>, <em>Audit Planning</em>, dan <em>System Control</em>.
+    </div>
+
+    <!-- User Roles -->
+    <h2>2. Peran Pengguna & Tingkat Hak Akses</h2>
+    <p>Sistem membagi pengguna ke dalam 4 peran utama dengan wewenang yang terdefinisi jelas:</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 25%;">Peran (Role)</th>
+          <th>Tanggung Jawab & Hak Akses</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Lead Auditor / Internal Audit</strong></td>
+          <td>Akses penuh: membuat project audit, sinkronisasi Google Sheets AFS, mengedit temuan, meninjau bukti perbaikan, menyetujui closing (*Approval*), serta mengelola Master Karyawan dan Risk Register.</td>
+        </tr>
+        <tr>
+          <td><strong>Auditee / PIC (Site & HO)</strong></td>
+          <td>Akses tindak lanjut: melihat daftar temuan yang dibebankan ke departemennya, memperbarui progres perbaikan, dan melampirkan tautan/dokumen bukti perbaikan (*evidence closing*).</td>
+        </tr>
+        <tr>
+          <td><strong>Manajemen / Eksekutif</strong></td>
+          <td>Akses pemantauan: melihat dasbor capaian agregat (*close rate %*), matriks risiko utama (*risk matrix*), tren penyelesaian per kuartal, dan rekomendasi audit prioritas tinggi.</td>
+        </tr>
+        <tr>
+          <td><strong>Akses Publik</strong></td>
+          <td>Akses ringkasan: memantau capaian audit publik tanpa izin melihat kertas kerja audit sensitif (*KKA*) atau mengubah data master.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <!-- Account Management -->
+    <h2>3. Manajemen Akun (Pendaftaran, Login, & Profil)</h2>
+
+    <!-- REALISTIC MOCKUP 2: LOGIN MODAL -->
+    <div class="app-mockup" style="max-width: 600px; margin: 20px auto;">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">Halaman Masuk (Login / Register Akun)</div>
+      </div>
+      <div style="padding: 24px 28px; background: white;">
+        <div style="text-align: center; margin-bottom: 16px;">
+          <h3 style="font-size: 16px; margin: 0; color: #0f172a;">Masuk ke Akun IARMS</h3>
+          <p style="font-size: 11.5px; color: #64748b; margin-top: 4px;">Sistem Tata Kelola Audit Internal & Manajemen Risiko</p>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px;">
+          <div style="padding: 8px 16px; font-weight: 700; font-size: 12px; color: #0284c7; border-bottom: 2px solid #0284c7; margin-bottom: -2px;">Masuk Akun</div>
+          <div style="padding: 8px 16px; font-weight: 600; font-size: 12px; color: #64748b;">Daftar Akun Baru</div>
+        </div>
+
+        <!-- Form Inputs -->
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px;">Nomor Induk Karyawan (NIK) / Email</label>
+          <input type="text" class="mockup-input" value="10928374 / ahmad.auditor@company.com" readonly />
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px;">Kata Sandi (Password)</label>
+          <input type="password" class="mockup-input" value="••••••••••••" readonly />
+        </div>
+
+        <button style="width: 100%; background: #0284c7; color: white; font-weight: 700; padding: 10px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer;">
+          Masuk ke IARMS
+        </button>
+      </div>
+      <div class="caption-box">
+        Gambar 2: Jendela Dialog Masuk Akun dan Pendaftaran Pengguna Baru Berbasis NIK dan Departemen
+      </div>
+    </div>
+    
+    <div class="step-box">
+      <span class="step-badge">Langkah A</span>
+      <h3>Pendaftaran Akun Baru (Register)</h3>
+      <ol>
+        <li>Buka aplikasi IARMS pada browser Anda.</li>
+        <li>Pada bilah kanan atas (*header*), klik tombol <strong>"Halaman Masuk (Login / Register)"</strong>.</li>
+        <li>Pilih tab <strong>"Daftar Akun Baru"</strong>.</li>
+        <li>Isi data: <strong>Nama Lengkap</strong>, <strong>NIK</strong>, <strong>Departemen & Site</strong>, <strong>Email Korporat</strong>, dan buat <strong>Kata Sandi</strong>.</li>
+        <li>Klik tombol <strong>"Daftar Sekarang"</strong>. Akun Anda akan langsung tersimpan di database server.</li>
+      </ol>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Input Finding Statement -->
+    <h2>4. Panduan Input & Sinkronisasi Temuan Audit</h2>
+    <p>Di bawah ini adalah tampilan resmi kartu project audit pada menu <strong>Input Finding Statement</strong>:</p>
+
+    <!-- REALISTIC MOCKUP 3: PROJECT CARD SYNC (Matches Actual User Screen) -->
+    <div class="app-mockup">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">https://iarms.company.com/input-finding-statement</div>
+      </div>
+      <div style="padding: 20px; background: #f8fafc;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 16px;">Daftar Project & Spreadsheet AFS</h3>
+          <button style="background: #0284c7; color: white; padding: 6px 14px; font-size: 11.5px; font-weight: 700; border-radius: 8px; border: none;">+ Tambah Project Audit Baru</button>
+        </div>
+
+        <!-- Project Card Component -->
+        <div class="project-card-mockup">
+          <div class="project-card-header">
+            <div class="p-tags">
+              <span class="p-tag p-tag-name">AUDIT OPERASIONAL IT</span>
+              <span class="p-tag p-tag-site">SITE: HEAD OFFICE</span>
+              <span class="p-tag p-tag-year">TAHUN: 2026</span>
+              <span class="p-tag p-tag-sync">✓ 327 Temuan Ter-Sync</span>
+            </div>
+            <button style="background: none; border: none; color: #ef4444; font-size: 14px; cursor: pointer;" title="Hapus Project">🗑️</button>
+          </div>
+
+          <div class="card-inputs-grid">
+            <div class="input-group">
+              <label>Nama Site / Lokasi</label>
+              <input type="text" class="mockup-input" value="HEAD OFFICE" readonly />
+            </div>
+            <div class="input-group">
+              <label>Tahun</label>
+              <input type="text" class="mockup-input" value="2026" readonly />
+            </div>
+            <div class="input-group">
+              <label>Link Google Sheet AFS</label>
+              <input type="text" class="mockup-input" value="https://docs.google.com/spreadsheets/d/1B_89xUu29qA..." readonly />
+            </div>
+            <div>
+              <button class="mockup-btn-sync">🔄 Sync Project Ini</button>
+            </div>
+          </div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 8px;">
+            Terakhir disinkronkan: 24/10/2026, 12:45:10 WIB
+          </div>
+        </div>
+
+        <!-- Second Project Card Component -->
+        <div class="project-card-mockup">
+          <div class="project-card-header">
+            <div class="p-tags">
+              <span class="p-tag p-tag-name">PR-PAYMENT</span>
+              <span class="p-tag p-tag-site">SITE: JAKARTA (HO)</span>
+              <span class="p-tag p-tag-year">TAHUN: 2026</span>
+              <span class="p-tag p-tag-sync">✓ 90 Temuan Ter-Sync</span>
+            </div>
+            <button style="background: none; border: none; color: #ef4444; font-size: 14px; cursor: pointer;">🗑️</button>
+          </div>
+
+          <div class="card-inputs-grid">
+            <div class="input-group">
+              <label>Nama Site / Lokasi</label>
+              <input type="text" class="mockup-input" value="JAKARTA" readonly />
+            </div>
+            <div class="input-group">
+              <label>Tahun</label>
+              <input type="text" class="mockup-input" value="2026" readonly />
+            </div>
+            <div class="input-group">
+              <label>Link Google Sheet AFS</label>
+              <input type="text" class="mockup-input" value="https://docs.google.com/spreadsheets/d/1NeP_VuRP..." readonly />
+            </div>
+            <div>
+              <button class="mockup-btn-sync">🔄 Sync Project Ini</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption-box">
+        Gambar 3: Halaman Kelola Project & Sinkronisasi Google Sheets AFS dengan Status Temuan Ter-Sync
+      </div>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">METODE UTAMA</span>
+      <h3>Cara Sinkronisasi Google Spreadsheet AFS</h3>
+      <ol>
+        <li>Buka menu samping <strong>"Input Finding Statement"</strong>.</li>
+        <li>Cari kartu project yang ingin diperbarui datanya.</li>
+        <li>Pastikan link Google Sheet telah disetel minimal <em>"Anyone with the link can view" (Siapa saja yang memiliki link dapat melihat)</em>.</li>
+        <li>Klik tombol biru <strong>"Sync Project Ini"</strong>.</li>
+        <li>Sistem akan mengunduh baris temuan secara instan dan memperbarui badge status hijau: <code>✓ [X] Temuan Ter-Sync</code>.</li>
+      </ol>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Finding Statement Table -->
+    <h2>5. Alur Tindak Lanjut & Closing Temuan</h2>
+    <p>Di bawah ini adalah tampilan database pada modul <strong>Resume Audit Finding Statement (AFS)</strong>:</p>
+
+    <!-- REALISTIC MOCKUP 4: FINDING STATEMENT TABLE -->
+    <div class="app-mockup">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">https://iarms.company.com/finding-statement</div>
+      </div>
+      <div style="padding: 16px; background: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; gap: 6px;">
+            <span class="p-tag p-tag-name">Semua (1.696)</span>
+            <span class="p-tag" style="background: #fee2e2; color: #b91c1c;">OPEN (446)</span>
+            <span class="p-tag" style="background: #fef3c7; color: #b45309;">PROGRESS (124)</span>
+            <span class="p-tag" style="background: #dcfce7; color: #166534;">CLOSE (1.126)</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px;">📊 Export Excel</button>
+            <button style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px;">📑 Export PDF</button>
+          </div>
+        </div>
+
+        <table style="margin: 0; font-size: 11.5px;">
+          <thead>
+            <tr>
+              <th style="width: 30px;">No</th>
+              <th>Project Audit</th>
+              <th>Site</th>
+              <th>Problem / Finding</th>
+              <th>Kategori</th>
+              <th>PIC</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1</strong></td>
+              <td>AUDIT OPERASIONAL IT</td>
+              <td>HEAD OFFICE</td>
+              <td>Kelemahan validasi akses akun priviledged ERP server</td>
+              <td><span class="kpi-badge badge-red">MAJOR</span></td>
+              <td>IT Dept</td>
+              <td>15 Nov 2026</td>
+              <td><span class="kpi-badge badge-red">OPEN</span></td>
+              <td><button style="background: #0284c7; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Tindak Lanjut</button></td>
+            </tr>
+            <tr>
+              <td><strong>2</strong></td>
+              <td>PR-PAYMENT</td>
+              <td>JAKARTA</td>
+              <td>Keterlambatan verifikasi BA serah terima unit di SAP</td>
+              <td><span class="kpi-badge badge-amber">MODERATE</span></td>
+              <td>Logistik</td>
+              <td>20 Nov 2026</td>
+              <td><span class="kpi-badge badge-amber">PROGRESS</span></td>
+              <td><button style="background: #0284c7; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Tindak Lanjut</button></td>
+            </tr>
+            <tr>
+              <td><strong>3</strong></td>
+              <td>AUDIT OPERASIONAL</td>
+              <td>PALARAN</td>
+              <td>SOP pemeliharaan alat berat telah diperbarui dan disosialisasikan</td>
+              <td><span class="kpi-badge badge-blue">MINOR</span></td>
+              <td>Plant</td>
+              <td>10 Okt 2026</td>
+              <td><span class="kpi-badge badge-green">CLOSE</span></td>
+              <td><button style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Lihat Bukti</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="caption-box">
+        Gambar 4: Tabel Database Resume AFS Dilengkapi Filter Status (Open, Progress, Close) dan Tombol Tindak Lanjut Bukti Closing
+      </div>
+    </div>
+
+    <!-- Table of Workflow -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%;">Tahapan</th>
+          <th style="width: 25%;">Pelaksana</th>
+          <th>Deskripsi Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. OPEN</strong></td>
+          <td>Internal Audit</td>
+          <td>Temuan diterbitkan dengan target Due Date dan rekomendasi tindakan perbaikan.</td>
+        </tr>
+        <tr>
+          <td><strong>2. IN PROGRESS</strong></td>
+          <td>Auditee / PIC</td>
+          <td>PIC melakukan perbaikan di lapangan, membuat SOP/BA perbaikan, dan menyiapkan bukti dokumen pendukung.</td>
+        </tr>
+        <tr>
+          <td><strong>3. SUBMIT CLOSING</strong></td>
+          <td>Auditee / PIC</td>
+          <td>PIC membuka modul <em>Resume AFS</em>, klik tombol <strong>"Tindak Lanjut"</strong>, mengisi uraian perbaikan, dan melampirkan link Google Drive bukti closing. Status berubah menjadi <em>PENDING IA REVIEW</em>.</td>
+        </tr>
+        <tr>
+          <td><strong>4. IA VERIFICATION</strong></td>
+          <td>Internal Audit</td>
+          <td>Auditor memeriksa bukti closing:
+            <br>• Jika memadai: Klik <strong>"APPROVE / CLOSE"</strong> (Status resmi menjadi <em>CLOSE</em>).
+            <br>• Jika belum lengkap: Klik <strong>"REVISE / NEED FOLLOW UP"</strong> disertai catatan kekurangan.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ACHIEVEMENT DEPARTMENT INTERACTIVE MODULE -->
+    <div class="page-break"></div>
+    <h2>6. Modul Achievement Department & Fitur Interaktif Buka Temuan OPEN</h2>
+    <p>
+      Modul <strong>Achievement Department</strong> menyajikan rekapitulasi performa tingkat penyelesaian temuan audit (*close rate*) per departemen atau unit kerja (misal: <em>IT, Plant, Finance, Logistik, HRD, GA, Mining, SHE</em>). Modul ini dilengkapi fitur <strong>Drill-Down Interaktif</strong> untuk mempercepat penelusuran temuan yang masih membutuhkan aksi perbaikan.
+    </p>
+
+    <!-- REALISTIC MOCKUP: ACHIEVEMENT DEPARTMENT TABLE WITH CLICKABLE OPEN -->
+    <div class="app-mockup">
+      <div class="mockup-window-header">
+        <div class="window-dots">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+        </div>
+        <div class="window-url">https://iarms.company.com/achievement-department</div>
+      </div>
+      <div style="padding: 16px; background: white;">
+        
+        <!-- Header & Quick Filters -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-weight: 800; font-size: 14px; color: #0f172a;">Tingkat Capaian Audit per Departemen</span>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Klik pada angka kolom untuk langsung melihat rincian temuan di Resume AFS</div>
+          </div>
+          <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 3px; border-radius: 8px; font-size: 11px;">
+            <span style="background: #0284c7; color: white; padding: 3px 10px; border-radius: 6px; font-weight: 700;">PIC HO</span>
+            <span style="color: #64748b; padding: 3px 10px; font-weight: 600;">PIC Site</span>
+            <span style="color: #64748b; padding: 3px 10px; font-weight: 600;">Semua PIC</span>
+          </div>
+        </div>
+
+        <!-- Interactive Table Mockup -->
+        <table style="margin: 0; font-size: 11.5px;">
+          <thead>
+            <tr>
+              <th style="width: 30px; text-align: center;">No</th>
+              <th>Departemen / Unit Kerja</th>
+              <th style="text-align: center;">Total</th>
+              <th style="text-align: center;">Closed</th>
+              <th style="text-align: center; background: #fee2e2; color: #991b1b;">OPEN (Klik) 🔴</th>
+              <th style="text-align: center;">Progress</th>
+              <th style="text-align: center;">Overdue</th>
+              <th style="text-align: center;">Capaian (%)</th>
+              <th style="text-align: center;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background: #fff;">
+              <td style="text-align: center; font-weight: bold;">1</td>
+              <td><strong>IT & SISTEM INFORMASI</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">115</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">88</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 20 temuan OPEN IT di Resume AFS">
+                👉 20
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">7</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">3</td>
+              <td style="text-align: center; font-weight: 800; color: #16a34a;">76,5%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+            <tr style="background: #fafbfc;">
+              <td style="text-align: center; font-weight: bold;">2</td>
+              <td><strong>PLANT & ALAT BERAT</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">240</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">182</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 42 temuan OPEN Plant di Resume AFS">
+                👉 42
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">16</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">8</td>
+              <td style="text-align: center; font-weight: 800; color: #16a34a;">75,8%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+            <tr style="background: #fff;">
+              <td style="text-align: center; font-weight: bold;">3</td>
+              <td><strong>LOGISTIK & WAREHOUSE</strong></td>
+              <td style="text-align: center; color: #0284c7; text-decoration: underline; cursor: pointer;">165</td>
+              <td style="text-align: center; color: #16a34a; text-decoration: underline; cursor: pointer;">110</td>
+              <!-- CLICKABLE OPEN CELL -->
+              <td style="text-align: center; background: #fef2f2; font-weight: 800; color: #dc2626; text-decoration: underline; cursor: pointer;" title="Klik untuk membuka 38 temuan OPEN Logistik di Resume AFS">
+                👉 38
+              </td>
+              <td style="text-align: center; color: #d97706; text-decoration: underline; cursor: pointer;">17</td>
+              <td style="text-align: center; color: #9333ea; text-decoration: underline; cursor: pointer;">5</td>
+              <td style="text-align: center; font-weight: 800; color: #d97706;">66,7%</td>
+              <td style="text-align: center;"><button style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">Detail</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="caption-box">
+        Gambar 5: Tampilan Tabel Achievement Department dengan Kolom OPEN Interaktif yang Dapat Diklik Langsung untuk Membuka Temuan Terkait
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Cara Kerja Fitur Interaktif "Klik Temuan OPEN":</strong>
+      <ul style="margin: 6px 0 6px 18px;">
+        <li><strong>Klik Langsung pada Angka OPEN:</strong> Cukup klik angka berwarna merah pada kolom <code>OPEN</code> di baris departemen yang Anda inginkan (misal: klik angka <code>20</code> pada baris IT).</li>
+        <li><strong>Otomatis Pindah ke Resume AFS:</strong> Sistem IARMS seketika mengarahkan Anda ke halaman <strong>Resume Audit Finding Statement (AFS)</strong> dengan filter yang telah terpasang otomatis: <em>Departemen: IT</em> dan <em>Status: OPEN</em>.</li>
+        <li><strong>Langsung Siap Tindak Lanjut:</strong> PIC departemen atau auditor tidak perlu mencari atau memfilter manual satu per satu, seluruh temuan yang masih terbuka langsung muncul di layar untuk segera ditindaklanjuti.</li>
+      </ul>
+    </div>
+
+    <div class="step-box">
+      <span class="step-badge">PANDUAN PRAKTIS</span>
+      <h3>3 Cara Membuka Temuan Departemen dari Modul Ini:</h3>
+      <ol>
+        <li><strong>Metode 1 (Paling Cepat): Klik Angka di Kolom OPEN (Merah)</strong><br>
+          Klik angka pada kolom <strong>OPEN</strong> untuk langsung menampilkan semua temuan departemen tersebut yang statusnya masih <code>OPEN</code>.
+        </li>
+        <li><strong>Metode 2: Klik Tombol "Detail" pada Baris Departemen</strong><br>
+          Klik tombol <strong>"Detail"</strong> di sisi kanan tabel untuk membuka jendela pop-up. Di dalam pop-up terdapat ringkasan kartu dan tombol merah: <strong>"Buka Temuan OPEN [Nama Departemen]"</strong>.
+        </li>
+        <li><strong>Metode 3: Penelusuran Berdasarkan Status Lainnya</strong><br>
+          Selain kolom OPEN, Anda juga dapat mengklik angka pada kolom <strong>Closed</strong> (hijau), <strong>Progress</strong> (kuning), <strong>Overdue</strong> (ungu), atau <strong>Total</strong> (biru) untuk membuka temuan sesuai kategori status yang diinginkan.
+        </li>
+      </ol>
+    </div>
+
+    <!-- FAQ -->
+    <h2>7. Pertanyaan yang Sering Diajukan (FAQ)</h2>
+    <p><strong>Q: Apakah data tersimpan aman jika browser ditutup atau komputer mati?</strong><br>
+    <strong>A:</strong> Ya. Seluruh data yang disimpan atau disinkronkan langsung tersimpan di file database server <code>server_app_state.json</code> dan di-cache pada memori lokal peramban.</p>
+
+    <p><strong>Q: Bagaimana cara menyimpan dokumen ini ke bentuk file PDF di komputer?</strong><br>
+    <strong>A:</strong> Klik tombol biru <strong>"🖨️ Cetak / Simpan sebagai PDF"</strong> di bilah atas layar, atau tekan tombol kombinasi <code>Ctrl + P</code> (pada Windows) atau <code>Cmd + P</code> (pada Mac), lalu pada menu printer pilih opsi <strong>"Save as PDF" (Simpan sebagai PDF)</strong>.</p>
+
+    <!-- Document Sign Off -->
+    <div class="doc-footer">
+      <div>© 2026 Internal Audit & Risk Management Systems (IARMS). All Rights Reserved.</div>
+      <div>Dicetak dari: IARMS Knowledge Base & Operational Guidelines</div>
+    </div>
+
+  </div>
+
+
+  <script>
+    const STORAGE_KEY = "iarms_manual_book_custom_v2";
+    let isEditing = false;
+    let autoSaveTimeout = null;
+
+    // Load saved content from localStorage on startup
+    window.addEventListener("DOMContentLoaded", () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && saved.trim()) {
+          const docBody = document.getElementById("manual-doc-body");
+          if (docBody) {
+            docBody.innerHTML = saved;
+            showSaveIndicator("✓ Memuat versi kustom Anda");
+          }
+        }
+      } catch(e) {
+        console.warn("Could not load custom manual content:", e);
+      }
+    });
+
+    function toggleEditMode() {
+      isEditing = !isEditing;
+      const body = document.body;
+      const toggleBtn = document.getElementById("btn-toggle-edit");
+      const saveBtn = document.getElementById("btn-save-manual");
+      const resetBtn = document.getElementById("btn-reset-manual");
+      const toolbar = document.getElementById("format-toolbar");
+      const docBody = document.getElementById("manual-doc-body");
+
+      if (isEditing) {
+        body.classList.add("edit-mode-active");
+        toggleBtn.classList.add("btn-edit-active");
+        toggleBtn.innerHTML = "✓ Selesai Edit";
+        saveBtn.style.display = "inline-flex";
+        resetBtn.style.display = "inline-flex";
+        toolbar.classList.add("show");
+
+        // Make elements inside manual-doc-body editable
+        makeElementsEditable(true);
+
+        showSaveIndicator("✏️ Mode Edit Aktif - Klik teks untuk mengetik");
+      } else {
+        body.classList.remove("edit-mode-active");
+        toggleBtn.classList.remove("btn-edit-active");
+        toggleBtn.innerHTML = "✏️ Mode Edit Teks";
+        saveBtn.style.display = "none";
+        resetBtn.style.display = "none";
+        toolbar.classList.remove("show");
+
+        makeElementsEditable(false);
+        saveContent();
+        showSaveIndicator("✓ Seluruh perubahan tersimpan");
+      }
+    }
+
+    function makeElementsEditable(editable) {
+      const docBody = document.getElementById("manual-doc-body");
+      if (!docBody) return;
+      const targets = docBody.querySelectorAll("h1, h2, h3, p, li, td, th, .callout, figcaption, .caption-box, .meta-box div, .kpi-label, .kpi-value, .p-tag");
+      targets.forEach(el => {
+        el.contentEditable = editable ? "true" : "false";
+        if (editable) {
+          el.removeEventListener("input", handleContentInput);
+          el.addEventListener("input", handleContentInput);
+        } else {
+          el.removeEventListener("input", handleContentInput);
+        }
+      });
+    }
+
+    function handleContentInput() {
+      showSaveIndicator("Menyimpan perubahan...");
+      if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        saveContent();
+        showSaveIndicator("✓ Tersimpan otomatis di browser");
+      }, 800);
+    }
+
+    function saveContent() {
+      try {
+        const docBody = document.getElementById("manual-doc-body");
+        if (docBody) {
+          // Temporarily ensure contentEditable does not pollute attributes
+          localStorage.setItem(STORAGE_KEY, docBody.innerHTML);
+        }
+      } catch(e) {
+        console.error("Gagal menyimpan ke localStorage:", e);
+      }
+    }
+
+    function manualSave() {
+      saveContent();
+      showSaveIndicator("✓ Perubahan berhasil disimpan!");
+    }
+
+    function resetToDefault() {
+      const ok = window.confirm("Apakah Anda yakin ingin mengembalikan seluruh teks ke versi standar resmi IARMS?\n\nSemua kalimat yang Anda ubah atau tambahkan akan di-reset.");
+      if (ok) {
+        localStorage.removeItem(STORAGE_KEY);
+        window.location.reload();
+      }
+    }
+
+    function formatDoc(cmd, val = null) {
+      document.execCommand(cmd, false, val);
+      handleContentInput();
+    }
+
+    function showSaveIndicator(msg) {
+      const indicator = document.getElementById("save-status-indicator");
+      if (indicator) {
+        indicator.textContent = msg;
+        indicator.style.display = "inline";
+        clearTimeout(indicator._timer);
+        indicator._timer = setTimeout(() => {
+          if (!isEditing) indicator.style.display = "none";
+        }, 4000);
+      }
+    }
+  </script>
+
+</body>
+</html>
